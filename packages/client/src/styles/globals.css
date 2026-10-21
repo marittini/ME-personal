@@ -8658,3 +8658,19 @@ html[data-marinara-reduced-effects="true"] .mari-window {
 [data-drag-source="true"] {
   opacity: 0.5;
 }
+/* Library shell: the quiet public-facing home owns the full viewport. Chat chrome returns when a work opens. */
+html[data-library-shell-home="true"] [data-component="TopBar"],
+html[data-library-shell-home="true"] [data-component="ChatSidebarSlot"],
+html[data-library-shell-home="true"] [data-component="RightPanelDesktopSlot"],
+html[data-library-shell-home="true"] [class*="y2k-star"] {
+  display: none !important;
+}
+
+html[data-library-shell-home="true"] [data-component="AppShell"] {
+  background: var(--background) !important;
+}
+
+html[data-library-shell-home="true"] [data-component="AppShell"]::before,
+html[data-library-shell-home="true"] [data-component="AppShell"]::after {
+  display: none !important;
+}
