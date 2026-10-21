@@ -1,3 +1,4 @@
+import { toStoredWebp } from "../services/image/webp-storage.js";
 import { resolveDecisionConnection } from "../services/decision/decision-connection.js";
 import { askNoulQuestions } from "../services/decision/system-one.client.js";
 import { connectionChatTarget, probeDecisionSlot } from "../services/decision/sidecar-decision.backend.js";
@@ -78,13 +79,7 @@ import { buildFalImageUrl } from "../services/image/fal-image.js";
 import { buildSpicyApiUrl, normalizeSpicyApiImageModels } from "../services/image/spicyapi-image.js";
 import { isImageLocalUrlsEnabled, isProviderLocalUrlsEnabled } from "../config/runtime-config.js";
 import { logger, logDebugOverride } from "../lib/logger.js";
-import {
-  assertInsideDir,
-  extensionFromImageMime,
-  isAllowedImageBuffer,
-  normalizeLoopbackUrl,
-  safeFetch,
-} from "../utils/security.js";
+import { assertInsideDir, isAllowedImageBuffer, normalizeLoopbackUrl, safeFetch } from "../utils/security.js";
 import { DATA_DIR } from "../utils/data-dir.js";
 import { decryptApiKey } from "../utils/crypto.js";
 import {
@@ -562,13 +557,14 @@ export async function connectionsRoutes(app: FastifyInstance) {
     const imageInfo = isAllowedImageBuffer(buffer, `.${hintedExt}`);
     if (!imageInfo) return reply.status(400).send({ error: "Unsupported or invalid connection image" });
 
-    const ext = extensionFromImageMime(imageInfo.mimeType);
+    const converted = await toStoredWebp(buffer);
+    const ext = converted.ext;
     await mkdir(CONNECTION_IMAGES_DIR, { recursive: true });
     const filename = `connection-${req.params.id.replace(/[^a-zA-Z0-9_-]/g, "-")}-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 8)}.${ext}`;
     const filepath = assertInsideDir(CONNECTION_IMAGES_DIR, join(CONNECTION_IMAGES_DIR, filename));
-    await writeFile(filepath, buffer);
+    await writeFile(filepath, converted.buffer);
 
     const updated = await storage.update(req.params.id, { imagePath: `/api/connections/images/file/${filename}` });
     if (!updated) return reply.status(404).send({ error: "Connection not found" });

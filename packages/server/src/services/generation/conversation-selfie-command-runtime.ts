@@ -1,3 +1,4 @@
+import { captureNaiChatDestination } from "../image/nai-result-application.js";
 import type { DB } from "../../db/connection.js";
 import { buildChatImageGenerationRecord, readImageAppearanceOverride } from "@marinara-engine/shared";
 import { isDebugAgentsEnabled } from "../../config/runtime-config.js";
@@ -376,8 +377,24 @@ async function generateSelfie(
     return reportSelfiePreview(args, imgConnFull, imageDefaults, selfieSubmission, selfieWidth, selfieHeight);
   }
   logDebugOverride(debugOverrideEnabled, "[debug/commands/selfie] final image prompt:\n%s", selfieSubmission.prompt);
-  const drawSelfie = () =>
+  const drawSelfie = async () =>
     generateImage(imgModel, imgBaseUrl, imgApiKey, serviceHint || imgSource, {
+      naiDestination: {
+        ...(await captureNaiChatDestination(
+          args.db,
+          args.chatId,
+          args.messageId,
+          Number.isInteger(args.swipeIndex) ? args.swipeIndex! : 0,
+          { provider: imgConnFull.provider ?? undefined, characterName: args.charName },
+        )),
+        characterIds: imageSettings.autoSaveToGalleries === false ? [] : selfieResolvedCharacterIds,
+        generation: buildChatImageGenerationRecord({
+          prompt: selfieSubmission.prompt,
+          connectionId: imgConnFull.id,
+          negativePrompt: selfieSubmission.negativePrompt,
+          referenceCharacterIds: selfieReferenceCharacterIds,
+        }),
+      },
       prompt: selfieSubmission.prompt,
       negativePrompt: selfieSubmission.negativePrompt || undefined,
       model: imgModel,

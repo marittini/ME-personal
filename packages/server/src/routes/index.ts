@@ -1,3 +1,4 @@
+import { naiRequestGuardRoutes } from "./nai-request-guard.routes.js";
 import type { FastifyInstance } from "fastify";
 import { chatsRoutes } from "./chats.routes.js";
 import { chatInsightsRoutes } from "./chat-insights.routes.js";
@@ -144,6 +145,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(uiLanguagesRoutes, { prefix: "/api/ui-languages" });
   await app.register(themesRoutes, { prefix: "/api/themes" });
   await app.register(appSettingsRoutes, { prefix: "/api/app-settings" });
+  await app.register(naiRequestGuardRoutes, { prefix: "/api/nai-request-guard" });
   await app.register(achievementsRoutes, { prefix: "/api/achievements" });
   await app.register(multiplayerRoutes, { prefix: "/api/multiplayer", service: multiplayer });
   await app.register(ttsRoutes, { prefix: "/api/tts" });

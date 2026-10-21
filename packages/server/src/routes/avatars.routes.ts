@@ -1,3 +1,4 @@
+import { toStoredWebp } from "../services/image/webp-storage.js";
 // ──────────────────────────────────────────────
 // Routes: Avatar file serving
 // ──────────────────────────────────────────────
@@ -118,9 +119,10 @@ export async function avatarsRoutes(app: FastifyInstance) {
     if (!image) {
       return reply.status(400).send({ error: "Unsupported or invalid avatar image" });
     }
-    const filename = `${safeName}.${image.ext}`;
+    const converted = await toStoredWebp(imageBuffer);
+    const filename = `${safeName}.${converted.ext}`;
     const filePath = assertInsideDir(npcDir, join(npcDir, filename));
-    writeFileSync(filePath, imageBuffer);
+    writeFileSync(filePath, converted.buffer);
 
     return reply.send({ avatarPath: `/api/avatars/npc/${chatId}/${filename}?v=${Date.now()}` });
   });

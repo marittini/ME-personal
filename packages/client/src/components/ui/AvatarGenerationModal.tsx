@@ -14,6 +14,7 @@ type AvatarGenerationModalProps = {
   title: string;
   mode?: "avatar" | "character-sheet";
   entityName: string;
+  resumeTarget?: { entity: "character" | "persona"; id: string };
   defaultAppearance?: string;
   defaultAvatarUrl?: string | null;
   neutralFullBodyReferenceUrl?: string | null;
@@ -59,6 +60,7 @@ export function AvatarGenerationModal({
   title,
   mode = "avatar",
   entityName,
+  resumeTarget,
   defaultAppearance,
   defaultAvatarUrl,
   neutralFullBodyReferenceUrl,
@@ -138,6 +140,7 @@ export function AvatarGenerationModal({
   const buildPayload = (referenceImages?: string[], promptOverrides?: ImagePromptOverride[]) => ({
     connectionId: effectiveConnectionId,
     purpose: mode,
+    resumeTarget: mode === "avatar" ? resumeTarget : undefined,
     name: entityName.trim() || "Character",
     appearance: appearance.trim(),
     referenceImages,

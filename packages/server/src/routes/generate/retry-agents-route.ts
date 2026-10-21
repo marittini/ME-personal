@@ -1,3 +1,4 @@
+import { captureNaiChatDestination } from "../../services/image/nai-result-application.js";
 import { allowsDefaultChatModel } from "../../services/llm/local-context-limit.js";
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "crypto";
@@ -4017,8 +4018,29 @@ async function applyRetryResultEffects(args: {
             });
             const imageResults = await generateIllustratorImageVariants({
               count: chatMeta.illustratorImagesPerGeneration,
-              generate: () =>
+              generate: async () =>
                 generateImage(imgModel, imgBaseUrl, imgApiKey, imgServiceHint, {
+                  naiDestination: {
+                    ...(await captureNaiChatDestination(app.db, chatId, retryMessageId, retrySwipeIndex, {
+                      provider: imgConnFull.provider ?? undefined,
+                    })),
+                    characterIds: imageSettings.autoSaveToGalleries === false ? [] : referenceResolution.characterIds,
+                    personaIds:
+                      imageSettings.autoSaveToGalleries === false || !referenceResolution.personaId
+                        ? []
+                        : [referenceResolution.personaId],
+                    generation: buildChatImageGenerationRecord({
+                      prompt: promptSubmission.prompt,
+                      connectionId: imgConnFull.id,
+                      negativePrompt: promptSubmission.negativePrompt,
+                      characterPrompts: illustratorCharacterPrompts,
+                      referenceCharacterIds: useAvatarRefs ? referenceResolution.characterIds : [],
+                      referencePersonaId: useAvatarRefs ? referenceResolution.personaId : null,
+                      locationImageId: spatialLocationReferenceImage
+                        ? retryOwnerSpatialProjection?.referenceImageId
+                        : null,
+                    }),
+                  },
                   prompt: promptSubmission.prompt,
                   negativePrompt: promptSubmission.negativePrompt || undefined,
                   model: imgModel,

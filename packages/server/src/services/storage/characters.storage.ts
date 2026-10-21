@@ -634,12 +634,16 @@ export function createCharactersStorage(db: DB) {
       return this.getById(id);
     },
 
-    async updateAvatar(id: string, avatarPath: string | null) {
+    async updateAvatar(id: string, avatarPath: string | null, expectedAvatarPath?: string | null) {
       return withAvatarFileLifecycleLock(() =>
         db.transaction(async (tx) => {
           const rows = await tx.select().from(characters).where(eq(characters.id, id));
           const existing = rows[0];
           if (!existing) return null;
+          if (expectedAvatarPath !== undefined) {
+            if (existing.avatarPath === avatarPath) return existing;
+            if ((existing.avatarPath ?? null) !== expectedAvatarPath) throw new Error("NAI_DESTINATION_CONFLICT");
+          }
           const currentData = normalizeCharacterData(parseCharacterData(existing.data));
           const versioningEnabled = characterVersioningEnabled(currentData);
           if (existing.avatarPath !== avatarPath && versioningEnabled) {
@@ -1100,6 +1104,7 @@ export function createCharactersStorage(db: DB) {
       id: string,
       updates: Partial<PersonaStorageWriteFields> & { avatarPath?: PersonaStorageRow["avatarPath"] },
       options?: {
+        expectedAvatarPath?: string | null;
         versionSource?: string | null;
         versionReason?: string | null;
         skipVersionSnapshot?: boolean;
@@ -1147,6 +1152,10 @@ export function createCharactersStorage(db: DB) {
         const currentRows = await database.select().from(personas).where(eq(personas.id, id));
         const current = currentRows[0];
         if (!current) return null;
+        if (options?.expectedAvatarPath !== undefined) {
+          if (current.avatarPath === updates.avatarPath) return current;
+          if ((current.avatarPath ?? null) !== options.expectedAvatarPath) throw new Error("NAI_DESTINATION_CONFLICT");
+        }
         const currentData = buildPersonaSnapshot(current);
         const nextData = mergePersonaSnapshot(currentData, {
           ...(updates.name !== undefined && { name: updates.name }),

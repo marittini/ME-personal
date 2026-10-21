@@ -1,3 +1,4 @@
+import { toStoredWebp } from "../services/image/webp-storage.js";
 // ──────────────────────────────────────────────
 // Routes: Agents
 // ──────────────────────────────────────────────
@@ -37,7 +38,7 @@ import { applyIllustratorChatRunInterval } from "../services/generation/agent-ca
 import { createLLMProvider } from "../services/llm/provider-registry.js";
 import { normalizeBeholderState } from "../services/agents/beholder-state.js";
 import { DATA_DIR } from "../utils/data-dir.js";
-import { assertInsideDir, extensionFromImageMime, isAllowedImageBuffer } from "../utils/security.js";
+import { assertInsideDir, isAllowedImageBuffer } from "../utils/security.js";
 import { z } from "zod";
 
 const AGENT_IMAGES_DIR = join(DATA_DIR, "agents", "images");
@@ -535,13 +536,14 @@ export async function agentsRoutes(app: FastifyInstance) {
     const imageInfo = isAllowedImageBuffer(buffer, `.${hintedExt}`);
     if (!imageInfo) return reply.status(400).send({ error: "Unsupported or invalid agent image" });
 
-    const ext = extensionFromImageMime(imageInfo.mimeType);
+    const converted = await toStoredWebp(buffer);
+    const ext = converted.ext;
     await mkdir(AGENT_IMAGES_DIR, { recursive: true });
     const filename = `agent-${config.id.replace(/[^a-zA-Z0-9_-]/g, "-")}-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 8)}.${ext}`;
     const filepath = assertInsideDir(AGENT_IMAGES_DIR, join(AGENT_IMAGES_DIR, filename));
-    await writeFile(filepath, buffer);
+    await writeFile(filepath, converted.buffer);
 
     const updated = await storage.update(config.id, { imagePath: `/api/agents/images/file/${filename}` });
     if (!updated) return reply.status(404).send({ error: "Agent not found" });

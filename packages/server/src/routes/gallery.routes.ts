@@ -1,6 +1,7 @@
 // ──────────────────────────────────────────────
 // Routes: Chat Gallery (upload, list, delete, serve)
 // ──────────────────────────────────────────────
+import { captureNaiGalleryReplacement } from "../services/image/nai-result-application.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "fs";
 import { writeFile } from "fs/promises";
@@ -1608,6 +1609,18 @@ export async function galleryRoutes(app: FastifyInstance) {
         count: meta.illustratorImagesPerGeneration,
         generate: () =>
           generateImage(imageSource, imageBaseUrl, imageConn.apiKey || "", imageServiceHint, {
+            naiDestination: {
+              kind: "chat",
+              chatId,
+              provider: imageConn.provider ?? undefined,
+              characterIds: imageSettings.autoSaveToGalleries === false ? [] : [character.id],
+              generation: buildChatImageGenerationRecord({
+                prompt: providerPrompt,
+                connectionId: imageConn.id,
+                negativePrompt: providerNegativePrompt,
+                referenceCharacterIds: referenceImages ? [character.id] : [],
+              }),
+            },
             prompt: providerPrompt,
             negativePrompt: providerNegativePrompt || undefined,
             model: imageModel,
@@ -1768,6 +1781,7 @@ export async function galleryRoutes(app: FastifyInstance) {
         context.imageConnection.apiKey || "",
         context.imageServiceHint,
         {
+          naiDestination: { kind: "chat", chatId, provider: context.imageConnection.provider ?? undefined },
           prompt: compiledPrompt.prompt,
           negativePrompt: compiledPrompt.negativePrompt || undefined,
           model: context.imageModel,
@@ -1919,6 +1933,23 @@ export async function galleryRoutes(app: FastifyInstance) {
           imageConnection.apiKey || "",
           imageServiceHint,
           {
+            naiDestination: {
+              ...(await captureNaiGalleryReplacement(app.db, chatId, original.id)),
+              provider: imageConnection.provider ?? undefined,
+              characterIds: imageSettings.autoSaveToGalleries === false ? [] : references.characterIds,
+              personaIds:
+                imageSettings.autoSaveToGalleries === false || !references.personaId ? [] : [references.personaId],
+              generation: buildChatImageGenerationRecord({
+                prompt: input.prompt,
+                connectionId: imageConnection.id,
+                negativePrompt,
+                characterPrompts,
+                referenceCharacterIds: references.characterIds,
+                referencePersonaId: references.personaId,
+                referencePersonaSource: references.personaSource,
+                locationImageId: references.locationImageId,
+              }),
+            },
             prompt: input.prompt,
             negativePrompt: negativePrompt || undefined,
             model: imageModel,

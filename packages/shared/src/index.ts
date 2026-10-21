@@ -292,3 +292,4 @@ export * from "./utils/game-tag-parser.js";
 export * from "./utils/game-widget-update.js";
 
 export * from "./constants/fork-profile.js";
+export type { NaiImageDestination, NaiJobState, NaiQueueJobView, NaiQueueStatus } from "./types/nai-request-guard.js";

@@ -60,6 +60,8 @@ export interface SafeFetchOptions extends Omit<RequestInit, "dispatcher"> {
    */
   allowMissingContentType?: boolean;
   bufferResponse?: boolean;
+  /** Trusted host observer, before any response body is consumed. */
+  onResponseHeaders?: (response: Response) => void;
   decodeCompressedResponse?: boolean;
   agentOptions?: Omit<AgentOptions, "connect">;
   /** Start TCP keepalive probes after this many idle milliseconds without exposing custom DNS/connect hooks. */
@@ -668,6 +670,7 @@ export async function safeFetch(url: string | URL, options: SafeFetchOptions = {
     allowedContentTypes,
     allowMissingContentType = false,
     bufferResponse = true,
+    onResponseHeaders,
     decodeCompressedResponse = false,
     agentOptions,
     keepAliveInitialDelayMs,
@@ -732,6 +735,13 @@ export async function safeFetch(url: string | URL, options: SafeFetchOptions = {
       continue;
     }
 
+    try {
+      onResponseHeaders?.(response);
+    } catch (error) {
+      void response.body?.cancel().catch(() => undefined);
+      void internalDispatcher?.close().catch(() => undefined);
+      throw error;
+    }
     if (allowedContentTypes?.length) {
       const contentType = response.headers.get("content-type");
       if (!isAllowedResponseContentType(contentType, allowedContentTypes, allowMissingContentType)) {

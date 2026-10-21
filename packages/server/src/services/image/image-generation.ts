@@ -1,3 +1,14 @@
+import {
+  getNaiRequestGuard,
+  linkRetainedNaiResult,
+  NaiGuardError,
+  NaiRateLimitError,
+  NaiOutputConversionError,
+} from "./nai-request-guard.js";
+import { toStoredWebp } from "./webp-storage.js";
+import { parseCredential, handleIntercepted } from "../../assets/sharednai-bridge.mjs";
+const sharedNaiTokenCache = new Map<string, string>();
+const sharedNaiMutexes = new Map<string, Promise<unknown>>();
 // ──────────────────────────────────────────────
 // Service: Image Generation
 // ──────────────────────────────────────────────
@@ -329,6 +340,17 @@ export async function generateImage(
 ): Promise<ImageGenResult> {
   const resolvedSource = resolveImageBackend(source, baseUrl, serviceHint, request.model);
   const normalizedBaseUrl = normalizeImageUrl(baseUrl);
+  const naiGuard = getNaiRequestGuard();
+  const guarded = resolvedSource === "novelai" && isNativeNovelAiHost(imageHostname(baseUrl));
+  if (guarded && naiGuard && !naiGuard.isWorker) {
+    request = {
+      ...request,
+      imageDefaults: {
+        ...(request.imageDefaults ?? { version: 1 as const, service: "novelai" as const }),
+        seed: resolveSeed(request.imageDefaults),
+      },
+    };
+  }
   // Providers without native captions still need the identities and current outfits
   // the prompt writer put there, including when a NovelAI request falls back.
   const flattenedPrompt =
@@ -427,26 +449,57 @@ export async function generateImage(
     // The provider lane comes first and the global permit second, so requests waiting
     // their turn at one account never hold permits other providers could use.
     const admissionKey = imageAdmissionKey(normalizedBaseUrl, resolvedSource, request.imageEndpointId);
-    const primaryResult = await runInMediaProviderLane({
-      laneKey: mediaProviderLaneKey(admissionKey, apiKey),
-      gapMs: mediaProviderLaneGapMs(resolvedSource),
-      signal: request.signal,
-      task: () =>
-        runMediaGenerationRequest({
-          connectionKey: `image:${baseUrl || source}`,
-          queue: false,
-          signal: request.signal,
-          priority: request.admissionMode?.kind === "background" ? "background" : "foreground",
-          task: () => withConnectionAdmission(admissionKey, primaryMode, physicalRequest),
-        }),
-    });
+    const primaryTask = () =>
+      runInMediaProviderLane({
+        laneKey: mediaProviderLaneKey(admissionKey, apiKey),
+        gapMs: guarded && naiGuard ? 0 : mediaProviderLaneGapMs(resolvedSource),
+        signal: request.signal,
+        task: () =>
+          runMediaGenerationRequest({
+            connectionKey: `image:${baseUrl || source}`,
+            queue: false,
+            signal: request.signal,
+            priority: request.admissionMode?.kind === "background" ? "background" : "foreground",
+            task: () => withConnectionAdmission(admissionKey, primaryMode, physicalRequest),
+          }),
+      });
+    const primaryResult =
+      guarded && naiGuard && !naiGuard.isWorker
+        ? await naiGuard.submit({
+            source,
+            baseUrl,
+            serviceHint,
+            apiKey,
+            request,
+            task: async (signal) => {
+              const originalRequest = request;
+              request = {
+                ...request,
+                signal: originalRequest.signal ? AbortSignal.any([originalRequest.signal, signal]) : signal,
+              };
+              try {
+                return await primaryTask();
+              } finally {
+                request = originalRequest;
+              }
+            },
+          })
+        : await primaryTask();
     outcome = "completed";
     return flattenedPrompt
       ? { ...primaryResult, effectivePrompt: primaryResult.effectivePrompt ?? flattenedPrompt }
       : primaryResult;
   } catch (error) {
     const fallback = request.fallback;
-    if (!fallback || request.signal?.aborted || isConnectionAdmissionFailure(error)) throw error;
+    if (
+      !fallback ||
+      request.signal?.aborted ||
+      isConnectionAdmissionFailure(error) ||
+      error instanceof NaiGuardError ||
+      error instanceof NaiRateLimitError ||
+      (guarded && naiGuard?.unavailable)
+    )
+      throw error;
     // An edit drawn without its picture is a new picture, so a fallback that drops the picture is not tried.
     if (request.referenceIsCanvas && !imageConnectionTakesReferencePicture(fallback)) {
       logger.warn(
@@ -527,7 +580,8 @@ export function saveImageToDisk(
   const filePath = assertInsideDir(GALLERY_DIR, join(dir, filename));
   const tempPath = assertInsideDir(GALLERY_DIR, `${filePath}.${process.pid}.${Date.now()}.tmp`);
   try {
-    writeFileSync(tempPath, Buffer.from(base64, "base64"));
+    const bytes = Buffer.from(base64, "base64");
+    if (!linkRetainedNaiResult(bytes, tempPath)) writeFileSync(tempPath, bytes);
     renameSync(tempPath, filePath);
   } catch (error) {
     try {
@@ -740,6 +794,7 @@ type ImageFetchOptions = {
   allowedOrigins?: string[];
   agentOptions?: SafeFetchOptions["agentOptions"];
   keepAliveInitialDelayMs?: number;
+  onResponseHeaders?: (response: Response) => void;
 };
 
 function imageFetch(url: string | URL, init?: RequestInit, options: ImageFetchOptions = {}) {
@@ -760,6 +815,7 @@ function imageFetch(url: string | URL, init?: RequestInit, options: ImageFetchOp
     },
     keepAliveInitialDelayMs: options.keepAliveInitialDelayMs,
     maxResponseBytes: MAX_IMAGE_RESPONSE_BYTES,
+    onResponseHeaders: options.onResponseHeaders,
     decodeCompressedResponse: true,
   }).catch((err: unknown) => {
     // No `cause`: route error formatters append cause.message and would print the limit twice.
@@ -2881,9 +2937,28 @@ async function generateNovelAI(baseUrl: string, apiKey: string, request: ImageGe
   const effectivePrompt = getNovelAiDisplayPrompt(body);
 
   const hasReferences = directorReferenceImages.length > 0;
-  const resp = await retryOnProviderBusy(
-    () =>
-      imageFetch(
+  const credential = parseCredential(apiKey);
+  if (apiKey.startsWith("sharednai") && !credential) throw new Error("Invalid SharedNAI credential format");
+  const signal = imageRequestSignal(request);
+  const requestBody = hasReferences
+    ? buildNovelAiReferenceFormData(body, directorReferenceImages)
+    : JSON.stringify(body);
+  getNaiRequestGuard()?.markDispatched();
+  const resp = credential
+    ? await handleIntercepted({
+        fetchImpl: (resource, init) =>
+          imageFetch(resource instanceof Request ? resource.url : String(resource), init, {
+            allowedOrigins: ["https://sharednai5.pro"],
+            onResponseHeaders: String(resource).endsWith("/api/generate/txt2img") ? onNaiResponseHeaders : undefined,
+          }),
+        init: { body: requestBody, signal },
+        credential: { ...credential, cacheKey: createHash("sha256").update(apiKey).digest("hex") },
+        origin: "https://sharednai5.pro",
+        tokenCache: sharedNaiTokenCache,
+        mutexes: sharedNaiMutexes,
+        logger,
+      })
+    : await imageFetch(
         url,
         {
           method: "POST",
@@ -2891,15 +2966,21 @@ async function generateNovelAI(baseUrl: string, apiKey: string, request: ImageGe
             Authorization: `Bearer ${apiKey}`,
             ...(hasReferences ? {} : { "Content-Type": "application/json" }),
           },
-          body: hasReferences ? buildNovelAiReferenceFormData(body, directorReferenceImages) : JSON.stringify(body),
-          signal: imageRequestSignal(request),
+          body: requestBody,
+          signal,
         },
-        { allowLocal: request.allowLocalUrls, allowedOrigins: [nativeUrl.origin] },
-      ),
-    imageRequestSignal(request),
-  );
+        {
+          allowLocal: request.allowLocalUrls,
+          allowedOrigins: [nativeUrl.origin],
+          onResponseHeaders: onNaiResponseHeaders,
+        },
+      );
+  onNaiResponseHeaders(resp);
+  if (resp.headers.get("x-sharednai-result-unknown") === "1")
+    throw new TypeError("SharedNAI generation result is unknown; automatic retry stopped");
 
   if (!resp.ok) {
+    getNaiRequestGuard()?.markDefinitiveFailure();
     const errText = await resp.text().catch(() => "Unknown error");
     const hint = isV4 ? ` ${isNovelAiV5Model(model) ? NOVELAI_V5_PROMPT_HINT : NOVELAI_V4_PROMPT_HINT}` : "";
     const referenceDetail = hasReferences ? ` with ${directorReferenceImages.length} precise reference image(s)` : "";
@@ -2918,7 +2999,7 @@ async function generateNovelAI(baseUrl: string, apiKey: string, request: ImageGe
     if (extracted) {
       const imageBytes = appendNovelAiGenerationMetadata(Buffer.from(extracted), metadataBody);
       const base64 = imageBytes.toString("base64");
-      return { base64, mimeType: "image/png", ext: "png", effectivePrompt };
+      return novelAiWebp(base64, effectivePrompt);
     }
   }
 
@@ -2926,7 +3007,7 @@ async function generateNovelAI(baseUrl: string, apiKey: string, request: ImageGe
   if (bytes[0] === 0x89 && bytes[1] === 0x50) {
     const imageBytes = appendNovelAiGenerationMetadata(Buffer.from(bytes), metadataBody);
     const base64 = imageBytes.toString("base64");
-    return { base64, mimeType: "image/png", ext: "png", effectivePrompt };
+    return novelAiWebp(base64, effectivePrompt);
   }
 
   // Try parsing as JSON (some proxies return JSON with base64)
@@ -2934,12 +3015,27 @@ async function generateNovelAI(baseUrl: string, apiKey: string, request: ImageGe
     const text = new TextDecoder().decode(bytes);
     const json = JSON.parse(text);
     const b64 = json.data?.[0]?.b64_json ?? json.output?.[0] ?? json.image;
-    if (b64) return { base64: b64, mimeType: "image/png", ext: "png", effectivePrompt };
+    if (b64) return novelAiWebp(b64, effectivePrompt);
   } catch {
     /* not JSON */
   }
 
   throw new Error("Could not parse NovelAI image response");
+}
+
+function onNaiResponseHeaders(response: Response) {
+  if (response.status !== 429) return;
+  const retryAfter = response.headers.get("retry-after");
+  getNaiRequestGuard()?.rateLimited(retryAfter);
+  throw new NaiRateLimitError(retryAfter);
+}
+async function novelAiWebp(base64: string, effectivePrompt: string): Promise<ImageGenResult> {
+  try {
+    const image = await toStoredWebp(Buffer.from(base64, "base64"));
+    return { base64: image.buffer.toString("base64"), mimeType: image.mimeType, ext: image.ext, effectivePrompt };
+  } catch {
+    throw new NaiOutputConversionError({ base64, mimeType: "image/png", ext: "png", effectivePrompt });
+  }
 }
 
 function appendNovelAiGenerationMetadata(image: Buffer, body: Record<string, unknown>): Buffer {

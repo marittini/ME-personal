@@ -1,3 +1,4 @@
+import { toStoredWebp, webpPngTextChunks } from "../services/image/webp-storage.js";
 import { embedCharacterBookImages, LOREBOOK_EXPORT_IMAGE_MAX_BYTES } from "../services/lorebook/lorebook-images.js";
 // ──────────────────────────────────────────────
 // Routes: Characters, Personas & Groups
@@ -84,7 +85,7 @@ import {
 } from "../utils/export-stream.js";
 import { createWriteStream, existsSync, rmSync, unlinkSync } from "fs";
 import { normalizeTimestampOverrides } from "../services/import/import-timestamps.js";
-import { assertInsideDir, extensionFromImageMime, isAllowedImageBuffer } from "../utils/security.js";
+import { assertInsideDir, isAllowedImageBuffer } from "../utils/security.js";
 import {
   sendValidatedMediaFile,
   validateImageAssetFile,
@@ -474,6 +475,7 @@ type AvatarGenerationPromptOverride = {
 };
 
 type AvatarGenerationBody = {
+  resumeTarget?: { entity: "character" | "persona"; id: string };
   connectionId?: string;
   name?: string;
   appearance?: string;
@@ -604,12 +606,14 @@ async function copyGalleryImageToAvatar(
 ): Promise<string> {
   const galleryRoot = join(DATA_DIR, "gallery");
   const sourcePath = assertInsideDir(galleryRoot, join(galleryRoot, galleryFilePath));
-  const imageBuffer = await readFile(sourcePath);
+  let imageBuffer: Buffer = await readFile(sourcePath);
   const imageInfo = isAllowedImageBuffer(imageBuffer, extname(sourcePath));
   if (!imageInfo) throw new Error("Unsupported or invalid gallery image");
 
   await mkdir(AVATAR_ROOT, { recursive: true });
-  const filename = `${entityKind}-${entityId}-${newId()}.${imageInfo.ext}`;
+  const converted = await toStoredWebp(imageBuffer);
+  imageBuffer = converted.buffer;
+  const filename = `${entityKind}-${entityId}-${newId()}.${converted.ext}`;
   const avatarFilePath = assertInsideDir(AVATAR_ROOT, join(AVATAR_ROOT, filename));
   try {
     await writeFile(avatarFilePath, imageBuffer);
@@ -1446,8 +1450,24 @@ export async function charactersRoutes(app: FastifyInstance) {
       );
     }
 
+    let naiDestination: import("@marinara-engine/shared").NaiImageDestination | undefined;
+    if (body.resumeTarget && !isCharacterSheet) {
+      const target = body.resumeTarget;
+      if (!["character", "persona"].includes(target.entity) || typeof target.id !== "string")
+        return reply.status(400).send({ error: "Invalid resume target" });
+      const row =
+        target.entity === "character" ? await storage.getById(target.id) : await storage.getPersona(target.id);
+      if (!row) return reply.status(404).send({ error: "Profile not found" });
+      naiDestination = {
+        kind: "profile",
+        entity: target.entity,
+        id: target.id,
+        expectedAvatarPath: row.avatarPath ?? null,
+      };
+    }
     try {
       const result = await generateImage(imgModel, imgBaseUrl, imgApiKey, imgServiceHint, {
+        naiDestination,
         prompt: compiled.prompt,
         negativePrompt: compiled.negativePrompt || undefined,
         model: imgModel || undefined,
@@ -2448,6 +2468,8 @@ export async function charactersRoutes(app: FastifyInstance) {
           } else if (imageInfo) {
             const sharp = (await import("sharp")).default;
             pngBuffer = await sharp(avatarBuffer).png().toBuffer();
+            const retained = webpPngTextChunks(avatarBuffer);
+            if (retained.length) pngBuffer = Buffer.concat([pngBuffer.subarray(0, 8), retained, pngBuffer.subarray(8)]);
           } else {
             pngBuffer = createMinimalPng();
           }
@@ -2495,10 +2517,12 @@ export async function charactersRoutes(app: FastifyInstance) {
         base64 = base64.slice(base64.indexOf(",") + 1);
       }
     }
-    const imageBuffer = Buffer.from(base64, "base64");
+    let imageBuffer: Buffer = Buffer.from(base64, "base64");
     const imageInfo = isAllowedImageBuffer(imageBuffer, `.${ext}`);
     if (!imageInfo) return reply.status(400).send({ error: "Unsupported or invalid avatar image" });
-    ext = extensionFromImageMime(imageInfo.mimeType);
+    const converted = await toStoredWebp(imageBuffer);
+    imageBuffer = converted.buffer;
+    ext = converted.ext;
 
     const avatarsDir = join(DATA_DIR, "avatars");
     const filename = `character-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -2743,13 +2767,15 @@ export async function charactersRoutes(app: FastifyInstance) {
       if (match?.[1]) hintedExt = `.${match[1].replace("+xml", "")}`;
     }
     if (base64.includes(",")) base64 = base64.split(",")[1]!;
-    const imageBuffer = Buffer.from(base64, "base64");
+    let imageBuffer: Buffer = Buffer.from(base64, "base64");
     const imageInfo = isAllowedImageBuffer(imageBuffer, hintedExt);
     if (!imageInfo) return reply.status(400).send({ error: "Unsupported or invalid avatar image" });
     if (!(await storage.getPersona(req.params.id))) {
       return reply.status(404).send({ error: "Persona not found" });
     }
-    const filename = `persona-${req.params.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${imageInfo.ext}`;
+    const converted = await toStoredWebp(imageBuffer);
+    imageBuffer = converted.buffer;
+    const filename = `persona-${req.params.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${converted.ext}`;
     const avatarsDir = join(DATA_DIR, "avatars");
     const avatarPath = `/api/avatars/file/${filename}`;
     try {

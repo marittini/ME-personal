@@ -1,3 +1,4 @@
+import { toStoredWebp } from "../services/image/webp-storage.js";
 import {
   discardLorebookImage,
   embedLorebookImages,
@@ -85,7 +86,7 @@ import { sidecarModelService } from "../services/sidecar/sidecar-model.service.j
 import { normalizeTimestampOverrides } from "../services/import/import-timestamps.js";
 import { DATA_DIR } from "../utils/data-dir.js";
 import { uniqueExportName } from "../utils/export-stream.js";
-import { assertInsideDir, extensionFromImageMime, isAllowedImageBuffer } from "../utils/security.js";
+import { assertInsideDir, isAllowedImageBuffer } from "../utils/security.js";
 import { parseLibraryPageQuery } from "../utils/list-pagination.js";
 import { createSeededRandom } from "../services/lorebook/seeded-random.js";
 import { lorebookTextRoutes } from "./lorebook-text.routes.js";
@@ -544,11 +545,12 @@ export async function lorebooksRoutes(app: FastifyInstance) {
     const imageInfo = isAllowedImageBuffer(buffer, `.${hintedExt}`);
     if (!imageInfo) return reply.status(400).send({ error: "Unsupported or invalid lorebook image" });
 
-    const ext = extensionFromImageMime(imageInfo.mimeType);
+    const converted = await toStoredWebp(buffer);
+    const ext = converted.ext;
     await mkdir(LOREBOOK_IMAGES_DIR, { recursive: true });
     const filename = `lorebook-${req.params.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const filepath = assertInsideDir(LOREBOOK_IMAGES_DIR, join(LOREBOOK_IMAGES_DIR, filename));
-    await writeFile(filepath, buffer);
+    await writeFile(filepath, converted.buffer);
 
     const updated = await storage.update(req.params.id, { imagePath: `/api/lorebooks/images/file/${filename}` });
     if (!updated) return reply.status(404).send({ error: "Lorebook not found" });

@@ -1,3 +1,4 @@
+import { naiQueueKoreanMessages } from "./nai-queue-ko";
 import { normalizeLocaleResource, normalizeUILanguage, UI_LANGUAGE_CODES } from "@marinara-engine/shared";
 import { api } from "../lib/api-client";
 import { DEFAULT_APP_LANGUAGE, type AppLanguage, type LoadedLocale, type LocaleDescriptor } from "./locale-types";
@@ -30,7 +31,9 @@ export async function loadLocaleResource(value: unknown): Promise<LoadedLocale |
   if (locale !== DEFAULT_APP_LANGUAGE) {
     // Reads local data only. Downloading a pack is an explicit settings action.
     const resource = await api.get<unknown>(`/ui-languages/${encodeURIComponent(locale)}`);
-    return resource === null ? null : normalizeLocaleResource(locale, resource);
+    const loaded = resource === null ? null : normalizeLocaleResource(locale, resource);
+    if (loaded && locale === "ko") Object.assign(loaded.messages, naiQueueKoreanMessages);
+    return loaded;
   }
   const response = await fetch(await englishAsset());
   if (!response.ok) throw new Error(`Localization file en.json returned HTTP ${response.status}`);

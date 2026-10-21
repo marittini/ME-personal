@@ -1199,6 +1199,7 @@ export function CharacterEditor() {
       />
       <AvatarGenerationModal
         open={avatarGeneratorOpen}
+        resumeTarget={characterId ? { entity: "character", id: characterId } : undefined}
         title={localizeUi("ui.characters.charactereditor.generateCharacterAvatar")}
         entityName={formData.name}
         defaultAppearance={imageAppearanceGeneratorSeed(
