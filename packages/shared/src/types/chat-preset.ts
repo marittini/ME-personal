@@ -49,6 +49,7 @@ export const CHAT_PRESET_EXCLUDED_METADATA_KEYS: readonly string[] = [
   // Generated summaries stay with the chat; summary settings can still be profiled.
   "summary",
   "summaryEntries",
+  "committedMemory",
   "lastAutomaticSummaryMessageId",
   "daySummaries",
   "weekSummaries",
