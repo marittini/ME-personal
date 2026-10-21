@@ -1,3 +1,4 @@
+import { memoryExtra } from "./committed-memory-policy.js";
 // ──────────────────────────────────────────────
 // Service: Memory Recall
 // ──────────────────────────────────────────────
@@ -367,6 +368,8 @@ async function chunkAndEmbedMessagesUnlocked(
   forceReplace = false,
 ): Promise<boolean> {
   if (isLite) return true;
+  const [owner] = await db.select({ metadata: chats.metadata }).from(chats).where(eq(chats.id, chatId)).limit(1);
+  if ((memoryExtra(owner?.metadata).committedMemory as { enabled?: boolean } | undefined)?.enabled) return true;
   const embeddingSpaceId = resolveMemoryEmbeddingSpaceId(options);
   if (!embeddingSpaceId) {
     logger.warn("[memory-recall] Skipping memory chunking because the active embedding source has no space ID");

@@ -64,6 +64,8 @@ export const messages = fileTable("messages", {
   characterId: text("character_id"),
   content: text("content").notNull().default(""),
   activeSwipeIndex: integer("active_swipe_index").notNull().default(0),
+  /** Changes on source edits/swipes; old confirmations cannot revive after a revert. */
+  memoryRevision: text("memory_revision"),
   /** JSON object for extra data */
   extra: text("extra").notNull().default("{}"),
   createdAt: text("created_at").notNull(),

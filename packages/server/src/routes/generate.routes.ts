@@ -1,3 +1,5 @@
+import { compactCommittedHistory } from "../services/committed-memory.js";
+import type { CommittedMemorySelection } from "@marinara-engine/shared";
 import { captureNaiChatDestination } from "../services/image/nai-result-application.js";
 import { applyClockCommandTags, TTS_SETTINGS_KEY, type RulesetClocks } from "@marinara-engine/shared";
 import {
@@ -1473,7 +1475,7 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
             gameStateSnapshotId: spatialGameStateSnapshotId,
             attachments: input.attachments,
           });
-          userMsg = committed.message;
+          userMsg = { memoryRevision: null, ...committed.message };
           committedSpatialTransition = {
             commandId: input.pendingSpatialTransition.commandId,
             currentLocationId: committed.snapshot.currentLocationId,
@@ -2160,6 +2162,13 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
         return row ? (parseGameStateRow(row as Record<string, unknown>) as unknown as Record<string, unknown>) : null;
       };
 
+      if ((chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled)
+        chatMessages = await compactCommittedHistory(
+          app.db,
+          input.chatId,
+          chatMessages,
+          input.continueMessageId ?? input.regenerateMessageId,
+        );
       // ── Context message limit (from chat metadata, off by default) ──
       const lorebookKeeperSettings = getLorebookKeeperSettings(chatMeta);
       const contextMessageLimit = chatMeta.contextMessageLimit as number | null;
@@ -3049,9 +3058,19 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
         const { suppressModelParameters, connectionMaxContext } = modelAccessPolicy;
         let effectiveMaxContext = modelAccessPolicy.effectiveMaxContext;
 
+        let committedMemorySelection: CommittedMemorySelection[] = [];
         const activeChatSummary = advancedMemoryEnabled
           ? null
           : await resolveRoleplayChatSummaryForPrompt({
+              db: app.db,
+              chatId: input.chatId,
+              audienceIds:
+                input.forCharacterId && characterIds.includes(input.forCharacterId)
+                  ? [input.forCharacterId]
+                  : characterIds,
+              onCommittedMemory: (items) => {
+                committedMemorySelection = items;
+              },
               chatMode,
               chatMetadata: chatMeta,
               messages: currentInputMessages(),
@@ -5455,9 +5474,9 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
         const memoryRecallDefault = chatMode === "conversation" || isSceneChat;
         const enableMemoryRecall =
           chatMeta.enableMemoryRecall !== undefined ? chatMeta.enableMemoryRecall === true : memoryRecallDefault;
-        const customAgentVectorAccessEnabled = resolvedAgents.some((agent) =>
-          customAgentHasCapability(agent.settings, "access_vectors"),
-        );
+        const customAgentVectorAccessEnabled =
+          !(chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled &&
+          resolvedAgents.some((agent) => customAgentHasCapability(agent.settings, "access_vectors"));
         let recalledAgentVectorMemories: string[] = [];
         let memoryRecallAttempted = false;
         if (chatMode === "conversation" && conversationContextMacroSlots.memories) {
@@ -7278,7 +7297,11 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
           // Director nudges are one-shot and Secret Plot comes from its enabled memory state.
           // Never replay older planning directions or legacy Secret Plot Driver entries.
           const reusableCachedInjections = cached.filter(
-            (i) => i.agentType !== "director" && i.agentType !== "secret-plot-driver",
+            (i) =>
+              i.agentType !== "director" &&
+              i.agentType !== "secret-plot-driver" &&
+              (!(chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled ||
+                (i.agentType !== "long-term-memory" && i.agentType !== "chat-summary")),
           );
 
           if (reusableCachedInjections.length > 0) {
@@ -10826,6 +10849,12 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
               extraUpdate.diceRollResult = null;
             } else if (toolDiceRollResults.length || !input.continueMessageId) {
               extraUpdate.diceRollResult = toolDiceRollResults.at(-1) ?? null;
+            }
+            if ((chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled) {
+              const sentText = finalPromptSent.map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
+              extraUpdate.committedMemoryReceipt = committedMemorySelection.filter((item) =>
+                sentText.includes(item.content),
+              );
             }
             // Cache the final prompt (what was actually sent to the model) for Peek Prompt
             extraUpdate.cachedPrompt = finalPromptSent.map((m) => ({
@@ -14601,7 +14630,10 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
                 })
                 .catch((error) => logger.error(error, "[advanced-memory] Message visibility failed"));
             }
-          } else if (memoryRecallVectorizerAvailable) {
+          } else if (
+            memoryRecallVectorizerAvailable &&
+            !(chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled
+          ) {
             chunkAndEmbedMessages(
               app.db,
               input.chatId,

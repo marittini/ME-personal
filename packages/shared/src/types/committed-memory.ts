@@ -1,4 +1,7 @@
-export interface CommittedMemorySource { id: string; fingerprint: string }
+export interface CommittedMemorySource {
+  id: string;
+  fingerprint: string;
+}
 export interface CommittedMemoryFact {
   id: string;
   kind: "fact" | "promise" | "event" | "relationship" | "belief";
@@ -24,6 +27,12 @@ export interface CommittedMemoryState {
   ownerChatId: string;
   enabled: boolean;
   batches: CommittedMemoryBatch[];
+  previousSettings?: {
+    automaticSummaryEnabled?: boolean;
+    enableMemoryRecall?: boolean;
+    advancedMemoryEnabled?: boolean;
+    memoryAgentIds: string[];
+  };
   job?: { id: string; status: "running" | "complete" | "failed"; completed: number; total: number; error?: string };
 }
 export interface CommittedMemorySelection {
@@ -35,5 +44,5 @@ export interface CommittedMemorySelection {
 export interface CommittedMemoryStatus {
   state: CommittedMemoryState;
   pending: number;
-  lastReceipt: {messageId: string; items: CommittedMemorySelection[]} | null;
+  lastReceipt: { messageId: string; items: CommittedMemorySelection[] } | null;
 }

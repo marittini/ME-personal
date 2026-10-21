@@ -1,3 +1,4 @@
+import { committedMemoryKoreanMessages } from "./committed-memory-ko";
 import { naiQueueKoreanMessages } from "./nai-queue-ko";
 import { normalizeLocaleResource, normalizeUILanguage, UI_LANGUAGE_CODES } from "@marinara-engine/shared";
 import { api } from "../lib/api-client";
@@ -32,7 +33,8 @@ export async function loadLocaleResource(value: unknown): Promise<LoadedLocale |
     // Reads local data only. Downloading a pack is an explicit settings action.
     const resource = await api.get<unknown>(`/ui-languages/${encodeURIComponent(locale)}`);
     const loaded = resource === null ? null : normalizeLocaleResource(locale, resource);
-    if (loaded && locale === "ko") Object.assign(loaded.messages, naiQueueKoreanMessages);
+    if (loaded && locale === "ko")
+      Object.assign(loaded.messages, naiQueueKoreanMessages, committedMemoryKoreanMessages);
     return loaded;
   }
   const response = await fetch(await englishAsset());

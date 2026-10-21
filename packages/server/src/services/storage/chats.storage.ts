@@ -266,6 +266,56 @@ function mergeConversationStatusOverrides(current: unknown, incoming: unknown): 
 }
 
 function exclusiveMemoryRecallPatch(current: MetadataPatch, patch: MetadataPatch): MetadataPatch {
+  const memory = Object.hasOwn(patch, "committedMemory") ? patch.committedMemory : current.committedMemory;
+  if (isPlainRecord(memory) && memory.enabled === true) {
+    const merged = { ...current, ...patch };
+    const previous =
+      isPlainRecord(current.committedMemory) && current.committedMemory.enabled === true
+        ? current.committedMemory.previousSettings
+        : {
+            automaticSummaryEnabled: current.automaticSummaryEnabled,
+            enableMemoryRecall: current.enableMemoryRecall,
+            advancedMemoryEnabled: isPlainRecord(current.advancedMemory) ? current.advancedMemory.enabled : undefined,
+            memoryAgentIds: Array.isArray(current.activeAgentIds)
+              ? current.activeAgentIds.filter((id) => id === "long-term-memory" || id === "chat-summary")
+              : [],
+          };
+    return {
+      ...patch,
+      committedMemory: { ...memory, previousSettings: previous },
+      automaticSummaryEnabled: false,
+      enableMemoryRecall: false,
+      advancedMemory: { ...(isPlainRecord(merged.advancedMemory) ? merged.advancedMemory : {}), enabled: false },
+      activeAgentIds: Array.isArray(merged.activeAgentIds)
+        ? merged.activeAgentIds.filter((id) => id !== "long-term-memory" && id !== "chat-summary")
+        : [],
+    };
+  }
+  if (
+    isPlainRecord(memory) &&
+    memory.enabled === false &&
+    isPlainRecord(current.committedMemory) &&
+    current.committedMemory.enabled === true
+  ) {
+    const previous = current.committedMemory.previousSettings;
+    if (isPlainRecord(previous))
+      return {
+        ...patch,
+        automaticSummaryEnabled: previous.automaticSummaryEnabled,
+        enableMemoryRecall: previous.enableMemoryRecall,
+        advancedMemory: {
+          ...(isPlainRecord(current.advancedMemory) ? current.advancedMemory : {}),
+          enabled: previous.advancedMemoryEnabled,
+        },
+        activeAgentIds: [
+          ...new Set([
+            ...(Array.isArray(current.activeAgentIds) ? current.activeAgentIds : []),
+            ...(Array.isArray(previous.memoryAgentIds) ? previous.memoryAgentIds : []),
+          ]),
+        ],
+      };
+  }
+
   // Explicit enables switch modes in the same queued write. Unrelated saves and
   // disables preserve the other mode, and switching never discards prepared memory.
   // A bulk patch enabling both retains generation's existing Advanced precedence.
@@ -1118,7 +1168,7 @@ export function createChatsStorage(db: DB) {
     if (signal?.aborted)
       throw new RoleplayInterruptionConflictError("Interruption was not applied because generation was cancelled.");
     await db.update(messageSwipes).set({ content }).where(eq(messageSwipes.id, swipe.id));
-    if (active) await db.update(messages).set({ content }).where(eq(messages.id, target.id));
+    if (active) await db.update(messages).set({ content, memoryRevision: newId() }).where(eq(messages.id, target.id));
     await invalidateMemoryChunksFrom(db, target.chatId, target.createdAt);
     return active ? readMessage(target.id) : null;
   }
@@ -2328,6 +2378,7 @@ export function createChatsStorage(db: DB) {
         characterId: input.characterId,
         content,
         activeSwipeIndex: 0,
+        memoryRevision: newId(),
         extra: JSON.stringify({
           ...extra,
           displayText: null,
@@ -2414,6 +2465,7 @@ export function createChatsStorage(db: DB) {
           characterId: input.characterId,
           content: prepared?.content ?? input.content,
           activeSwipeIndex: input.activeSwipeIndex ?? 0,
+          memoryRevision: newId(),
           extra: serializeJsonField(prepared?.extra ?? input.extra, fallbackExtra),
           createdAt: timestamp,
         });
@@ -2726,7 +2778,10 @@ export function createChatsStorage(db: DB) {
           existingExtra.commandOnly !== true &&
           content !== (existing?.content ?? "");
 
-        const messagePatch: Record<string, unknown> = { content };
+        const messagePatch: Record<string, unknown> = {
+          content,
+          ...(existing?.content !== content ? { memoryRevision: newId() } : {}),
+        };
         const messageExtra = withActivity(prepared?.extra ?? existingExtra, existing?.content ?? "");
         if (prepared || clearCommandContent || messageExtra !== existingExtra) {
           messagePatch.extra = JSON.stringify({
@@ -2804,6 +2859,9 @@ export function createChatsStorage(db: DB) {
             await db
               .update(messages)
               .set({
+                ...(Object.hasOwn(partial, "hiddenFromAI") || Object.hasOwn(partial, "hiddenFromAICharacterIds")
+                  ? { memoryRevision: newId() }
+                  : {}),
                 extra: JSON.stringify({
                   ...previousExtra,
                   ...(swipeIndex === undefined || swipeIndex === msg.activeSwipeIndex ? partial : {}),
@@ -2869,7 +2927,12 @@ export function createChatsStorage(db: DB) {
         const merged = { ...existing, ...partial };
         await db
           .update(messages)
-          .set({ extra: JSON.stringify(merged) })
+          .set({
+            extra: JSON.stringify(merged),
+            ...(Object.hasOwn(partial, "hiddenFromAI") || Object.hasOwn(partial, "hiddenFromAICharacterIds")
+              ? { memoryRevision: newId() }
+              : {}),
+          })
           .where(eq(messages.id, id));
 
         const swipes = await this.getSwipes(id);
@@ -3500,7 +3563,7 @@ export function createChatsStorage(db: DB) {
           // Set active swipe to the new one and reset message extra for the fresh swipe.
           await db
             .update(messages)
-            .set({ activeSwipeIndex: nextIndex, content, extra: JSON.stringify(nextExtra) })
+            .set({ activeSwipeIndex: nextIndex, content, memoryRevision: newId(), extra: JSON.stringify(nextExtra) })
             .where(eq(messages.id, messageId));
           if (msg) {
             await invalidateMemoryChunksFrom(db, msg.chatId, msg.createdAt);
@@ -3536,6 +3599,7 @@ export function createChatsStorage(db: DB) {
           .update(messages)
           .set({
             activeSwipeIndex: index,
+            memoryRevision: msg?.activeSwipeIndex !== index ? newId() : msg?.memoryRevision,
             content: target.content,
             extra: JSON.stringify(swipeExtra),
           })
@@ -3716,6 +3780,7 @@ export function createChatsStorage(db: DB) {
           .update(messages)
           .set({
             activeSwipeIndex: nextActiveSwipeIndex,
+            memoryRevision: index <= msg.activeSwipeIndex ? newId() : msg.memoryRevision,
             content: nextContent,
             extra: JSON.stringify(nextExtra),
           })

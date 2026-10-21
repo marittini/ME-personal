@@ -1,3 +1,5 @@
+import { CommittedMemoryPanel } from "./CommittedMemoryPanel";
+import { useCommittedMemory } from "../../hooks/use-committed-memory";
 // ──────────────────────────────────────────────
 // Chat Summary — view / edit / generate chat summaries
 // Shown as the Chat Summary drawer in Chat Settings (Roleplay).
@@ -333,7 +335,16 @@ function createBlankManualSummaryEntry(t: TFunction): ChatSummaryEntry {
 }
 
 /** Chat summaries: create, edit, combine and configure them (the Chat Summary drawer). */
-export function ChatSummaryPanel({
+export function ChatSummaryPanel(props: ChatSummaryPanelProps) {
+  const { data } = useCommittedMemory(props.chatId);
+  return (
+    <>
+      <CommittedMemoryPanel chatId={props.chatId} />
+      {!data?.state.enabled && <LegacyChatSummaryPanel {...props} />}
+    </>
+  );
+}
+function LegacyChatSummaryPanel({
   chatId,
   summary,
   summaryEntries,

@@ -1036,7 +1036,9 @@ async function buildRetryAgentContext(args: {
   };
 
   const chatMode = ((chat as { mode?: ChatMode }).mode ?? "conversation") as ChatMode;
-  const customAgentVectorAccessEnabled = contextPolicy.customAgentVectorAccessEnabled;
+  const customAgentVectorAccessEnabled =
+    !(chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled &&
+    contextPolicy.customAgentVectorAccessEnabled;
   const lastAssistantExtra = lastAssistant ? parseExtra((lastAssistant as any).extra) : {};
   const rawLorebookScan =
     lastAssistantExtra.lorebookScan &&
@@ -1132,6 +1134,9 @@ async function buildRetryAgentContext(args: {
   }
   const activeChatSummary = shouldAttachSummariesToAgents(chatMode, chatMeta)
     ? await resolveRoleplayChatSummaryForPrompt({
+        db: args.db,
+        chatId,
+        excludeMessageIds: args.historicalAnchorId ? [args.historicalAnchorId] : undefined,
         chatMode,
         chatMetadata: chatMeta,
         messages: resolvedAgentSlice,
