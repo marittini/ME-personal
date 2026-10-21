@@ -176,10 +176,9 @@ import type {
   MessageWithSwipes,
   PeekPromptData,
 } from "./chat-area.types";
-import { HomeCreditsModal } from "./HomeCreditsModal";
 import { ReplyCheckup } from "./ReplyCheckup";
 import { checkReply, replyLineFindings } from "../../lib/reply-checkup";
-import { HomeBrowserHub } from "./HomeBrowserHub";
+import { LibraryHome } from "./LibraryHome";
 import { NewChatConnectionGate } from "./NewChatConnectionGate";
 import { preloadChatSettingsDrawer, type ChatSettingsInitialSection } from "./ChatCommonOverlays";
 import { ADVANCED_MEMORY_SETTINGS_EVENT } from "../../hooks/use-advanced-memory";
@@ -695,7 +694,6 @@ const LocalChatArea = memo(function LocalChatArea({
   const [agentInjectionDrafts, setAgentInjectionDrafts] = useState<Record<string, string>>({});
   const [illustratorPromptReview, setIllustratorPromptReview] = useState<IllustratorPromptReviewRequest | null>(null);
   const [illustratorPromptReviewSubmitting, setIllustratorPromptReviewSubmitting] = useState(false);
-  const [creditsOpen, setCreditsOpen] = useState(false);
   const queryClient = useQueryClient();
   // #5889: when Safari's autoplay policy blocks playback, the service parks in
   // "blocked" and waits for a user gesture instead of retrying - tell the user
@@ -3537,8 +3535,7 @@ const LocalChatArea = memo(function LocalChatArea({
   if (!activeChatId) {
     return (
       <>
-        <HomeCreditsModal open={creditsOpen} onClose={() => setCreditsOpen(false)} />
-        <HomeBrowserHub pageActive={isPageActive} onOpenCredits={() => setCreditsOpen(true)} />
+        <LibraryHome />
         {pendingNewChatMode && (
           <NewChatConnectionGate
             mode={pendingNewChatMode}
