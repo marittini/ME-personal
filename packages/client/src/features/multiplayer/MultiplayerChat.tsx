@@ -43,9 +43,6 @@ const ChatSetupWizard = lazy(() =>
 const ChatSettingsDrawer = lazy(() =>
   import("../../components/chat/ChatSettingsDrawer").then((module) => ({ default: module.ChatSettingsDrawer })),
 );
-const PreparedMultiplayerGameSetup = lazy(() =>
-  import("./PreparedMultiplayerGameSetup").then((module) => ({ default: module.PreparedMultiplayerGameSetup })),
-);
 
 export function MultiplayerChat({ chat }: { chat: Chat }) {
   const metadata = readChatMetadata(chat);
@@ -318,17 +315,7 @@ function HostedMultiplayerChat({ chat }: { chat: Chat }) {
             </p>
           }
         >
-          {chat.mode === "game" ? (
-            <PreparedMultiplayerGameSetup
-              chat={chat}
-              players={host?.snapshot.players ?? []}
-              busy={setupSaving}
-              onPrepared={(setup) => {
-                void finishSetup({ type: "startGame", ...setup });
-              }}
-              onCancel={() => useChatStore.getState().setActiveChatId(null)}
-            />
-          ) : (
+          {chat.mode === "game" ? null : (
             <ChatSetupWizard
               chat={chat}
               onFinish={() => {

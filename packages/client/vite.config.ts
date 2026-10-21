@@ -41,6 +41,13 @@ function resolveBuildCommit() {
 const BUILD_COMMIT = resolveBuildCommit();
 
 function manualChunks(id: string) {
+  if (id.endsWith("/lib/tracker-card-colors.ts")) return "tracker-colors";
+  if (/\/shared\/(?:dist|src)\/schemas\/capability-package\.schema\.(?:js|ts)$/u.test(id))
+    return "capability-contracts";
+  // Keep pure shared utilities in bounded chunks after removing Game's lazy entry.
+  if (/\/shared\/(?:dist|src)\/utils\/(?:macro-engine|image-prompt-compiler)\.(?:js|ts)$/u.test(id))
+    return "shared-prompt-utils";
+  if (/\/shared\/(?:dist|src)\/constants\/model-lists\.(?:js|ts)$/u.test(id)) return "shared-model-lists";
   // Narrative dice add another result card shape; keep the shared dice UI out of GameSurface's budget.
   if (id.endsWith("/components/dice/AnimatedSkillCheckResult.tsx")) return "skill-check-result";
   if (id.endsWith("/components/game/game-narration-format.ts")) return "game-narration-format";

@@ -1162,16 +1162,6 @@ const NEW_CHAT_COMMANDS: readonly {
     descriptionFallback: "Starts a roleplay, like Home's Roleplay button.",
     icon: "chats",
   },
-  {
-    mode: "game",
-    phraseAliases: ["new game", "start game"],
-    bareAliases: ["game"],
-    titleKey: "commandCenter.newChat.game",
-    titleFallback: "New game",
-    descriptionKey: "commandCenter.newChat.gameDescription",
-    descriptionFallback: "Starts a game, like Home's Game button.",
-    icon: "game-assets",
-  },
 ];
 
 export function buildOmnibarNewChatCommands({ query, t }: { query: string; t: OmnibarTranslate }): OmnibarResult[] {

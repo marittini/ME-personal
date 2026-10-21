@@ -254,7 +254,7 @@ async function resetClientAfterExpunge(qc: ReturnType<typeof useQueryClient>) {
 export function useChats(options: { enabled?: boolean; refetchOnMount?: boolean | "always" } = {}) {
   return useQuery({
     queryKey: chatKeys.list(),
-    queryFn: () => api.get<Chat[]>("/chats"),
+    queryFn: async () => (await api.get<Chat[]>("/chats")).filter((chat) => chat.mode !== "game"),
     enabled: options.enabled ?? true,
     placeholderData: (previousData) => previousData,
     staleTime: 10_000,

@@ -720,6 +720,7 @@ export class MultiplayerService {
     return this.hostState();
   }
   async hostAction(action: MultiplayerHostAction) {
+    if (action.type === "startGame") throw new Error("Game mode was removed from ME-personal.");
     return this.controls(async () => {
       this.gate();
       const host = this.host;
@@ -809,7 +810,7 @@ export class MultiplayerService {
             await saveRoomCharacters(chats, chat, room);
           });
         host.proposals = host.proposals.filter((p) => p.id !== action.proposalId);
-      } else if (action.type === "startGame") await this.startGame(host, action);
+      }
       this.wake(host);
       return this.hostState();
     });
@@ -840,28 +841,6 @@ export class MultiplayerService {
     );
     // A connected player keeps their name; approving a second request for it still fails.
     return live ? null : seated;
-  }
-  private async startGame(host: Host, action: GameStartAction) {
-    if (!this.game || !this.runner) throw new MultiplayerError("unavailable");
-    const claim = await host.store.change((room, _chats, chat) => {
-      if (
-        chat.mode !== "game" ||
-        room.status !== "lobby" ||
-        room.generation === "running" ||
-        room.generations >= room.maxGenerations
-      )
-        throw new MultiplayerError("busy");
-      // The Players roster is authoritative, including removals made after the setup wizard.
-      action = { ...action, config: { ...action.config, ...gameRoster(room) } };
-      room.status = "active";
-      room.generation = "running";
-      room.generationOperationId = newId();
-      room.generations++;
-      return { roomId: room.roomId, epoch: room.epoch, operationId: room.generationOperationId, roundId: null };
-    });
-    this.launch(host, claim, async (signal) => {
-      await this.game!.runGameStart({ ...action, chatId: host.chatId }, { ...claim, signal }, this.runner!, signal);
-    });
   }
   private launch(
     host: Host,

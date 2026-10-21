@@ -1,10 +1,17 @@
+import { isApplePlatform } from "./command-center";
+
 // ──────────────────────────────────────────────
 // Keyboard shortcuts catalog (shown by the "?" overlay)
 // ──────────────────────────────────────────────
 // Every entry mirrors a binding that exists in the code; the comment above it
 // names where. Keep this list in sync when adding or removing a shortcut.
 // "Mod" renders as Ctrl, or as the Command key on Apple devices.
-import { isApplePlatform } from "./command-center";
+// ──────────────────────────────────────────────
+// Keyboard shortcuts catalog (shown by the "?" overlay)
+// ──────────────────────────────────────────────
+// Every entry mirrors a binding that exists in the code; the comment above it
+// names where. Keep this list in sync when adding or removing a shortcut.
+// "Mod" renders as Ctrl, or as the Command key on Apple devices.
 
 export interface KeyboardShortcut {
   /** Key combos; alternatives are separate arrays, keys within one are pressed together. */
@@ -67,15 +74,7 @@ export const KEYBOARD_SHORTCUT_GROUPS: readonly KeyboardShortcutGroup[] = [
       { keys: [["Enter"]], labelKey: "shortcuts.messages.searchJump" },
     ],
   },
-  {
-    id: "game",
-    titleKey: "shortcuts.groups.game",
-    shortcuts: [
-      // GameCombatUI action menu
-      { keys: [["↑"], ["↓"], ["W"], ["S"]], labelKey: "shortcuts.game.combatMove" },
-      { keys: [["Enter"], ["Space"]], labelKey: "shortcuts.game.combatChoose" },
-    ],
-  },
+
   {
     id: "editors",
     titleKey: "shortcuts.groups.editors",

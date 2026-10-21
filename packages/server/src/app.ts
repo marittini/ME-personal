@@ -1,6 +1,3 @@
-// ──────────────────────────────────────────────
-// Fastify App Factory
-// ──────────────────────────────────────────────
 import Fastify, { type FastifyBaseLogger } from "fastify";
 import { holdInjectUntilRegistered } from "./lib/fastify-inject-gate.js";
 import cors from "@fastify/cors";
@@ -20,7 +17,7 @@ import { seedDefaultPreset } from "./db/seed.js";
 import { seedProfessorMari } from "./db/seed-mari.js";
 import { seedDefaultConnection } from "./db/seed-connection.js";
 import { seedDefaultBackgrounds } from "./db/seed-backgrounds.js";
-import { seedDefaultGameAssets } from "./db/seed-game-assets.js";
+
 import { seedDefaultRegexScripts } from "./db/seed-regex.js";
 import { buildAssetManifest, ensureAssetDirs } from "./services/game/asset-manifest.service.js";
 import { recoverGalleryImages } from "./services/storage/gallery-recovery.js";
@@ -75,6 +72,13 @@ import { startup } from "./lib/startup-timeline.js";
 import { openCodeSessionHook } from "./utils/opencode-session.js";
 import { isApiRequest } from "./utils/api-request.js";
 import { startMessageTrashMaintenance, sweepExpiredMessageTrash } from "./services/storage/message-trash.storage.js";
+
+// ──────────────────────────────────────────────
+// Fastify App Factory
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Fastify App Factory
+// ──────────────────────────────────────────────
 
 const isLite = process.env.MARINARA_LITE === "true" || process.env.MARINARA_LITE === "1";
 const MAX_UPLOAD_BYTES = 256 * 1024 * 1024;
@@ -201,18 +205,12 @@ export async function buildApp(https?: { cert: Buffer; key: Buffer }) {
   // package updates are offered in the client and never applied at startup.
   if (getNodeEnv() !== "test") {
     try {
+      await capabilityPackageManager.removeExcludedPackageCode();
       const removedCorePackages = await capabilityPackageManager.pruneNonDownloadableCorePackages();
       if (removedCorePackages.length > 0) {
         app.log.info("Removed obsolete downloadable copies of core features: %s", removedCorePackages.join(", "));
       }
       await migrateLegacyCapabilities(db, hadUserStateBeforeStartup);
-      const noodleMigration =
-        await capabilityPackageManager.migrateExtractedNoodleAvailability(hadUserStateBeforeStartup);
-      if ("pending" in noodleMigration && noodleMigration.pending) {
-        app.log.debug("Optional Noodle package is not in the active catalog yet; migration remains pending");
-      } else if (noodleMigration.migrated) {
-        app.log.info("Installed the optional Noodle package for an upgraded profile");
-      }
     } catch (error) {
       app.log.warn(error, "Optional package availability migration did not complete; it will retry next startup");
     }
@@ -249,7 +247,6 @@ export async function buildApp(https?: { cert: Buffer; key: Buffer }) {
     app.log.warn(error, "Tripo connection migration did not complete; it will retry next startup");
   }
   await startup.phase("seed.backgrounds", () => seedDefaultBackgrounds());
-  await startup.phase("seed.game-assets", () => seedDefaultGameAssets());
 
   // ── Ensure default asset directories exist, then build manifest ──
   await startup.phase("assets.manifest", () => {

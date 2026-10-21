@@ -21,8 +21,12 @@ import { Translation } from "react-i18next";
 import { APP_VERSION } from "@marinara-engine/shared";
 import { CustomThemeInjector } from "./components/layout/CustomThemeInjector";
 import { PersonalExtensionInjector } from "./components/layout/PersonalExtensionInjector";
-import { ModelDownloadModal } from "./components/modals/ModelDownloadModal";
-import { WhatsNewModal } from "./components/modals/WhatsNewModal";
+const ModelDownloadModal = lazy(() =>
+  import("./components/modals/ModelDownloadModal").then((module) => ({ default: module.ModelDownloadModal })),
+);
+const WhatsNewModal = lazy(() =>
+  import("./components/modals/WhatsNewModal").then((module) => ({ default: module.WhatsNewModal })),
+);
 import { StorageMigrationNoticeModal } from "./components/modals/StorageMigrationNoticeModal";
 import { SeasonalGreetingModal } from "./components/modals/SeasonalGreetingModal";
 import { AppDialogRenderer } from "./components/ui/AppDialogRenderer";
@@ -1229,11 +1233,13 @@ export function App() {
           onChatWindowIntroOpenChange={setChatWindowIntroOpen}
         />
       </Suspense>
-      <WhatsNewModal
-        presentationAllowed={!hasModalOpen && !hasAppDialogOpen && (isLite || !showDownloadModal)}
-        onOpenChange={setWhatsNewOpen}
-        onResolved={handleWhatsNewResolved}
-      />
+      <Suspense fallback={null}>
+        <WhatsNewModal
+          presentationAllowed={!hasModalOpen && !hasAppDialogOpen && (isLite || !showDownloadModal)}
+          onOpenChange={setWhatsNewOpen}
+          onResolved={handleWhatsNewResolved}
+        />
+      </Suspense>
       <StorageMigrationNoticeModal
         presentationAllowed={
           whatsNewResolved && !hasModalOpen && !hasAppDialogOpen && !whatsNewOpen && (isLite || !showDownloadModal)
@@ -1273,7 +1279,11 @@ export function App() {
           (isLite || !showDownloadModal)
         }
       />
-      {!isLite && <ModelDownloadModal open={showDownloadModal} onClose={() => setShowDownloadModal(false)} />}
+      {!isLite && (
+        <Suspense fallback={null}>
+          <ModelDownloadModal open={showDownloadModal} onClose={() => setShowDownloadModal(false)} />
+        </Suspense>
+      )}
       {hasModalOpen && (
         <Suspense fallback={null}>
           <LazyModalRenderer />

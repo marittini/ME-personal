@@ -1,18 +1,28 @@
 // ──────────────────────────────────────────────
 // Chat: Settings Drawer — per-chat configuration
 // ──────────────────────────────────────────────
-import {
-  Fragment,
-  lazy,
-  Suspense,
-  useState,
-  useRef,
-  useEffect,
-  useMemo,
-  useCallback,
-  useId,
-  type ReactNode,
-} from "react";
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Settings Drawer — per-chat configuration
+// ──────────────────────────────────────────────
+import { lazy, Suspense, useState, useRef, useEffect, useMemo, useCallback, useId, type ReactNode } from "react";
 import { useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -82,11 +92,9 @@ import {
   ScrollText,
   PenLine,
   Images,
-  LayoutDashboard,
   Link2,
   MessagesSquare,
   ScanText,
-  Shield,
   Wallpaper,
   Search,
   UserRound,
@@ -102,9 +110,7 @@ import { ActiveChatBackgroundPicker } from "../panels/settings/BackgroundPicker"
 import { AdvancedParametersSection } from "../../features/chat-settings/sections/AdvancedParametersSection";
 import { ChatNameSection } from "../../features/chat-settings/sections/ChatNameSection";
 import { ChatVariablesSection } from "../../features/chat-settings/sections/ChatVariablesSection";
-import { CombatStyleSection } from "../../features/chat-settings/sections/CombatStyleSection";
-import { useGameRuleset } from "../../hooks/use-game-ruleset";
-import { isRulesetCombatFight } from "../../lib/ruleset-combat-bridge";
+
 import { ConnectionSection, type ChatConnectionOption } from "../../features/chat-settings/sections/ConnectionSection";
 import { ConversationPromptSection } from "../../features/chat-settings/sections/ConversationPromptSection";
 import { DiscordMirrorControls } from "../../features/chat-settings/sections/DiscordMirrorSection";
@@ -154,14 +160,12 @@ import {
   AgentSettingsTextarea,
   AgentSettingsToggle,
   MediaScopeSelect,
-  GamePromptTemplateSelect,
   GenerationSettingsLink,
 } from "./AgentSettingsControls";
 import { ExpressionSpriteSettings } from "./ExpressionSpriteSettings";
-import { AvatarLayoutSettings, type AvatarLayoutControls } from "./AvatarLayoutSettings";
+import { type AvatarLayoutControls } from "./AvatarLayoutSettings";
 import { AgentPromptTemplateSelect } from "./AgentPromptTemplateSelect";
-import { HapticConnectionPanel } from "./HapticConnectionPanel";
-import { HAPTIC_SENSITIVITY_OPTIONS } from "./haptic-sensitivity-options";
+
 import { ChatModeIcon } from "./ChatModeIcon";
 import { SettingsSwitch } from "../panels/settings/SettingControls";
 import { ChoiceSelectionModal } from "../presets/ChoiceSelectionModal";
@@ -212,7 +216,7 @@ import {
   useChatGroup,
   chatKeys,
 } from "../../hooks/use-chats";
-import { useUpdateGameWidgets } from "../../hooks/use-game";
+
 import { useRegexScripts, useUpdateRegexScript, type RegexScriptRow } from "../../hooks/use-regex-scripts";
 import { api } from "../../lib/api-client";
 import { EXPORT_FAILED_TOAST_ID } from "../../lib/file-download";
@@ -270,7 +274,6 @@ import {
 } from "../../hooks/use-chat-presets";
 import type {
   AgentPhase,
-  AgentPromptTemplateOption,
   ChatMode,
   ChatMemoryChunk,
   ChatMemoryRecallExportPayload,
@@ -279,7 +282,6 @@ import type {
   ConversationCommandKey,
   ConversationNote,
   ExportEnvelope,
-  HapticFeedbackSensitivity,
   HudWidget,
   KnowledgeAgentSourceSettings,
   Message,
@@ -307,8 +309,6 @@ import {
   DEFAULT_AGENT_MAX_TOKENS,
   GAME_GM_BUILT_IN_PROMPT_TEMPLATES,
   getDefaultAgentPrompt,
-  GAME_VIDEO_BUILT_IN_PROMPT_TEMPLATES,
-  GAME_VIDEO_PROMPT_TEMPLATE_ID,
   LIMITS,
   MIN_AGENT_MAX_TOKENS,
   PROFESSOR_MARI_ID,
@@ -329,20 +329,13 @@ import {
   isRetiredBuiltInAgentId,
   mergeBuiltInAgentSettings,
   normalizeManualTrackerAgentTypes,
-  normalizeAgentPromptTemplateOptions,
   normalizeAgentPhaseForType,
   normalizeAgentPromptTemplateSelectionMap,
   resolveDefaultAgentPromptTemplateId,
   resolveAgentPromptTemplate,
   normalizeChatSummaryEntries,
 } from "@marinara-engine/shared";
-import type {
-  Chat,
-  CharacterGroup,
-  GameCombatStyle,
-  Lorebook,
-  SpriteCharacterVisualSettings,
-} from "@marinara-engine/shared";
+import type { Chat, CharacterGroup, Lorebook, SpriteCharacterVisualSettings } from "@marinara-engine/shared";
 import {
   isCustomToolSelectable,
   useCustomToolCapabilities,
@@ -384,7 +377,7 @@ import {
   takePendingChatAgentSetupIds,
   takePendingChatResourcePanelRestore,
 } from "../../lib/chat-resource-drag";
-import { GameWidgetFileControls, GameWidgetSetupEditor, normalizeGameHudWidgets } from "../game/GameWidgetSetupEditor";
+import { normalizeGameHudWidgets } from "../../lib/legacy-game-widgets";
 import {
   MultiplayerPlayersSection,
   type MultiplayerGameStart,
@@ -405,7 +398,7 @@ const InlineLorebookEntriesEditor = lazy(() =>
     default: module.InlineLorebookEntriesEditor,
   })),
 );
-const StoryboardChatSettingsPanel = lazy(() => import("./StoryboardChatSettingsPanel"));
+
 const ChatGalleryPanel = lazy(() =>
   import("./ChatGalleryPanel").then((module) => ({ default: module.ChatGalleryPanel })),
 );
@@ -506,55 +499,6 @@ function getActiveAgentMenuDescription(description: string): string {
     return index >= 0 ? Math.min(earliest, index) : earliest;
   }, description.length);
   return description.slice(0, cutoff).trim();
-}
-
-const GAME_VIDEO_BUILT_IN_PROMPT_TEMPLATE_IDS = new Set(
-  GAME_VIDEO_BUILT_IN_PROMPT_TEMPLATES.map((template) => template.id),
-);
-
-function normalizeGameVideoPromptTemplateId(value: unknown, fallback: string): string {
-  const raw = typeof value === "string" ? value.trim() : "";
-  const normalized = raw
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-  return normalized || fallback;
-}
-
-function getUniqueGameVideoPromptTemplateId(
-  id: string,
-  usedIds: Set<string>,
-  fallback = "custom-game-video-prompt",
-): string {
-  const base = normalizeGameVideoPromptTemplateId(id, fallback);
-  let candidate = base;
-  let attempt = 2;
-  while (usedIds.has(candidate)) {
-    candidate = `${base}-${attempt}`;
-    attempt++;
-  }
-  usedIds.add(candidate);
-  return candidate;
-}
-
-function normalizeGameVideoPromptTemplates(value: unknown): AgentPromptTemplateOption[] {
-  const usedIds = new Set(GAME_VIDEO_BUILT_IN_PROMPT_TEMPLATE_IDS);
-  return normalizeAgentPromptTemplateOptions(value)
-    .map((template) => ({
-      ...template,
-      id: getUniqueGameVideoPromptTemplateId(template.id, usedIds),
-    }))
-    .slice(0, 20);
-}
-
-function getGameVideoPromptTemplateOptions(customTemplates: AgentPromptTemplateOption[]): AgentPromptTemplateOption[] {
-  return [...GAME_VIDEO_BUILT_IN_PROMPT_TEMPLATES, ...customTemplates];
-}
-
-function resolveSelectedGameVideoPromptTemplateId(value: unknown, options: AgentPromptTemplateOption[]): string {
-  const selected = typeof value === "string" ? value.trim() : "";
-  if (selected && options.some((option) => option.id === selected)) return selected;
-  return GAME_VIDEO_PROMPT_TEMPLATE_ID;
 }
 
 function renderRoleplayAgentMenuIcon(agentId: string, variant: "card" | "chip" = "card"): React.ReactNode {
@@ -1002,7 +946,6 @@ export function ChatSettingsDrawer({
     patch: Partial<Record<string, CustomAgentImageSetting | null>>;
   } | null>(null);
   updateMetaMutateAsyncRef.current = updateMeta.mutateAsync;
-  const updateGameWidgets = useUpdateGameWidgets();
   const { data: regexScripts } = useRegexScripts();
   const updateRegexScript = useUpdateRegexScript();
   const updateAgentConfig = useUpdateAgent();
@@ -1273,10 +1216,7 @@ export function ChatSettingsDrawer({
         : null;
     return normalizeGameHudWidgets(blueprint?.hudWidgets);
   }, [metadata.gameBlueprint, metadata.gameWidgetState]);
-  const gameWidgetSourceSignature = useMemo(() => JSON.stringify(gameWidgetSource), [gameWidgetSource]);
-  const [gameWidgetDrafts, setGameWidgetDrafts] = useState<HudWidget[]>(() => gameWidgetSource);
-  const gameWidgetDraftSignature = useMemo(() => JSON.stringify(gameWidgetDrafts), [gameWidgetDrafts]);
-  const gameWidgetsChanged = gameWidgetDraftSignature !== gameWidgetSourceSignature;
+  const [, setGameWidgetDrafts] = useState<HudWidget[]>(() => gameWidgetSource);
 
   useEffect(() => {
     setGameWidgetDrafts(gameWidgetSource);
@@ -1615,18 +1555,11 @@ export function ChatSettingsDrawer({
   );
   const activeToolIds: string[] = metadata.activeToolIds ?? [];
   const spotifyActive = activeAgentIds.includes("spotify");
-  const gameLorebookKeeperLorebook = gameLorebookKeeperLorebookId
-    ? ((lorebooks ?? []) as Array<{ id: string; name: string }>).find(
-        (book) => book.id === gameLorebookKeeperLorebookId,
-      )
-    : null;
   const spotifySourceType = normalizeSpotifySourceType(metadata.spotifySourceType);
   const spotifyPlaylistId = typeof metadata.spotifyPlaylistId === "string" ? metadata.spotifyPlaylistId : "";
   const spotifyArtist = typeof metadata.spotifyArtist === "string" ? metadata.spotifyArtist : "";
   const gameUseSpotifyMusic = metadata.gameUseSpotifyMusic === true;
   const gameSpotifySourceType = metadata.gameSpotifySourceType ?? "liked";
-  const gameSpotifyPlaylistId =
-    typeof metadata.gameSpotifyPlaylistId === "string" ? metadata.gameSpotifyPlaylistId : "";
   const gameSpotifyArtist = typeof metadata.gameSpotifyArtist === "string" ? metadata.gameSpotifyArtist : "";
   const musicDjSettings = mergeBuiltInAgentSettings("spotify", agentConfigsByType.get("spotify")?.settings);
   const customMusicSource = normalizeCustomMusicSource(musicDjSettings);
@@ -2021,10 +1954,6 @@ export function ChatSettingsDrawer({
   const htmlActive = activeAgentIds.includes("html");
   const directorActive = activeAgentIds.includes("director");
   const hapticActive = activeAgentIds.includes("haptic");
-  const hapticSensitivity: HapticFeedbackSensitivity =
-    metadata.hapticSensitivity === "subtle" || metadata.hapticSensitivity === "intense"
-      ? metadata.hapticSensitivity
-      : "standard";
   const agentWriteApprovalRequired = metadata.agentWriteApprovalRequired === true;
   const renderReviewAgentOutputsToggle = (surface: "card" | "secondary") => (
     <AgentSettingsToggle
@@ -2121,42 +2050,12 @@ export function ChatSettingsDrawer({
     !imageConnectionsList.some((connection) => connection.id === illustratorImageConnectionId);
   const selfieUseAvatarReferences = metadata.selfieUseAvatarReferences === true;
   const selfieIncludeCharacterAppearance = metadata.selfieIncludeCharacterAppearance === true;
-  const gameImageUseAvatarReferences = metadata.gameImageUseAvatarReferences !== false;
-  const gameImageIncludeCharacterAppearance = metadata.gameImageIncludeCharacterAppearance !== false;
-  const gameImageAutoGenerationEnabled = metadata.gameImageAutoGenerationEnabled !== false;
-  const gameImageDynamicPromptEnabled = metadata.gameImageDynamicPromptEnabled === true;
-  const effectiveCombatStyle: GameCombatStyle =
-    (metadata.gameCombatStyle as GameCombatStyle | undefined) ??
-    (metadata.gameSetupConfig?.combatStyle as GameCombatStyle | undefined) ??
-    "classic";
   // A missing choice is by side: every game before turn order was a choice played that way (combat C6c).
-  const effectiveTurnOrder: "side" | "initiative" =
-    ((metadata.gameTacticalTurnOrder ?? metadata.gameSetupConfig?.tacticalTurnOrder) as string | undefined) ===
-    "initiative"
-      ? "initiative"
-      : "side";
   // Whether this game's battles are the ruleset's own. Read from the block the file declares and
   // from the director being on, never from the coverage flag the file claims.
-  const gameRuleset = useGameRuleset(isGame ? metadata : null);
-  const rulesetResolvesFights =
-    gameRuleset.status === "ok" &&
-    isRulesetCombatFight({
-      combatDirector: (metadata.gameSetupConfig as Record<string, unknown> | undefined)?.combatDirector === true,
-      definition: gameRuleset.definition,
-      // The preference is settled before any fight, so there is no anchor to read here: what this
-      // line says is what will happen the next time a battle starts.
-      anchor: "settings",
-    });
   // And whether that ruleset says what one cell of a board is worth, which is what turns the
   // preference below from a kept-and-unused choice into the one that decides whether the fight has
   // positions.
-  const rulesetHasPositions =
-    rulesetResolvesFights && gameRuleset.status === "ok" && !!gameRuleset.definition.combat?.distance;
-  const gameSceneVideosEnabled =
-    metadata.gameSceneVideosEnabled === true ||
-    (metadata.gameSceneVideosEnabled !== false &&
-      typeof metadata.gameVideoConnectionId === "string" &&
-      metadata.gameVideoConnectionId.trim().length > 0);
   const selectedGameGmPromptTemplateId = useMemo(() => {
     const selected = typeof metadata.gameGmPromptTemplateId === "string" ? metadata.gameGmPromptTemplateId.trim() : "";
     return selected && GAME_GM_BUILT_IN_PROMPT_TEMPLATES.some((template) => template.id === selected) ? selected : null;
@@ -2164,27 +2063,6 @@ export function ChatSettingsDrawer({
   const updateGameGmPromptTemplateSelection = useCallback(
     (templateId: string | null) => {
       updateMeta.mutate({ id: chat.id, gameGmPromptTemplateId: templateId });
-    },
-    [chat.id, updateMeta],
-  );
-  const gameVideoPromptTemplates = useMemo(
-    () => normalizeGameVideoPromptTemplates(metadata.gameVideoPromptTemplates),
-    [metadata.gameVideoPromptTemplates],
-  );
-  const gameVideoPromptOptions = useMemo(
-    () => getGameVideoPromptTemplateOptions(gameVideoPromptTemplates),
-    [gameVideoPromptTemplates],
-  );
-  const selectedGameVideoPromptTemplateId = useMemo(
-    () => resolveSelectedGameVideoPromptTemplateId(metadata.gameVideoPromptTemplateId, gameVideoPromptOptions),
-    [gameVideoPromptOptions, metadata.gameVideoPromptTemplateId],
-  );
-  const updateGameVideoPromptSelection = useCallback(
-    (promptTemplateId: string) => {
-      updateMeta.mutate({
-        id: chat.id,
-        gameVideoPromptTemplateId: promptTemplateId === GAME_VIDEO_PROMPT_TEMPLATE_ID ? null : promptTemplateId,
-      });
     },
     [chat.id, updateMeta],
   );
@@ -3537,7 +3415,7 @@ export function ChatSettingsDrawer({
         description={localizeUi("avatars.layout.description")}
         order={isGame ? undefined : avatarSettingsOrder}
       >
-        <AvatarLayoutSettings chatId={chat.id} layout={avatarLayout} />
+        {null}
       </AgentSettingsCard>
     ) : null;
 
@@ -3592,16 +3470,7 @@ export function ChatSettingsDrawer({
         />
       );
     } else if (agent.id === STORYBOARD_AGENT_ID) {
-      settings = (
-        <Suspense fallback={null}>
-          <StoryboardChatSettingsPanel
-            chatId={chat.id}
-            metadata={metadata as Record<string, unknown>}
-            onClose={onClose}
-            ownerMode="roleplay"
-          />
-        </Suspense>
-      );
+      settings = <Suspense fallback={null}>{null}</Suspense>;
     } else if (agent.id === "beholder") {
       settings = (
         <Suspense fallback={null}>
@@ -4182,20 +4051,15 @@ export function ChatSettingsDrawer({
   const [gameSpecialInstructionsDraft, setGameSpecialInstructionsDraft] = useState(
     (metadata.gameSpecialInstructions as string) ?? "",
   );
-  const [gameImagePromptInstructionsDraft, setGameImagePromptInstructionsDraft] = useState(
-    (metadata.gameImagePromptInstructions as string) ?? "",
-  );
+  const [, setGameImagePromptInstructionsDraft] = useState((metadata.gameImagePromptInstructions as string) ?? "");
   const gameSetupConfig =
     metadata.gameSetupConfig && typeof metadata.gameSetupConfig === "object"
       ? (metadata.gameSetupConfig as Record<string, unknown>)
       : {};
   const campaignArtStyle = typeof gameSetupConfig.artStylePrompt === "string" ? gameSetupConfig.artStylePrompt : "";
-  const generatedCampaignArtStyle =
-    typeof gameSetupConfig.generatedArtStylePrompt === "string" ? gameSetupConfig.generatedArtStylePrompt : "";
-  const useCampaignArtStyle = gameSetupConfig.useCampaignArtStyle !== false;
-  const [campaignArtStyleDraft, setCampaignArtStyleDraft] = useState(campaignArtStyle);
+  const [, setCampaignArtStyleDraft] = useState(campaignArtStyle);
   const [spotifyArtistDraft, setSpotifyArtistDraft] = useState(spotifyArtist);
-  const [gameSpotifyArtistDraft, setGameSpotifyArtistDraft] = useState(gameSpotifyArtist);
+  const [, setGameSpotifyArtistDraft] = useState(gameSpotifyArtist);
 
   // ── Chat settings profiles (legacy API/type names still use "chat preset") ──
   const presetMode = chatMode;
@@ -4238,28 +4102,6 @@ export function ChatSettingsDrawer({
   useEffect(() => {
     setCampaignArtStyleDraft(campaignArtStyle);
   }, [campaignArtStyle, chat.id]);
-
-  const commitCampaignArtStyle = () => {
-    const nextArtStyle = campaignArtStyleDraft.trim();
-    if (nextArtStyle === campaignArtStyle) return;
-    updateMeta.mutate({
-      id: chat.id,
-      gameSetupConfig: {
-        ...gameSetupConfig,
-        artStylePrompt: nextArtStyle,
-        generatedArtStylePrompt: generatedCampaignArtStyle || campaignArtStyle,
-      },
-    });
-  };
-
-  const commitGameImagePromptInstructions = () => {
-    const stored = (metadata.gameImagePromptInstructions as string) ?? "";
-    if (gameImagePromptInstructionsDraft === stored) return;
-    updateMeta.mutate({
-      id: chat.id,
-      gameImagePromptInstructions: gameImagePromptInstructionsDraft.trim() || null,
-    });
-  };
 
   useEffect(() => {
     modePromptDefaultAppliedRef.current = null;
@@ -4644,91 +4486,6 @@ export function ChatSettingsDrawer({
       )}
     </div>
   );
-
-  const toggleGameMusicDj = useCallback(async () => {
-    const latestActiveAgentIds = readLatestActiveAgentIds();
-    if (gameMusicDjEnabled) {
-      await updateMeta.mutateAsync({
-        id: chat.id,
-        gameUseMusicDj: false,
-        gameUseSpotifyMusic: false,
-        activeAgentIds: latestActiveAgentIds.filter((id) => id !== "spotify" && id !== "youtube"),
-      });
-      return;
-    }
-
-    try {
-      await ensureMusicDjAgent(musicPlayerSource);
-      await updateMeta.mutateAsync({
-        id: chat.id,
-        enableAgents: true,
-        gameUseMusicDj: true,
-        gameUseSpotifyMusic: musicPlayerSource === "spotify",
-        gameSpotifySourceType,
-        activeAgentIds: Array.from(new Set([...latestActiveAgentIds.filter((id) => id !== "youtube"), "spotify"])),
-      });
-    } catch (error) {
-      await showAlertDialog({
-        title: "Couldn't Enable Music DJ",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Music DJ could not be enabled for this game. Check the setup and try again.",
-      });
-    }
-  }, [
-    chat.id,
-    ensureMusicDjAgent,
-    gameMusicDjEnabled,
-    gameSpotifySourceType,
-    musicPlayerSource,
-    readLatestActiveAgentIds,
-    updateMeta,
-  ]);
-
-  const saveGameWidgets = useCallback(async () => {
-    const widgets = normalizeGameHudWidgets(gameWidgetDrafts);
-    try {
-      await updateGameWidgets.mutateAsync({ chatId: chat.id, widgets });
-      toast.success(localizeUi("ui.chat.chatsettingsdrawer.gameWidgetsUpdated"));
-    } catch {
-      toast.error(localizeUi("ui.chat.chatsettingsdrawer.failedToUpdateGameWidgets"));
-    }
-  }, [chat.id, gameWidgetDrafts, updateGameWidgets, localizeUi]);
-
-  const toggleGameLorebookKeeper = useCallback(() => {
-    const latestActiveAgentIds = readLatestActiveAgentIds();
-    const nextActiveAgentIds = latestActiveAgentIds.filter((id) => id !== "lorebook-keeper");
-    if (gameLorebookKeeperEnabled) {
-      const keeperLorebookIds = new Set(
-        ((lorebooks ?? []) as Lorebook[])
-          .filter((lorebook) => lorebook.sourceAgentId === "game-lorebook-keeper")
-          .map((lorebook) => lorebook.id),
-      );
-      if (gameLorebookKeeperLorebookId) keeperLorebookIds.add(gameLorebookKeeperLorebookId);
-      updateMeta.mutate({
-        id: chat.id,
-        gameLorebookKeeperEnabled: false,
-        activeAgentIds: nextActiveAgentIds,
-        activeLorebookIds: activeLorebookIds.filter((id) => !keeperLorebookIds.has(id)),
-      });
-      return;
-    }
-
-    updateMeta.mutate({
-      id: chat.id,
-      gameLorebookKeeperEnabled: true,
-      activeAgentIds: nextActiveAgentIds,
-    });
-  }, [
-    activeLorebookIds,
-    chat.id,
-    gameLorebookKeeperEnabled,
-    gameLorebookKeeperLorebookId,
-    lorebooks,
-    readLatestActiveAgentIds,
-    updateMeta,
-  ]);
 
   // Illustrator's Run Interval is a Roleplay chat setting; Game orders its illustrations by scenes instead.
   const agentAddIntervalMeta =
@@ -5259,67 +5016,6 @@ export function ChatSettingsDrawer({
     );
   };
 
-  const renderHapticSettingsCard = () => {
-    if (!metadata.enableAgents || !hapticActive) return null;
-
-    return (
-      <AgentSettingsCard
-        id={getAgentSettingsMenuId(chat.id, "haptic")}
-        icon={renderRoleplayAgentMenuIcon("haptic")}
-        title={hapticAgentMeta.name}
-        description={hapticAgentMeta.description}
-        order={getRoleplayAgentSettingsOrder("haptic")}
-        onRemove={getRoleplayAgentMenuRemoveHandler("haptic", hapticAgentMeta.name)}
-      >
-        <AgentSettingsToggle
-          label={localizeUi("ui.chat.hapticsetupfields.hapticFeedback")}
-          description={
-            metadata.enableHapticFeedback
-              ? localizeUi("ui.chat.hapticsetupfields.touchCuesAreEnabledForThisChat")
-              : localizeUi("ui.chat.hapticsetupfields.allowThisAgentToSendTouchCuesDuringThe")
-          }
-          enabled={metadata.enableHapticFeedback}
-          onToggle={() => updateMeta.mutate({ id: chat.id, enableHapticFeedback: !metadata.enableHapticFeedback })}
-        />
-        {metadata.enableHapticFeedback && (
-          <>
-            <div className="space-y-2 rounded-lg bg-[var(--background)]/75 p-2.5 ring-1 ring-[var(--border)]">
-              <div className="space-y-1">
-                <span className="text-[0.6875rem] font-semibold text-[var(--foreground)]">
-                  {localizeUi("ui.chat.chatsettingsdrawer.touchSensitivity")}
-                </span>
-                <AgentSettingsSegmentedControl<HapticFeedbackSensitivity>
-                  value={hapticSensitivity}
-                  columns={3}
-                  options={HAPTIC_SENSITIVITY_OPTIONS.map((option) => ({
-                    id: option.id,
-                    label: localizeUi(option.labelKey),
-                  }))}
-                  onChange={(hapticSensitivity) => updateMeta.mutate({ id: chat.id, hapticSensitivity })}
-                />
-              </div>
-              <AgentSettingsToggle
-                label={localizeUi("ui.chat.chatsettingsdrawer.incidentalContact")}
-                description={localizeUi("ui.chat.hapticsetupfields.tinyTapsForAccidentalBrushesAndBumps")}
-                enabled={metadata.hapticIncidentalContact === true}
-                onToggle={() =>
-                  updateMeta.mutate({
-                    id: chat.id,
-                    hapticIncidentalContact: metadata.hapticIncidentalContact !== true,
-                  })
-                }
-              />
-            </div>
-            <HapticConnectionPanel
-              intifaceUrl={typeof metadata.hapticIntifaceUrl === "string" ? metadata.hapticIntifaceUrl : undefined}
-              onIntifaceUrlChange={(hapticIntifaceUrl) => updateMeta.mutate({ id: chat.id, hapticIntifaceUrl })}
-            />
-          </>
-        )}
-      </AgentSettingsCard>
-    );
-  };
-
   if (!open) return null;
   // Only the loaded settings add the Chat Settings classes below; themes and select styling target them.
   const windowProps = getChatSettingsWindowProps(anchor);
@@ -5725,17 +5421,6 @@ export function ChatSettingsDrawer({
           )}
 
           {/* Combat Style — game mode only */}
-          {isGame && (
-            <CombatStyleSection
-              style={{ order: CHAT_SETTINGS_ORDER.combatStyle }}
-              combatStyle={effectiveCombatStyle}
-              rulesetResolvesFights={rulesetResolvesFights}
-              rulesetHasPositions={rulesetHasPositions}
-              onCombatStyleChange={(gameCombatStyle) => updateMeta.mutate({ id: chat.id, gameCombatStyle })}
-              turnOrder={effectiveTurnOrder}
-              onTurnOrderChange={(gameTacticalTurnOrder) => updateMeta.mutate({ id: chat.id, gameTacticalTurnOrder })}
-            />
-          )}
 
           {/* Scene System Prompt — shown only for scene-created chats */}
           {metadata.sceneSystemPrompt && (
@@ -5750,287 +5435,6 @@ export function ChatSettingsDrawer({
           )}
 
           {/* Party (game mode) */}
-          {isGame && (
-            <Section
-              id="game-party"
-              style={{ order: CHAT_SETTINGS_ORDER.persona }}
-              label={localizeUi("ui.chat.chatsettingsdrawer.party")}
-              icon={<Shield size="0.875rem" />}
-              count={chatCharacterCount + (chat.personaId ? 1 : 0)}
-              help={localizeUi("ui.chat.chatsettingsdrawer.yourInGamePartyPickAPersonaToPlay")}
-            >
-              <div className="space-y-1.5">
-                <label className="text-[0.6875rem] font-medium text-[var(--muted-foreground)]">
-                  {localizeUi("ui.characters.cardlibrarydetailcard.persona")}
-                </label>
-                {chat.personaId ? (
-                  <>
-                    <div className="flex items-center gap-2.5 rounded-lg bg-[var(--primary)]/10 px-2.5 py-2 ring-1 ring-[var(--primary)]/30">
-                      {(() => {
-                        const p = personas.find((persona) => persona.id === chat.personaId);
-                        return p ? (
-                          <>
-                            <DrawerPersonaAvatar persona={p} size="md" />
-                            <div className="min-w-0 flex-1">
-                              <span className="block truncate text-xs">{p.name}</span>
-                              {p.comment && (
-                                <span className="block truncate text-[0.625rem] italic text-[var(--muted-foreground)]">
-                                  {p.comment}
-                                </span>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="flex-1 truncate text-xs text-[var(--muted-foreground)]">
-                            {localizeUi("ui.chat.chatsettingsdrawer.unknownPersona")}
-                          </span>
-                        );
-                      })()}
-                      <div className="ml-auto flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleInlineResourceEditor("persona", chat.personaId!)}
-                          className="flex h-5 w-5 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--foreground)]"
-                          title={t("chat.settings.actions.editPersonaCard")}
-                          aria-label={t("chat.settings.actions.editPersonaCard")}
-                        >
-                          <Pencil size="0.6875rem" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateChat.mutate({ id: chat.id, personaId: null })}
-                          className={CHAT_RESOURCE_REMOVE_BUTTON_CLASS}
-                          data-chat-settings-remove-resource="persona"
-                          title={localizeUi("ui.chat.chatsettingsdrawer.removePersona")}
-                        >
-                          <X size="0.75rem" />
-                        </button>
-                      </div>
-                    </div>
-                    {renderInlineCardEditor(
-                      "persona",
-                      chat.personaId,
-                      personas.find((persona) => persona.id === chat.personaId)?.name ?? "Unknown persona",
-                    )}
-                  </>
-                ) : (
-                  <p className="text-[0.6875rem] text-[var(--muted-foreground)]">
-                    {localizeUi("ui.chat.chatsettingsdrawer.noPersonaSelected")}
-                  </p>
-                )}
-                <PersonaHistoryReassignDropdown
-                  chatId={chat.id}
-                  targetName={personas.find((persona) => persona.id === chat.personaId)?.name ?? null}
-                />
-
-                {!showPersonaPicker ? (
-                  <button
-                    onClick={() => {
-                      setShowPersonaPicker(true);
-                      setPersonaSearch("");
-                    }}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--primary)]"
-                  >
-                    <Plus size="0.75rem" />{" "}
-                    {chat.personaId
-                      ? localizeUi("ui.chat.chatsettingsdrawer.change")
-                      : localizeUi("ui.chat.chatsettingsdrawer.choose")}{" "}
-                    {localizeUi("ui.characters.cardlibrarydetailcard.persona")}
-                  </button>
-                ) : (
-                  <PickerDropdown
-                    search={personaSearch}
-                    onSearchChange={setPersonaSearch}
-                    onClose={() => setShowPersonaPicker(false)}
-                    placeholder={localizeUi("ui.chat.chatsettingsdrawer.searchPersonas")}
-                  >
-                    <button
-                      onClick={() => {
-                        updateChat.mutate({ id: chat.id, personaId: null });
-                        setShowPersonaPicker(false);
-                      }}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all hover:bg-[var(--accent)]",
-                        !chat.personaId && "bg-[var(--primary)]/10",
-                      )}
-                    >
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--muted-foreground)]">
-                        <X size="0.625rem" />
-                      </div>
-                      <span className="flex-1 truncate text-xs">{localizeUi("ui.game.gamesurfacecomponent.none")}</span>
-                      {!chat.personaId && <Check size="0.625rem" className="ml-auto shrink-0 text-[var(--primary)]" />}
-                    </button>
-                    {personas
-                      .filter(
-                        (p) =>
-                          includesTextForMatch(p.name, personaSearch) ||
-                          includesTextForMatch(p.comment ?? "", personaSearch),
-                      )
-                      .map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => {
-                            updateChat.mutate({ id: chat.id, personaId: p.id });
-                            setShowPersonaPicker(false);
-                          }}
-                          className={cn(
-                            "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all hover:bg-[var(--accent)]",
-                            chat.personaId === p.id && "bg-[var(--primary)]/10",
-                          )}
-                        >
-                          <DrawerPersonaAvatar persona={p} />
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate text-xs">{p.name}</span>
-                            {p.comment && (
-                              <span className="block truncate text-[0.625rem] italic text-[var(--muted-foreground)]">
-                                {p.comment}
-                              </span>
-                            )}
-                          </div>
-                          {chat.personaId === p.id && (
-                            <Check size="0.625rem" className="ml-auto shrink-0 text-[var(--primary)]" />
-                          )}
-                        </button>
-                      ))}
-                    {personas.filter(
-                      (p) =>
-                        includesTextForMatch(p.name, personaSearch) ||
-                        includesTextForMatch(p.comment ?? "", personaSearch),
-                    ).length === 0 && (
-                      <p className="px-3 py-2 text-[0.6875rem] text-[var(--muted-foreground)]">
-                        {personas.length === 0
-                          ? localizeUi("ui.chat.chatsettingsdrawer.noPersonasCreatedYet")
-                          : localizeUi("ui.lorebooks.linkedresourcepicker.noMatches")}
-                      </p>
-                    )}
-                  </PickerDropdown>
-                )}
-              </div>
-
-              <div className="mt-2 space-y-1.5">
-                <label className="text-[0.6875rem] font-medium text-[var(--muted-foreground)]">
-                  {localizeUi("ui.chat.chatsettingsdrawer.partyCharacters")}
-                </label>
-                {chatCharacterCount === 0 ? (
-                  <p className="text-[0.6875rem] text-[var(--muted-foreground)]">
-                    {localizeUi("ui.chat.chatsettingsdrawer.noCharactersInPartyYet")}
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    {chatCharIds.map((cid) => {
-                      const c = characters.find((ch) => ch.id === cid);
-                      if (!c) return null;
-                      const name = charName(c);
-                      const title = charTitle(c);
-                      return (
-                        <Fragment key={c.id}>
-                          <div className="flex items-center gap-2.5 rounded-lg bg-[var(--primary)]/10 px-3 py-2 ring-1 ring-[var(--primary)]/30">
-                            <button
-                              onClick={() => {
-                                onClose();
-                                useUIStore.getState().openCharacterDetail(c.id, { initialTab: "card" });
-                              }}
-                              className="flex min-w-0 flex-1 items-center gap-2.5 text-left transition-colors hover:opacity-80"
-                              title={localizeUi("ui.chat.chatsettingsdrawer.openCharacterCard")}
-                            >
-                              {c.avatarPath ? (
-                                <span className="relative block h-7 w-7 shrink-0 overflow-hidden rounded-full">
-                                  <img
-                                    src={c.avatarPath}
-                                    alt={name}
-                                    loading="lazy"
-                                    className="h-full w-full object-cover"
-                                    style={getAvatarCropStyle(getCharacterInfo(c).avatarCrop)}
-                                  />
-                                </span>
-                              ) : (
-                                <div className="mari-avatar-placeholder mari-avatar-placeholder--character flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold">
-                                  {name[0]}
-                                </div>
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <span className="block truncate text-xs">{name}</span>
-                                {title && (
-                                  <span className="block truncate text-[0.625rem] italic text-[var(--muted-foreground)]">
-                                    {title}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleInlineResourceEditor("character", c.id)}
-                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--accent)] hover:text-[var(--foreground)]"
-                              title={t("chat.settings.actions.editCharacterCard")}
-                              aria-label={t("chat.settings.actions.editCharacterCard")}
-                            >
-                              <Pencil size="0.6875rem" />
-                            </button>
-                            <button
-                              onClick={() => toggleCharacter(c.id)}
-                              className={CHAT_RESOURCE_REMOVE_BUTTON_CLASS}
-                              data-chat-settings-remove-resource="character"
-                              title={localizeUi("ui.chat.chatsettingsdrawer.removeFromParty")}
-                            >
-                              <Trash2 size="0.6875rem" />
-                            </button>
-                          </div>
-                          {renderInlineCardEditor("character", c.id, name)}
-                        </Fragment>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {!showCharPicker ? (
-                <button
-                  onClick={() => {
-                    setShowCharPicker(true);
-                    setCharSearch("");
-                  }}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--muted-foreground)] transition-colors hover:border-[var(--primary)]/40 hover:text-[var(--primary)]"
-                >
-                  <Plus size="0.75rem" /> {localizeUi("ui.chat.chatsettingsdrawer.addCharacterToParty")}
-                </button>
-              ) : (
-                <PickerDropdown
-                  search={charSearch}
-                  onSearchChange={setCharSearch}
-                  onClose={() => setShowCharPicker(false)}
-                  placeholder={localizeUi("ui.chat.chatsettingsdrawer.searchCharacters")}
-                >
-                  {selectableCharacters
-                    .filter((c) => !chatCharIds.includes(c.id))
-                    .filter((c) => characterMatchesSearch(getCharacterInfo(c), charSearch))
-                    .map((c) => {
-                      const name = charName(c);
-                      const title = charTitle(c);
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            toggleCharacter(c.id);
-                            setShowCharPicker(false);
-                          }}
-                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all hover:bg-[var(--accent)]"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate text-xs">{name}</span>
-                            {title && (
-                              <span className="block truncate text-[0.625rem] italic text-[var(--muted-foreground)]">
-                                {title}
-                              </span>
-                            )}
-                          </div>
-                          <Plus size="0.75rem" className="text-[var(--muted-foreground)]" />
-                        </button>
-                      );
-                    })}
-                </PickerDropdown>
-              )}
-            </Section>
-          )}
 
           {/* Persona */}
           {!isGame && (
@@ -7709,7 +7113,6 @@ export function ChatSettingsDrawer({
                 )}
                 {renderCustomAgentPicker()}
                 {renderActiveCustomAgentSettingsCard()}
-                {renderHapticSettingsCard()}
               </div>
             </Section>
           )}
@@ -8165,17 +7568,7 @@ export function ChatSettingsDrawer({
                   ).filter((connection) => isConnectionFlagTrue(connection.audioSoundEffects))}
                 />
               )}
-              {isGame && (
-                <SettingsSwitch
-                  label={localizeUi("chat.settings.game.sequentialTasks")}
-                  description={localizeUi("chat.settings.game.sequentialTasksHelp")}
-                  checked={metadata.gameSequentialAgents === true}
-                  onChange={(gameSequentialAgents) => updateMeta.mutate({ id: chat.id, gameSequentialAgents })}
-                  labelPosition="start"
-                  className="justify-between rounded-lg bg-[var(--secondary)] px-3 py-2.5 text-left"
-                  labelClassName="text-xs font-medium"
-                />
-              )}
+
               {availableAgents.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--secondary)]/35 px-4 py-5 text-center">
                   <p className="text-xs font-medium text-[var(--foreground)]">
@@ -8419,178 +7812,6 @@ export function ChatSettingsDrawer({
                       </select>
                     </div>
                   )}
-
-                  {isGame && (
-                    <AgentSettingsCard
-                      icon={<BookOpen size="0.75rem" className="mt-0.5 text-[var(--primary)]" />}
-                      title={lorebookKeeperAgentMeta.name}
-                      description={lorebookKeeperAgentMeta.description}
-                    >
-                      <AgentSettingsToggle
-                        label={localizeUi("ui.chat.chatsettingsdrawer.gameSessionKeeper")}
-                        description={localizeUi("ui.chat.chatsettingsdrawer.gameModeRunsThisAfterASessionEndsWith")}
-                        enabled={gameLorebookKeeperEnabled}
-                        onToggle={toggleGameLorebookKeeper}
-                      />
-                      {gameLorebookKeeperLorebook && (
-                        <p className="truncate rounded-lg bg-[var(--background)]/75 px-3 py-2 text-[0.625rem] text-[var(--muted-foreground)] ring-1 ring-[var(--border)]">
-                          {localizeUi("ui.chat.chatsettingsdrawer.target")}{" "}
-                          <span className="font-medium text-[var(--foreground)]">
-                            {gameLorebookKeeperLorebook.name}
-                          </span>
-                        </p>
-                      )}
-                    </AgentSettingsCard>
-                  )}
-
-                  {isGame && (
-                    <AgentSettingsCard
-                      icon={<Music2 size="0.75rem" className="mt-0.5 text-[var(--primary)]" />}
-                      title={musicDjAgentMeta.name}
-                      description={musicDjAgentMeta.description}
-                    >
-                      <AgentSettingsToggle
-                        label={localizeUi("ui.chat.chatsettingsdrawer.musicDj")}
-                        description={localizeUi("ui.chat.chatsettingsdrawer.activePlayerValue1", {
-                          value1: getMusicProviderLabel(musicPlayerSource),
-                        })}
-                        enabled={gameMusicDjEnabled}
-                        onToggle={() => void toggleGameMusicDj()}
-                      />
-
-                      <AgentSettingsSegmentedControl<MusicProvider>
-                        value={musicPlayerSource}
-                        columns={3}
-                        options={(["spotify", "youtube", "custom"] as const).map((provider) => ({
-                          id: provider,
-                          label: getMusicProviderLabel(provider),
-                        }))}
-                        onChange={(provider) => void changeMusicDjProvider(provider)}
-                      />
-
-                      {gameMusicDjEnabled && musicPlayerSource === "spotify" && (
-                        <div className="space-y-2">
-                          <label className="flex flex-col gap-1">
-                            <span className="text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-                              {localizeUi("ui.chat.chatsettingsdrawer.spotifySource")}
-                            </span>
-                            <select
-                              value={gameSpotifySourceType}
-                              onChange={(event) => {
-                                const next = normalizeSpotifySourceType(event.target.value);
-                                updateMeta.mutate({
-                                  id: chat.id,
-                                  gameSpotifySourceType: next,
-                                  gameSpotifyPlaylistId: next === "playlist" ? gameSpotifyPlaylistId || null : null,
-                                  gameSpotifyPlaylistName:
-                                    next === "playlist" ? (metadata.gameSpotifyPlaylistName as string) || null : null,
-                                  gameSpotifyArtist: next === "artist" ? gameSpotifyArtistDraft.trim() || null : null,
-                                });
-                              }}
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)]"
-                            >
-                              {SPOTIFY_SOURCE_OPTIONS.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="text-[0.5625rem] text-[var(--muted-foreground)]">
-                              {SPOTIFY_SOURCE_OPTIONS.find((option) => option.id === gameSpotifySourceType)
-                                ?.description ?? ""}
-                            </span>
-                          </label>
-
-                          {gameSpotifySourceType === "playlist" && (
-                            <label className="flex flex-col gap-1">
-                              <span className="text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-                                {localizeUi("ui.chat.musicdjsetupfields.playlist")}
-                              </span>
-                              {spotifyPlaylistsQuery.data?.playlists.length ? (
-                                <select
-                                  value={gameSpotifyPlaylistId}
-                                  onChange={(event) => {
-                                    const playlist = spotifyPlaylistsQuery.data?.playlists.find(
-                                      (entry) => entry.id === event.target.value,
-                                    );
-                                    updateMeta.mutate({
-                                      id: chat.id,
-                                      gameSpotifyPlaylistId: event.target.value || null,
-                                      gameSpotifyPlaylistName: playlist?.name ?? null,
-                                    });
-                                  }}
-                                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)]"
-                                >
-                                  <option value="">{localizeUi("ui.chat.musicdjsetupfields.choosePlaylist")}</option>
-                                  {spotifyPlaylistsQuery.data.playlists.map((playlist) => {
-                                    const suffix =
-                                      typeof playlist.trackCount === "number"
-                                        ? ` (${playlist.trackCount})`
-                                        : playlist.owned === false
-                                          ? " (followed — unavailable)"
-                                          : "";
-                                    return (
-                                      <option key={playlist.id} value={playlist.id}>
-                                        {playlist.name}
-                                        {suffix}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                              ) : (
-                                <input
-                                  key={`${chat.id}-${gameSpotifyPlaylistId}`}
-                                  defaultValue={gameSpotifyPlaylistId}
-                                  onBlur={(event) =>
-                                    updateMeta.mutate({
-                                      id: chat.id,
-                                      gameSpotifyPlaylistId: event.target.value.trim() || null,
-                                      gameSpotifyPlaylistName: null,
-                                    })
-                                  }
-                                  placeholder={
-                                    spotifyPlaylistsQuery.isFetching
-                                      ? localizeUi("ui.chat.musicdjsetupfields.loadingPlaylists")
-                                      : localizeUi("ui.chat.musicdjsetupfields.pastePlaylistId")
-                                  }
-                                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/50"
-                                />
-                              )}
-                              {spotifyPlaylistsQuery.isError && (
-                                <span className="text-[0.5625rem] text-amber-400/90">
-                                  {localizeUi("ui.chat.musicdjsetupfields.connectSpotifyInTheMusicDjAgentToLoad")}
-                                </span>
-                              )}
-                            </label>
-                          )}
-
-                          {gameSpotifySourceType === "artist" && (
-                            <label className="flex flex-col gap-1">
-                              <span className="text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-                                {localizeUi("ui.chat.musicdjsetupfields.artist")}
-                              </span>
-                              <input
-                                value={gameSpotifyArtistDraft}
-                                onChange={(event) => setGameSpotifyArtistDraft(event.target.value)}
-                                onBlur={() =>
-                                  updateMeta.mutate({
-                                    id: chat.id,
-                                    gameSpotifyArtist: gameSpotifyArtistDraft.trim() || null,
-                                  })
-                                }
-                                placeholder={localizeUi("ui.chat.musicdjsetupfields.hoyoMix")}
-                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/50"
-                              />
-                            </label>
-                          )}
-                        </div>
-                      )}
-
-                      {gameMusicDjEnabled && musicPlayerSource === "custom" && renderCustomMusicLibrarySettings("game")}
-                    </AgentSettingsCard>
-                  )}
-
-                  {isGame && avatarLayoutCard}
 
                   {!isGame && (
                     <div className="flex flex-col gap-2">
@@ -9379,277 +8600,8 @@ export function ChatSettingsDrawer({
                   )}
 
                   {/* Haptic Feedback */}
-                  {renderHapticSettingsCard()}
 
                   {/* Illustrator — game mode only */}
-                  {isGame && (
-                    <AgentSettingsCard
-                      id={getAgentSettingsMenuId(chat.id, "illustrator")}
-                      icon={<Image size="0.75rem" className="mt-0.5 text-[var(--primary)]" />}
-                      title={localizeUi("ui.chat.chatsettingsdrawer.illustrator")}
-                      description={localizeUi(
-                        "ui.chat.chatsettingsdrawer.autoGenerateSceneIllustrationsNpcPortraitsAndLocationBackgrounds",
-                      )}
-                    >
-                      <GenerationSettingsLink
-                        onClick={openGenerationSettings}
-                        title={localizeUi("ui.chat.chatsettingsdrawer.openSettingsGenerations")}
-                        label={localizeUi("ui.chat.chatsettingsdrawer.imageGenerationSettings")}
-                        description={localizeUi(
-                          "ui.chat.chatsettingsdrawer.adjustGenerationBehaviorImageSizesAndStylesInSettings",
-                        )}
-                      />
-                      <AgentSettingsToggle
-                        label={localizeUi("ui.chat.chatsettingsdrawer.gameIllustrator")}
-                        description={
-                          metadata.enableSpriteGeneration
-                            ? localizeUi("ui.chat.chatsettingsdrawer.illustratorIsEnabledForThisGame")
-                            : localizeUi("ui.chat.chatsettingsdrawer.allowTheGameToRequestSceneImagesPortraitsAnd")
-                        }
-                        enabled={!!metadata.enableSpriteGeneration}
-                        onToggle={() =>
-                          updateMeta.mutate({ id: chat.id, enableSpriteGeneration: !metadata.enableSpriteGeneration })
-                        }
-                      />
-                      {metadata.enableSpriteGeneration && (
-                        <div className="space-y-2">
-                          <AgentSettingsToggle
-                            label={localizeUi("ui.chat.chatsettingsdrawer.automaticVisuals")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.letGameModeAutomaticallyRequestBackgroundsNpcPortraitsAnd",
-                            )}
-                            enabled={gameImageAutoGenerationEnabled}
-                            onToggle={() =>
-                              updateMeta.mutate({
-                                id: chat.id,
-                                gameImageAutoGenerationEnabled: !gameImageAutoGenerationEnabled,
-                              })
-                            }
-                          />
-                          <AgentSettingsToggle
-                            label={localizeUi("ui.chat.chatsettingsdrawer.dynamicLlmPromptGenerationForGmModeAssets")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.askThePromptModelToRewriteGameNpcPortrait",
-                            )}
-                            enabled={gameImageDynamicPromptEnabled}
-                            onToggle={() =>
-                              updateMeta.mutate({
-                                id: chat.id,
-                                gameImageDynamicPromptEnabled: !gameImageDynamicPromptEnabled,
-                              })
-                            }
-                          />
-                          {renderIllustratorPromptConnectionSelect()}
-                          <label className="flex flex-col gap-1">
-                            <span className="text-[0.625rem] font-medium text-[var(--foreground)]">
-                              {localizeUi("ui.chat.chatsettingsdrawer.imageConnection")}
-                            </span>
-                            <select
-                              value={(metadata.gameImageConnectionId as string) ?? ""}
-                              onChange={(e) =>
-                                updateMeta.mutate({ id: chat.id, gameImageConnectionId: e.target.value || null })
-                              }
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/50"
-                            >
-                              <option value="">{localizeUi("ui.chat.chatsettingsdrawer.selectImageConnection")}</option>
-                              {(imageConnectionsList ?? []).map((c: { id: string; name: string; model?: string }) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                  {c.model ? localizeUi("ui.chat.datablock.value1", { value1: c.model }) : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          {renderIllustratorImageStyleSelect({
-                            emptyOptionLabel: "Use global or connection default",
-                          })}
-                          {renderIllustratorImagesPerGeneration()}
-                          <AgentSettingsToggle
-                            label={localizeUi("ui.chat.chatsettingsdrawer.useCampaignArtStyle")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.addThisGameSSetupGeneratedArtDirectionAs",
-                            )}
-                            enabled={useCampaignArtStyle}
-                            onToggle={() =>
-                              updateMeta.mutate({
-                                id: chat.id,
-                                gameSetupConfig: {
-                                  ...gameSetupConfig,
-                                  useCampaignArtStyle: !useCampaignArtStyle,
-                                },
-                              })
-                            }
-                          />
-                          {useCampaignArtStyle && (
-                            <label className="flex flex-col gap-1">
-                              <span className="flex items-center justify-between gap-2 text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-                                <span>{localizeUi("ui.chat.chatsettingsdrawer.campaignArtStyle")}</span>
-                                {generatedCampaignArtStyle &&
-                                  generatedCampaignArtStyle !== campaignArtStyleDraft.trim() && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setCampaignArtStyleDraft(generatedCampaignArtStyle);
-                                        updateMeta.mutate({
-                                          id: chat.id,
-                                          gameSetupConfig: {
-                                            ...gameSetupConfig,
-                                            artStylePrompt: generatedCampaignArtStyle,
-                                          },
-                                        });
-                                      }}
-                                      className="rounded px-1.5 py-0.5 text-[0.5625rem] text-[var(--primary)] transition-colors hover:bg-[var(--primary)]/10"
-                                    >
-                                      {localizeUi("ui.chat.chatsettingsdrawer.restoreSetupStyle")}
-                                    </button>
-                                  )}
-                              </span>
-                              <MacroTextarea
-                                value={campaignArtStyleDraft}
-                                onChange={setCampaignArtStyleDraft}
-                                onBlur={commitCampaignArtStyle}
-                                onExpandedClose={commitCampaignArtStyle}
-                                title={localizeUi("ui.chat.chatsettingsdrawer.campaignArtStyle")}
-                                ariaLabel={localizeUi("ui.chat.chatsettingsdrawer.campaignArtStyle")}
-                                placeholder={localizeUi(
-                                  "ui.chat.chatsettingsdrawer.leaveBlankToUseOnlyTheSelectedImageStyle",
-                                )}
-                                rows={3}
-                                maxLength={500}
-                                className="mari-chrome-field min-h-[4.75rem] w-full !rounded-md px-2.5 py-2 pr-8 text-xs leading-relaxed"
-                              />
-                              <span className="text-[0.5625rem] leading-snug text-[var(--muted-foreground)]">
-                                {localizeUi("ui.chat.chatsettingsdrawer.generatedDuringGameSetupEditOrClearItHere")}
-                              </span>
-                            </label>
-                          )}
-                          <label className="flex flex-col gap-1">
-                            <span className="text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-                              {localizeUi("ui.chat.chatsettingsdrawer.sceneImageInstructions")}
-                            </span>
-                            <MacroTextarea
-                              value={gameImagePromptInstructionsDraft}
-                              onChange={setGameImagePromptInstructionsDraft}
-                              onBlur={commitGameImagePromptInstructions}
-                              onExpandedClose={commitGameImagePromptInstructions}
-                              title={localizeUi("ui.chat.chatsettingsdrawer.sceneImageInstructions")}
-                              ariaLabel={localizeUi("ui.chat.chatsettingsdrawer.sceneImageInstructions")}
-                              placeholder={localizeUi(
-                                "ui.chat.chatsettingsdrawer.eGDottoreSMaskCompletelyCoversHisEyes",
-                              )}
-                              rows={3}
-                              maxLength={1200}
-                              className="mari-chrome-field min-h-[4.75rem] w-full !rounded-md px-2.5 py-2 pr-8 text-xs leading-relaxed"
-                            />
-                          </label>
-                          <AgentSettingsToggle
-                            label={localizeUi("ui.chat.agentaddsetupfields.attachCardAppearance")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.appendMatchedCharacterAppearanceDetailsToTheFinalScene",
-                            )}
-                            enabled={gameImageIncludeCharacterAppearance}
-                            onToggle={() =>
-                              updateMeta.mutate({
-                                id: chat.id,
-                                gameImageIncludeCharacterAppearance: !gameImageIncludeCharacterAppearance,
-                              })
-                            }
-                          />
-                          <AgentSettingsToggle
-                            label={localizeUi("ui.chat.agentaddsetupfields.sendAvatarReferences")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.sendMatchingCharacterAndPersonaAvatarsOrSpritesAs",
-                            )}
-                            enabled={gameImageUseAvatarReferences}
-                            onToggle={() =>
-                              updateMeta.mutate({
-                                id: chat.id,
-                                gameImageUseAvatarReferences: !gameImageUseAvatarReferences,
-                              })
-                            }
-                          />
-                        </div>
-                      )}
-                      {illustratorInstalled && (
-                        <div
-                          data-agent-settings-feature-toggles="illustrator"
-                          className="space-y-2 border-t border-[var(--border)] pt-3"
-                        >
-                          <AgentSettingsToggle
-                            label={localizeUi("ui.chat.chatsettingsdrawer.enableSceneVideos")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.showSceneVideoControlsAndAllowManualVideoGeneration",
-                            )}
-                            enabled={gameSceneVideosEnabled}
-                            onToggle={() =>
-                              updateMeta.mutate({
-                                id: chat.id,
-                                gameSceneVideosEnabled: !gameSceneVideosEnabled,
-                              })
-                            }
-                          />
-                        </div>
-                      )}
-                      {illustratorInstalled && gameSceneVideosEnabled && (
-                        <AgentSettingsSubsection
-                          id="scene-videos"
-                          title={localizeUi("ui.chat.chatsettingsdrawer.sceneVideos")}
-                          description={localizeUi(
-                            "ui.chat.chatsettingsdrawer.generateMp4SceneVideosFromGameIllustrations",
-                          )}
-                        >
-                          <GenerationSettingsLink
-                            onClick={openGenerationSettings}
-                            title={localizeUi("ui.chat.chatsettingsdrawer.openSettingsGenerations")}
-                            label={localizeUi("ui.chat.chatsettingsdrawer.videoGenerationSettings")}
-                            description={localizeUi(
-                              "ui.chat.chatsettingsdrawer.adjustVideoModelsSizesAndPromptOverridesInSettings",
-                            )}
-                          />
-                          <label className="flex flex-col gap-1">
-                            <span className="text-[0.625rem] font-medium text-[var(--foreground)]">
-                              {localizeUi("ui.chat.chatsettingsdrawer.videoConnection")}
-                            </span>
-                            <select
-                              value={(metadata.gameVideoConnectionId as string) ?? ""}
-                              onChange={(e) =>
-                                updateMeta.mutate({ id: chat.id, gameVideoConnectionId: e.target.value || null })
-                              }
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/50"
-                            >
-                              <option value="">{localizeUi("ui.chat.chatsettingsdrawer.selectVideoConnection")}</option>
-                              {(videoConnectionsList ?? []).map((c: { id: string; name: string; model?: string }) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                  {c.model ? localizeUi("ui.chat.chatsettingsdrawer.value1", { value1: c.model }) : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          {videoConnectionsList.length === 0 && (
-                            <p className="text-[0.625rem] text-amber-700 dark:text-amber-400/80">
-                              {localizeUi(
-                                "ui.chat.chatsettingsdrawer.noVideoGenerationConnectionsFoundAddOneInSettings",
-                              )}
-                            </p>
-                          )}
-                          <GamePromptTemplateSelect
-                            label={localizeUi("ui.chat.chatsettingsdrawer.gameVideoPrompt")}
-                            description={localizeUi("ui.chat.chatsettingsdrawer.usedForGameSceneVideos")}
-                            options={gameVideoPromptOptions}
-                            selectedId={selectedGameVideoPromptTemplateId}
-                            fallbackId={GAME_VIDEO_PROMPT_TEMPLATE_ID}
-                            onChange={updateGameVideoPromptSelection}
-                          />
-                          <p className="text-[0.625rem] text-[var(--muted-foreground)]">
-                            {localizeUi(
-                              "ui.chat.chatsettingsdrawer.sceneVideosUseTheLatestGeneratedSceneIllustrationAs",
-                            )}
-                          </p>
-                        </AgentSettingsSubsection>
-                      )}
-                    </AgentSettingsCard>
-                  )}
 
                   {/* Categorized agent sub-sections */}
                   {metadata.enableAgents && (
@@ -9737,14 +8689,7 @@ export function ChatSettingsDrawer({
                                         title={agent.name}
                                         description={getActiveAgentMenuDescription(agent.description)}
                                       >
-                                        <Suspense fallback={null}>
-                                          <StoryboardChatSettingsPanel
-                                            chatId={chat.id}
-                                            metadata={metadata as Record<string, unknown>}
-                                            onClose={onClose}
-                                            ownerMode="game"
-                                          />
-                                        </Suspense>
+                                        <Suspense fallback={null}>{null}</Suspense>
                                       </AgentSettingsCard>
                                     </div>
                                   );
@@ -10048,7 +8993,6 @@ export function ChatSettingsDrawer({
                       )}
                     </>
                   )}
-                  {isGame && renderCustomAgentPicker({ showWhenEmpty: true })}
                 </div>
               )}
             </Section>
@@ -10063,57 +9007,6 @@ export function ChatSettingsDrawer({
               help={localizeUi("chat.settings.backgroundHelp")}
             >
               <ActiveChatBackgroundPicker game={isGame} />
-            </Section>
-          )}
-
-          {isGame && (
-            <Section
-              id="game-widgets"
-              style={{ order: CHAT_SETTINGS_ORDER.widgets }}
-              label={localizeUi("ui.chat.chatsettingsdrawer.widgets")}
-              icon={<LayoutDashboard size="0.875rem" />}
-              count={gameWidgetDrafts.length}
-              help={localizeUi("ui.chat.chatsettingsdrawer.configureTheVisibleGameModeHudWidgetsTheGm")}
-            >
-              <div className="space-y-3">
-                <GameWidgetSetupEditor
-                  widgets={gameWidgetDrafts}
-                  onChange={(widgets) => setGameWidgetDrafts(normalizeGameHudWidgets(widgets, { mode: "draft" }))}
-                  disabled={updateGameWidgets.isPending}
-                  containerQueries
-                />
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <AgentSettingsActionButton
-                    type="button"
-                    onClick={() => setGameWidgetDrafts(gameWidgetSource)}
-                    disabled={!gameWidgetsChanged || updateGameWidgets.isPending}
-                  >
-                    {localizeUi("ui.characters.charactercliptrimmodal.reset")}
-                  </AgentSettingsActionButton>
-                  <AgentSettingsActionButton
-                    type="button"
-                    variant="primary"
-                    onClick={() => void saveGameWidgets()}
-                    disabled={!gameWidgetsChanged || updateGameWidgets.isPending}
-                  >
-                    {updateGameWidgets.isPending && <Loader2 size="0.75rem" className="animate-spin" />}
-                    <span>
-                      {updateGameWidgets.isPending
-                        ? localizeUi("ui.noodle.stageprofileform.saving")
-                        : localizeUi("ui.chat.chatsettingsdrawer.saveWidgets")}
-                    </span>
-                  </AgentSettingsActionButton>
-                </div>
-                <GameWidgetFileControls
-                  widgets={gameWidgetDrafts}
-                  onImport={(widgets) => setGameWidgetDrafts(normalizeGameHudWidgets(widgets))}
-                  disabled={updateGameWidgets.isPending}
-                  exportFilename={`${chat.name || "game"}-widgets`}
-                  importSuccessMessage={(count) =>
-                    `Imported ${count === 1 ? "1 widget" : `${count} widgets`}. Save Widgets to apply them.`
-                  }
-                />
-              </div>
             </Section>
           )}
 

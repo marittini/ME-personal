@@ -1,10 +1,15 @@
 import type { BuiltInAgentManifest } from "./agent-manifest.types.js";
+import { isRemovedFeatureId } from "../../constants/fork-profile.js";
 
 /** Active runtime registry. Fresh installs populate it only from downloaded packages. */
 export const BUILT_IN_AGENT_MANIFESTS: BuiltInAgentManifest[] = [];
 
 export function replaceBuiltInAgentManifestRegistry(manifests: readonly BuiltInAgentManifest[]): void {
-  BUILT_IN_AGENT_MANIFESTS.splice(0, BUILT_IN_AGENT_MANIFESTS.length, ...manifests);
+  BUILT_IN_AGENT_MANIFESTS.splice(
+    0,
+    BUILT_IN_AGENT_MANIFESTS.length,
+    ...manifests.filter((manifest) => !isRemovedFeatureId(manifest.id)),
+  );
 }
 
 export function getBuiltInAgentManifest(agentId: string): BuiltInAgentManifest | null {

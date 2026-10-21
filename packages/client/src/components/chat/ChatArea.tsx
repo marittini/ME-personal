@@ -2,6 +2,27 @@ import { notifyRoleplayTTSParagraph, withRoleplayTTSParagraphs } from "../../lib
 // ──────────────────────────────────────────────
 // Chat: Main chat area — mode-aware rendering
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Main chat area — mode-aware rendering
+// ──────────────────────────────────────────────
 import {
   Suspense,
   lazy,
@@ -42,14 +63,7 @@ import { ChatWindowWelcomeModal } from "../modals/ChatWindowWelcomeModal";
 import { useGameModeStore } from "../../stores/game-mode.store";
 import { useGenerate } from "../../hooks/use-generate";
 import { useGenerateGallerySelfie, type ChatImage } from "../../hooks/use-gallery";
-import {
-  characterKeys,
-  spriteKeys,
-  useCharacters,
-  usePersona,
-  useUpdateCharacter,
-  type SpriteInfo,
-} from "../../hooks/use-characters";
+import { characterKeys, spriteKeys, usePersona, useUpdateCharacter, type SpriteInfo } from "../../hooks/use-characters";
 import { usePageActivity } from "../../hooks/use-page-activity";
 import { useRenderTimer, useWhyRender } from "../../lib/perf-diagnostics";
 import { usePresenceClock } from "../../hooks/use-presence-clock";
@@ -59,7 +73,7 @@ import { api, ApiError, isRequestTimeoutError } from "../../lib/api-client";
 import { getChatDisplayName, getConnectedChatDisplayName, parseChatMetadata } from "../../lib/chat-display";
 import { getChatCharacterIds } from "../../lib/chat-macros";
 import { resolveSpriteExpression } from "../../lib/sprite-expression-match";
-import { parseCharacterDisplayData } from "../../lib/character-display";
+
 import { showConfirmDialog } from "../../lib/app-dialogs";
 import { parseMessageExtraRecord } from "../../lib/chat-message-extra";
 import { trimInactiveMessagePageCaches } from "../../lib/message-page-cache";
@@ -89,9 +103,9 @@ import { useUIStore } from "../../stores/ui.store";
 import { useAgentStore, EMPTY_AGENT_TYPES } from "../../stores/agent.store";
 import { isBuiltInTrackerAgentType, resolveTrackerRerunTypes } from "../../lib/tracker-agents";
 import { Modal } from "../ui/Modal";
-import { useEncounter } from "../../hooks/use-encounter";
+
 import { useScene } from "../../hooks/use-scene";
-import { useEncounterStore } from "../../stores/encounter.store";
+
 import { useTranslationStore } from "../../stores/translation.store";
 import { getChatTranslationConfig, type ChatMode, type ReplyCheckupLink } from "@marinara-engine/shared";
 import { ttsService } from "../../lib/tts-service";
@@ -167,7 +181,7 @@ import { ReplyCheckup } from "./ReplyCheckup";
 import { checkReply, replyLineFindings } from "../../lib/reply-checkup";
 import { HomeBrowserHub } from "./HomeBrowserHub";
 import { NewChatConnectionGate } from "./NewChatConnectionGate";
-import { ChatCommonOverlays, preloadChatSettingsDrawer, type ChatSettingsInitialSection } from "./ChatCommonOverlays";
+import { preloadChatSettingsDrawer, type ChatSettingsInitialSection } from "./ChatCommonOverlays";
 import { ADVANCED_MEMORY_SETTINGS_EVENT } from "../../hooks/use-advanced-memory";
 import { CreatorNotesCssInjector, type CardCssMode, type PersonaCssRow } from "./CreatorNotesCssInjector";
 import type { ChatModeFilter } from "../../lib/card-css";
@@ -465,11 +479,6 @@ const ChatConversationSurface = lazy(async () => {
 const ChatRoleplaySurface = lazy(async () => {
   const module = await import("./ChatRoleplaySurface");
   return { default: module.ChatRoleplaySurface };
-});
-
-const GameSurface = lazy(async () => {
-  const module = await import("../game/GameSurface");
-  return { default: module.GameSurface };
 });
 
 const loadCharacterScheduleEditorModal = async () => {
@@ -870,10 +879,7 @@ const LocalChatArea = memo(function LocalChatArea({
     });
     return map;
   }, [messageOffset, messages]);
-  const { data: gameLibraryCharacters } = useCharacters({
-    enabled: !!chat?.id && chat.id === activeChatId && isGameChat,
-    includeBuiltIn: true,
-  });
+
   // Only the selected identity card is needed here, so fetch that one row
   // instead of the whole character library. [PR #5583]
   const identityCharacterId = isGameChat ? null : (chat?.personaCharacterId ?? null);
@@ -1204,37 +1210,6 @@ const LocalChatArea = memo(function LocalChatArea({
     pendingNewChatMode,
   }));
 
-  const gameCharacters = useMemo(() => {
-    if (!isGameChat || !gameLibraryCharacters) return [];
-    return (
-      gameLibraryCharacters as Array<{ id: string; data: string; comment?: string | null; avatarPath: string | null }>
-    ).flatMap((c) => {
-      if (c.id === PROFESSOR_MARI_ID) return [];
-      try {
-        const parsed = typeof c.data === "string" ? JSON.parse(c.data) : c.data;
-        const display = parseCharacterDisplayData({ data: parsed, comment: c.comment });
-        return [
-          {
-            id: c.id,
-            name: display.name,
-            comment: display.comment,
-            avatarUrl: c.avatarPath ?? undefined,
-            avatarCrop: display.avatarCrop ?? null,
-            nameColor: parsed.extensions?.nameColor || undefined,
-            dialogueColor: parsed.extensions?.dialogueColor || undefined,
-            description: parsed.description ?? "",
-            personality: parsed.personality ?? "",
-            backstory: parsed.extensions?.backstory ?? "",
-            appearance: parsed.extensions?.appearance ?? "",
-            tags: parsed.tags ?? [],
-          },
-        ];
-      } catch {
-        return [{ id: c.id, name: "Unknown" }];
-      }
-    });
-  }, [gameLibraryCharacters, isGameChat]);
-
   // Chat persona info (for user message styling: name, avatar, colors)
   const personaInfo = useMemo(() => {
     if (chat?.personaCharacterId) {
@@ -1298,9 +1273,8 @@ const LocalChatArea = memo(function LocalChatArea({
     };
   }, [chat, chatPersona, identityCharacterRow]);
 
-  const { startEncounter } = useEncounter();
   const { concludeScene, abandonScene, forkScene, isForking } = useScene();
-  const encounterActive = useEncounterStore((s) => s.active || s.showConfigModal);
+  const encounterActive = false;
   const roleplaySpriteScale = useUIStore((s) => s.roleplaySpriteScale);
   const [localSpriteVisualSettings, setLocalSpriteVisualSettings] = useState<LocalSpriteVisualSettings>(() =>
     loadLocalSpriteVisualSettings(chat?.id),
@@ -2126,26 +2100,6 @@ const LocalChatArea = memo(function LocalChatArea({
       spritePlacements,
       stageAvatars,
       toggleSpriteArrange,
-    ],
-  );
-  const gameAvatarStage = useMemo(
-    () => ({
-      placements: spritePlacements,
-      characterVisualSettings: spriteCharacterVisualSettings,
-      scale: avatarScale,
-      framings: avatarFramings,
-      editing: spriteArrangeMode,
-      onPlacementChange: handleSpritePlacementChange,
-      onShownChange: handleStageAvatarsChange,
-    }),
-    [
-      avatarFramings,
-      avatarScale,
-      handleSpritePlacementChange,
-      handleStageAvatarsChange,
-      spriteArrangeMode,
-      spriteCharacterVisualSettings,
-      spritePlacements,
     ],
   );
 
@@ -3707,82 +3661,7 @@ const LocalChatArea = memo(function LocalChatArea({
   // ═══════════════════════════════════════════════
   // Game mode — RPG surface with GM narration, map, party chat
   // ═══════════════════════════════════════════════
-  if (chatMode === "game") {
-    if (!chat) return surfaceFallback;
-
-    return (
-      <Suspense fallback={surfaceFallback}>
-        <>
-          {cardCssInjector}
-          {scheduleModal}
-          {resourceDropOverlay}
-          <GameSurface
-            activeChatId={activeChatId}
-            chat={chat!}
-            chatMeta={chatMeta}
-            messages={messages ?? []}
-            isStreaming={isStreaming}
-            isMessagesLoading={isLoading}
-            characterMap={characterMap}
-            characters={gameCharacters}
-            personaInfo={personaInfo}
-            chatBackground={chatBackground}
-            connectedChatName={connectedChatName}
-            onCloseSettings={handleCloseSettingsPanel}
-            onSwitchChat={chat.connectedChatId ? () => setActiveChatId(chat.connectedChatId!) : undefined}
-            onDeleteMessage={handleDelete}
-            onPeekPrompt={handlePeekPrompt}
-            multiSelectMode={multiSelectMode}
-            selectedMessageIds={selectedMessageIds}
-            avatarStage={gameAvatarStage}
-          />
-
-          <ChatCommonOverlays
-            chat={chat}
-            settingsOpen={settingsOpen}
-            settingsAnchor={settingsAnchor}
-            wizardOpen={wizardOpen}
-            peekPromptData={peekPromptData}
-            deleteDialogMessageId={deleteDialogMessageId}
-            deleteDialogCanDeleteSwipe={deleteDialogCanDeleteSwipe}
-            deleteDialogCanDeleteOtherSwipes={deleteDialogCanDeleteOtherSwipes}
-            deleteDialogActiveSwipeIndex={deleteDialogActiveSwipeIndex}
-            deleteDialogSwipeCount={deleteDialogSwipeCount}
-            multiSelectMode={multiSelectMode}
-            selectedMessageCount={selectedMessageIds.size}
-            sceneSettings={{
-              spriteArrangeMode,
-              onToggleSpriteArrange: () => setSpriteArrangeMode((prev) => !prev),
-              onResetSpritePlacements: handleResetSpritePlacements,
-              onSpriteSideChange: handleSetSpritePosition,
-              spriteVisualSettings: effectiveSpriteVisualSettings,
-              onSpriteVisualSettingsChange: patchLocalSpriteVisualSettings,
-              avatarLayout,
-            }}
-            onCloseSettings={handleCloseSettingsPanel}
-            onOpenScheduleEditor={handleOpenScheduleEditor}
-            onWizardFinish={() => {
-              setWizardOpen(false);
-              handleOpenSettingsPanel();
-            }}
-            onClosePeekPrompt={() => setPeekPromptData(null)}
-            onDeleteConfirm={handleDeleteConfirm}
-            onDeleteSwipe={handleDeleteSwipe}
-            onDeleteOtherSwipes={handleDeleteOtherSwipes}
-            onDeleteMore={handleDeleteMore}
-            onCloseDeleteDialog={() => setDeleteDialogMessageId(null)}
-            onBulkDelete={handleBulkDelete}
-            onCancelMultiSelect={handleCancelMultiSelect}
-            onUnselectAllMessages={handleUnselectAllMessages}
-            onSelectAllAboveSelection={handleSelectAllAboveSelection}
-            onSelectAllBelowSelection={handleSelectAllBelowSelection}
-          />
-          {chatHelpOverlay}
-          {chatWindowIntro}
-        </>
-      </Suspense>
-    );
-  }
+  if (chatMode === "game") return null;
 
   // ═══════════════════════════════════════════════
   // Conversation mode — Discord-style layout
@@ -3991,7 +3870,7 @@ const LocalChatArea = memo(function LocalChatArea({
           onToggleSelectMessage={handleToggleSelectMessage}
           onRerunTrackers={handleRerunTrackers}
           onRerunSingleTracker={handleRerunSingleTracker}
-          onStartEncounter={() => startEncounter()}
+
           onConcludeScene={() => concludeScene(activeChatId)}
           onAbandonScene={() => abandonScene(activeChatId)}
           onForkScene={forkScene}

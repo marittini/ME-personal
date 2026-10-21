@@ -1,7 +1,4 @@
 import { roomAgentAllowed } from "../multiplayer/generation-policy.js";
-// ──────────────────────────────────────────────
-// Agent Executor — Single & Batched LLM execution
-// ──────────────────────────────────────────────
 import { existsSync, readdirSync, statSync, type Dirent } from "node:fs";
 import {
   buildCharacterAppearanceReferenceBlock,
@@ -87,6 +84,14 @@ import {
   resolveBeholderStateResponse,
   type BeholderPassLane,
 } from "./beholder-state.js";
+import { isRemovedFeatureId } from "@marinara-engine/shared";
+
+// ──────────────────────────────────────────────
+// Agent Executor — Single & Batched LLM execution
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Agent Executor — Single & Batched LLM execution
+// ──────────────────────────────────────────────
 
 const MAX_AGENT_CONTEXT_MESSAGES = 200;
 const EXPRESSION_AGENT_RECENT_CONTEXT_MESSAGES = 2;
@@ -852,6 +857,7 @@ export async function executeAgent(
   toolContext?: AgentToolContext,
 ): Promise<AgentResult> {
   const startTime = Date.now();
+  if (isRemovedFeatureId(config.type)) return makeError(config, "This feature is removed from ME-personal.", startTime);
   if (!roomAgentAllowed(config.type, config.settings)) {
     return makeError(config, "Agent is not available in shared rooms.", startTime);
   }

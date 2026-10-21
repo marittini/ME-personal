@@ -6,7 +6,6 @@ import type {
   CapabilityIntegrationProvider,
   CapabilitySpeechTranscribeOptions,
   ConnectionAdmissionMode,
-  HapticDeviceCommand,
 } from "@marinara-engine/shared";
 import type { DB } from "../../db/connection.js";
 import { logger } from "../../lib/logger.js";
@@ -20,7 +19,7 @@ import {
   withConnectionAdmission,
   withConnectionAdmissionProvider,
 } from "../generation/connection-admission.js";
-import { hapticService } from "../haptic/buttplug-service.js";
+
 import { resolveSpotifyCredentials, spotifyHasScope } from "../spotify/spotify.service.js";
 import {
   ConversationSpotifyCommandError,
@@ -177,9 +176,15 @@ export function createCapabilityIntegrationHost(
       isFailure: isConnectionAdmissionFailure,
     }),
     haptics: Object.freeze({
-      status: guarded("network", () => hapticService.status()),
-      connect: guarded("network", (url?: string) => hapticService.connect(url)),
-      executeCommand: guarded("network", (command: HapticDeviceCommand) => hapticService.executeCommand(command)),
+      status: () => {
+        throw new Error("Haptic feedback was removed from ME-personal.");
+      },
+      connect: async () => {
+        throw new Error("Haptic feedback was removed from ME-personal.");
+      },
+      executeCommand: async () => {
+        throw new Error("Haptic feedback was removed from ME-personal.");
+      },
     }),
     spotify: Object.freeze({
       commandsAvailable: guarded("network", async () => {

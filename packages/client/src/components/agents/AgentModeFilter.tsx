@@ -8,7 +8,6 @@ const MODE_FILTERS = [
   ["all", "ui.agents.agentcatalogview.allModes"],
   ["conversation", "ui.agents.agentcatalogview.conversationMode"],
   ["roleplay", "ui.agents.agentcatalogview.roleplayMode"],
-  ["game", "ui.agents.agentcatalogview.gameMode"],
 ] as const;
 
 export function AgentModeFilter({

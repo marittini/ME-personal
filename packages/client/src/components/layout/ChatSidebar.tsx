@@ -4,6 +4,27 @@ import { useLibraryOrder } from "../../hooks/use-library-order";
 // ──────────────────────────────────────────────
 // Layout: Chat Sidebar (polished with rich buttons)
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Layout: Chat Sidebar (polished with rich buttons)
+// ──────────────────────────────────────────────
 import { hasEditorLeaveHandler } from "../../lib/editor-leave";
 import {
   MessageSquareText,
@@ -1350,7 +1371,7 @@ export function ChatSidebar() {
       {/* Tabs */}
       <div className="px-3 pt-3">
         <div className="mari-chrome-segmented">
-          {(["conversation", "roleplay", "game"] as const).map((tab) => {
+          {(["conversation", "roleplay"] as const).map((tab) => {
             const cfg = MODE_CONFIG[tab];
             const isActive = activeTab === tab;
             const tabUnread =

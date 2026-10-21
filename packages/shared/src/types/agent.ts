@@ -1,7 +1,3 @@
-// ──────────────────────────────────────────────
-// Agent System Types
-// ──────────────────────────────────────────────
-
 import { BUILT_IN_AGENT_MANIFESTS, replaceBuiltInAgentManifestRegistry } from "../features/agents/agent-registry.js";
 import type { BuiltInAgentManifest } from "../features/agents/agent-manifest.types.js";
 import type { AgentToolConfig, ToolDefinition } from "../features/function-calls/tool-definitions.js";
@@ -9,6 +5,15 @@ import { AVATAR_2D_AGENT_ID, AVATAR_PROMPT_TEMPLATE_SETTINGS_KEY } from "./avata
 import type { ChatMode } from "./chat.js";
 import type { WrapFormat } from "./prompt.js";
 import type { LorebookIncludeSource, MacroDecisionAnswers } from "../utils/macro-engine.js";
+import { REMOVED_FEATURE_IDS } from "../constants/fork-profile.js";
+
+// ──────────────────────────────────────────────
+// Agent System Types
+// ──────────────────────────────────────────────
+
+// ──────────────────────────────────────────────
+// Agent System Types
+// ──────────────────────────────────────────────
 
 /** When in the generation pipeline an agent runs. */
 export type AgentPhase =
@@ -534,6 +539,7 @@ export const BUILT_IN_AGENT_IDS = {
 } as const;
 
 export const RETIRED_BUILT_IN_AGENT_IDS = [
+  ...REMOVED_FEATURE_IDS,
   "about-me-keeper",
   "prompt-reviewer",
   "response-orchestrator",
@@ -899,6 +905,7 @@ export function mergeBuiltInAgentSettings(agentType: string, settings: unknown):
 export const DEFAULT_AGENT_TOOLS: Record<string, string[]> = {};
 
 export function replaceBuiltInAgentDefinitions(manifests: readonly BuiltInAgentManifest[]): void {
+  manifests = manifests.filter((manifest) => !isRetiredBuiltInAgentId(manifest.id));
   replaceBuiltInAgentManifestRegistry(manifests);
   BUILT_IN_AGENTS.splice(0, BUILT_IN_AGENTS.length, ...manifests.map(toBuiltInAgentMeta));
   for (const key of Object.keys(DEFAULT_AGENT_TOOLS)) delete DEFAULT_AGENT_TOOLS[key];

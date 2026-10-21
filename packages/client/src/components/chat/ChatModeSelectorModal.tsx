@@ -22,11 +22,6 @@ export const CHAT_MODE_OPTIONS: Array<{
     labelKey: "settings.modes.roleplay",
     descriptionKey: "home.newChat.roleplayDescription",
   },
-  {
-    mode: "game",
-    labelKey: "settings.modes.game",
-    descriptionKey: "home.newChat.gameDescription",
-  },
 ];
 
 interface ChatModeSelectorModalProps {
