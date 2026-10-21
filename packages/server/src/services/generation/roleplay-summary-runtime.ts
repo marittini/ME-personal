@@ -57,6 +57,7 @@ export function clampRoleplaySummaryMaxTokens(value: unknown): number {
 export { appendContinuationMessageContent } from "@marinara-engine/shared";
 
 export function isAutomaticRoleplaySummaryEnabled(chatMetadata: Record<string, unknown>): boolean {
+  if ((chatMetadata.committedMemory as { enabled?: boolean } | undefined)?.enabled) return false;
   if (chatMetadata.automaticSummaryEnabled === false) return false;
   if (chatMetadata.automaticSummaryEnabled === true) return true;
   const activeAgentIds = Array.isArray(chatMetadata.activeAgentIds) ? chatMetadata.activeAgentIds : [];

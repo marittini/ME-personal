@@ -1,3 +1,4 @@
+import { registerCommittedMemoryRoutes } from "./committed-memory.routes.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { logger } from "../lib/logger.js";
@@ -892,6 +893,7 @@ type ProfessorMariRestartQuery = {
 };
 
 export async function chatsRoutes(app: FastifyInstance) {
+  await registerCommittedMemoryRoutes(app);
   const storage = createChatsStorage(app.db);
   const messageTrashStore = createMessageTrashStorage(app.db);
   const appSettings = createAppSettingsStorage(app.db);
@@ -5621,6 +5623,8 @@ export async function chatsRoutes(app: FastifyInstance) {
 
     const chatMeta = typeof chat.metadata === "string" ? JSON.parse(chat.metadata) : (chat.metadata ?? {});
 
+    if ((chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled)
+      return reply.status(409).send({ error: "Use Commit memory while unified memory is enabled" });
     // Accept context size from request body, fall back to chat meta, then default 50.
     // Manual UI generation may also pass inclusive message ID anchors.
     const body = (req.body ?? {}) as Record<string, unknown>;

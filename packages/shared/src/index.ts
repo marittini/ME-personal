@@ -2,6 +2,8 @@
 // @marinara-engine/shared — Public API
 // ──────────────────────────────────────────────
 
+export * from "./types/committed-memory.js";
+
 // Types
 export * from "./types/multiplayer.js";
 export * from "./types/tts.js";

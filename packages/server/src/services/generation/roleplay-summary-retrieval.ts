@@ -1,3 +1,6 @@
+import type { DB } from "../../db/connection.js";
+import type { CommittedMemorySelection } from "@marinara-engine/shared";
+import { committedMemoryForPrompt } from "../committed-memory.js";
 import { compileChatSummaryEntries, normalizeChatSummaryEntries, type ChatSummaryEntry } from "@marinara-engine/shared";
 
 import { logger } from "../../lib/logger.js";
@@ -44,7 +47,8 @@ export function resolveRoleplayChatSummary(
   chatMetadata: Record<string, unknown>,
   options: { excludeMessageIds?: readonly string[] } = {},
 ): string | null {
-  if (chatMode !== "roleplay") return null;
+  if (chatMode !== "roleplay" || (chatMetadata.committedMemory as { enabled?: boolean } | undefined)?.enabled)
+    return null;
   const summary = ((chatMetadata.summary as string) ?? "").trim() || null;
   const excludedMessageIds = options.excludeMessageIds ?? [];
   if (excludedMessageIds.length === 0) return summary;
@@ -59,6 +63,10 @@ export function resolveRoleplayChatSummary(
 
 /** Keep recent Roleplay summaries active while recalling only relevant older entries. */
 export async function resolveRoleplayChatSummaryForPrompt(args: {
+  db?: DB;
+  chatId?: string;
+  audienceIds?: readonly string[];
+  onCommittedMemory?: (items: CommittedMemorySelection[]) => void;
   chatMode: string;
   chatMetadata: Record<string, unknown>;
   messages: readonly RoleplaySummaryQueryMessage[];
@@ -66,6 +74,19 @@ export async function resolveRoleplayChatSummaryForPrompt(args: {
   vectorizerAvailable: boolean;
   embeddingOptions?: MemoryRecallEmbeddingOptions;
 }): Promise<string | null> {
+  if ((args.chatMetadata.committedMemory as { enabled?: boolean } | undefined)?.enabled) {
+    if (!args.db || !args.chatId) return null;
+    const memory = await committedMemoryForPrompt(
+      args.db,
+      args.chatId,
+      buildRoleplaySummaryRetrievalQuery(args.messages),
+      args.excludeMessageIds,
+      args.audienceIds,
+      args.vectorizerAvailable ? args.embeddingOptions : undefined,
+    );
+    args.onCommittedMemory?.(memory?.selected ?? []);
+    return memory?.text || null;
+  }
   const fallbackSummary = resolveRoleplayChatSummary(args.chatMode, args.chatMetadata, {
     excludeMessageIds: args.excludeMessageIds,
   });

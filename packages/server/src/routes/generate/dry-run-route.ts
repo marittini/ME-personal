@@ -1,3 +1,4 @@
+import { compactCommittedHistory } from "../../services/committed-memory.js";
 import { withLorebookImageCompatibility } from "../../services/llm/lorebook-image-provider.js";
 import {
   appendLorebookImageMessages,
@@ -821,6 +822,8 @@ export async function registerDryRunRoute(app: FastifyInstance) {
         } as any,
       ];
     }
+    if ((chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled)
+      chatMessages = await compactCommittedHistory(app.db, chatId, chatMessages, regenerateMessageId);
     const promptIdleDuration = resolvePromptIdleDuration(chatMessages, { excludeMessageId: "__dryrun_user__" });
 
     const excludePastReasoning = chatMeta.excludePastReasoning !== false;
@@ -990,6 +993,9 @@ export async function registerDryRunRoute(app: FastifyInstance) {
     const activeChatSummary = advancedMemoryEnabled
       ? null
       : await resolveRoleplayChatSummaryForPrompt({
+          db: app.db,
+          chatId,
+          audienceIds: promptTargetCharacterId ? [promptTargetCharacterId] : allCharacterIds,
           chatMode,
           chatMetadata: chatMeta,
           messages: mappedMessages,
