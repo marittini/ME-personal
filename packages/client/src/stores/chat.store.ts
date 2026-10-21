@@ -277,7 +277,13 @@ interface ChatState {
   /** Manually dismissed notification chatIds (won't re-appear until next message). */
   dismissedNotifications: Set<string>;
   /** Pending /goto request — ChatArea fulfils by paginating + scrolling to the target message. Token forces re-fire on identical N. */
-  gotoRequest: { chatId: string; messageNumber: number; token: number } | null;
+  gotoRequest: {
+    chatId: string;
+    messageNumber: number;
+    token: number;
+    readingOffset?: number;
+    anchorMessageId?: string;
+  } | null;
   /** Mounted Conversation call snapshot. Runtime-only so the call can minimize while navigating. */
   activeConversationCall: ActiveConversationCallSnapshot | null;
   /** When true, show the active Conversation call as the full call surface instead of the micro panel. */
@@ -360,7 +366,7 @@ interface ChatState {
   autoDismissNotification: (chatId: string) => void;
   dismissNotification: (chatId: string) => void;
   dismissNotifications: (chatIds: string[]) => void;
-  requestGotoMessage: (chatId: string, messageNumber: number) => void;
+  requestGotoMessage: (chatId: string, messageNumber: number, readingOffset?: number, anchorMessageId?: string) => void;
   clearGotoRequest: () => void;
   setActiveConversationCall: (snapshot: ActiveConversationCallSnapshot | null) => void;
   updateActiveConversationCallSession: (session: ConversationCallSession) => void;
@@ -1028,11 +1034,13 @@ export const useChatStore = create<ChatState>()(
         return { chatNotifications: m, dismissedNotifications: d };
       }),
 
-    requestGotoMessage: (chatId, messageNumber) =>
+    requestGotoMessage: (chatId, messageNumber, readingOffset, anchorMessageId) =>
       set((state) => ({
         gotoRequest: {
           chatId,
           messageNumber,
+          readingOffset,
+          anchorMessageId,
           token: (state.gotoRequest?.token ?? 0) + 1,
         },
       })),

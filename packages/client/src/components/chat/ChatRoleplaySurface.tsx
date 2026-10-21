@@ -1334,7 +1334,9 @@ export function ChatRoleplaySurface({
       return;
     }
     const loadedMessageOffset = totalMessageCount - messages.length;
-    const localIndex = gotoRequest.messageNumber - 1 - loadedMessageOffset;
+    const localIndex = gotoRequest.anchorMessageId
+      ? messages.findIndex((message) => message.id === gotoRequest.anchorMessageId)
+      : gotoRequest.messageNumber - 1 - loadedMessageOffset;
     if (localIndex >= 0 && localIndex < messages.length) {
       handledTranscriptGotoRef.current = gotoRequest;
       setTranscriptWindowStart(localIndex);
@@ -1612,7 +1614,11 @@ export function ChatRoleplaySurface({
 
         <div className="relative flex flex-1 overflow-hidden">
           <div className="relative flex flex-1 flex-col overflow-hidden">
-            <div ref={topChromeRef} className="pointer-events-none absolute inset-x-0 top-0 z-40">
+            <div
+              ref={topChromeRef}
+              data-reader-scene-tools
+              className="pointer-events-none absolute inset-x-0 top-0 z-40"
+            >
               {!centerCompact && (
                 <div
                   data-tracker-panel-anchor="roleplay-hud"

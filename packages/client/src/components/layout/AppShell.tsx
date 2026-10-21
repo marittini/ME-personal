@@ -4,6 +4,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ChatSidebar } from "./ChatSidebar";
 import { TopBar } from "./TopBar";
+import { ReaderWorkspace } from "../chat/ReaderWorkspace";
 import { GlobalOmnibar } from "./GlobalOmnibarHost";
 import { SpotifyMobileWidget } from "../spotify/SpotifyMiniPlayer";
 import { YouTubeMobileWidget } from "../chat/YouTubePlayer";
@@ -1428,14 +1429,16 @@ export function AppShell({
           >
             <Suspense fallback={<MainPaneFallback />}>
               {(shellOverlayMode || !hasDetailView) && (
-                <ChatArea
-                  chatWindowIntroAllowed={
-                    chatWindowIntroAllowed &&
-                    !chatWindowIntroNavigationBlocked &&
-                    (!shellOverlayMode || (!mobileNavigationPanel && !trackerPanelVisible))
-                  }
-                  onChatWindowIntroOpenChange={onChatWindowIntroOpenChange}
-                />
+                <ReaderWorkspace surfaceActive={chatSurfaceActive}>
+                  <ChatArea
+                    chatWindowIntroAllowed={
+                      chatWindowIntroAllowed &&
+                      !chatWindowIntroNavigationBlocked &&
+                      (!shellOverlayMode || (!mobileNavigationPanel && !trackerPanelVisible))
+                    }
+                    onChatWindowIntroOpenChange={onChatWindowIntroOpenChange}
+                  />
+                </ReaderWorkspace>
               )}
             </Suspense>
           </div>

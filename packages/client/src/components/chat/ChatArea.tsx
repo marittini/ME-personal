@@ -3441,7 +3441,7 @@ const LocalChatArea = memo(function LocalChatArea({
     if (!messages) return;
 
     const targetNumber = gotoRequest.messageNumber;
-    if (totalMessageCount > 0 && targetNumber > totalMessageCount) {
+    if (!gotoRequest.anchorMessageId && totalMessageCount > 0 && targetNumber > totalMessageCount) {
       toast.error(
         localizeUi("ui.chat.chatarea.messageValue1DoesnTExistThisChatHasValue2", {
           value1: targetNumber,
@@ -3452,7 +3452,9 @@ const LocalChatArea = memo(function LocalChatArea({
       return;
     }
 
-    const targetIndex = targetNumber - 1; // 0-based global index
+    const targetIndex = gotoRequest.anchorMessageId
+      ? ([...messageIdByOrderIndex].find(([, id]) => id === gotoRequest.anchorMessageId)?.[0] ?? -1)
+      : targetNumber - 1; // 0-based global index; saved reading anchors survive earlier deletions.
     if (targetIndex >= messageOffset) {
       const targetId = messageIdByOrderIndex.get(targetIndex);
       if (!targetId) {
@@ -3476,7 +3478,16 @@ const LocalChatArea = memo(function LocalChatArea({
         const el = document.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`);
         if (el instanceof HTMLElement) {
           openedAtBottomChatIdRef.current = activeChatId;
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          const readingOffset = gotoRequest.readingOffset;
+          el.scrollIntoView({
+            behavior: readingOffset === undefined ? "smooth" : "auto",
+            block: readingOffset === undefined ? "center" : "start",
+          });
+          if (readingOffset !== undefined) {
+            const area = el.closest<HTMLElement>("[data-chat-scroll]");
+            if (area)
+              area.scrollTop += el.getBoundingClientRect().top - area.getBoundingClientRect().top - readingOffset;
+          }
           userScrolledAwayRef.current = true; // suppress auto-scroll-to-bottom hijacking the jump
           useChatStore.getState().clearGotoRequest();
           return;
@@ -3505,6 +3516,14 @@ const LocalChatArea = memo(function LocalChatArea({
       fetchNextPage();
     } else if (!hasNextPage) {
       // Nothing more to load but we still didn't reach the target — give up.
+      if (gotoRequest.anchorMessageId) {
+        useUIStore.setState((state) => {
+          const positions = { ...state.readerPositions };
+          delete positions[activeChatId!];
+          return { readerPositions: positions };
+        });
+        toast.info(localizeUi("reader.positionMissing"));
+      }
       useChatStore.getState().clearGotoRequest();
     }
   }, [
