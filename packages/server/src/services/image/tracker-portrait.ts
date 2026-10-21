@@ -10,6 +10,7 @@ import { assertInsideDir } from "../../utils/security.js";
 import { npcAvatarSlug } from "../game/npc-avatar-utils.js";
 import { resolveImageConnectionFallback } from "../generation/media-connection-fallback.js";
 import { createConnectionsStorage } from "../storage/connections.storage.js";
+import { retainedPortraitHash } from "./nai-result-application.js";
 import { generateImage } from "./image-generation.js";
 import { resolveConnectionImageDefaults, resolveConnectionImageQuality } from "./image-generation-defaults.js";
 import { loadImageGenerationUserSettings } from "./image-generation-settings.js";
@@ -91,6 +92,7 @@ export async function generateTrackerPortrait(args: {
   portraitsInProgress.add(portraitFile);
   try {
     const savedBefore = savedFileStamp(portraitFile);
+    const expectedHash = retainedPortraitHash(portraitFile);
     const connections = createConnectionsStorage(args.db);
     const connection = await connections.getWithKey(args.connectionId);
     if (!connection) throw new Error("Image connection not found");
@@ -119,6 +121,7 @@ export async function generateTrackerPortrait(args: {
       connection.apiKey || "",
       connection.imageService || (connection as { imageGenerationSource?: string }).imageGenerationSource || model,
       {
+        naiDestination: { kind: "npc", chatId: args.chatId, safeName, expectedHash },
         prompt: compiled.prompt,
         negativePrompt: compiled.negativePrompt || undefined,
         model,

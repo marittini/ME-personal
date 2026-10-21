@@ -1,3 +1,4 @@
+import { NaiQueueSettings } from "./settings/NaiQueueSettings";
 // ──────────────────────────────────────────────
 // Panel: Settings (polished)
 // ──────────────────────────────────────────────
@@ -2788,6 +2789,7 @@ function OverallGenerationSettings() {
           onChange={setReviewImagePromptsBeforeSend}
           help={localizeUi("settings.controls.reviewMediaPrompts.help")}
         />
+        <NaiQueueSettings />
       </div>
     </SettingsSection>
   );

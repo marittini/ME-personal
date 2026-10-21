@@ -103,6 +103,8 @@ export function createCapabilityIntegrationHost(
         ) =>
           generateImage(source, baseUrl, apiKey, serviceHint, {
             ...request,
+            // Network permission alone cannot schedule a later Engine storage write.
+            naiDestination: undefined,
             allowLocalUrls: undefined,
             privateImageResultOrigin: undefined,
           }),

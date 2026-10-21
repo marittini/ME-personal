@@ -1995,6 +1995,7 @@ export function PersonaEditor() {
       />
       <AvatarGenerationModal
         open={avatarGeneratorOpen}
+        resumeTarget={personaId ? { entity: "persona", id: personaId } : undefined}
         title={localizeUi("ui.personas.personaeditor.generatePersonaAvatar")}
         entityName={formData.name}
         defaultAppearance={personaImageAppearanceGeneratorSeed(

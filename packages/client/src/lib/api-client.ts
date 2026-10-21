@@ -1,3 +1,4 @@
+import { prepareAvatarUpload } from "./avatar-webp-upload";
 // ──────────────────────────────────────────────
 // Generic API client for communicating with the backend
 // ──────────────────────────────────────────────
@@ -354,11 +355,11 @@ export const api = {
 
   get: <T>(path: string, init?: RequestInit) => request<T>(path, init),
 
-  post: <T>(path: string, body?: unknown, init?: RequestInit) =>
+  post: async <T>(path: string, body?: unknown, init?: RequestInit) =>
     request<T>(path, {
       ...init,
       method: "POST",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body !== undefined ? JSON.stringify(await prepareAvatarUpload(path, body)) : undefined,
     }),
 
   put: <T>(path: string, body?: unknown) =>

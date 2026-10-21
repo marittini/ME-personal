@@ -1,3 +1,4 @@
+import { NaiGuardError, NaiRateLimitError } from "./nai-request-guard.js";
 import { normalizeIllustratorImagesPerGeneration } from "@marinara-engine/shared";
 
 export async function generateIllustratorImageVariants<T>({
@@ -18,6 +19,10 @@ export async function generateIllustratorImageVariants<T>({
       results.push(await generate(index));
     } catch (error) {
       lastError = error;
+      if (error instanceof NaiGuardError || error instanceof NaiRateLimitError) {
+        if (!results.length) throw error;
+        break;
+      }
       onVariantError?.(error, index);
     }
   }

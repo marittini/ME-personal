@@ -234,6 +234,8 @@ export type ConnectionAdmissionMode =
   | { kind: "none" };
 
 export interface ImageGenRequest {
+  /** Internal, captured by the Engine before submitting a durable NAI job. */
+  naiDestination?: import("./nai-request-guard.js").NaiImageDestination;
   prompt: string;
   /** OpenAI GPT Image generation quality. Ignored by unsupported services and models. */
   quality?: ImageGenerationQuality;

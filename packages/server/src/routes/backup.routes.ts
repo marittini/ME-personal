@@ -114,6 +114,7 @@ const BACKUP_DIRS = [
   "agents/images",
   "connections/images",
   "long-term-memory",
+  "image-jobs",
 ];
 const ENCRYPTION_KEY_FILENAME = ".encryption-key";
 const PROFILE_ASSET_DIRS = BACKUP_DIRS.filter((dirName) => dirName !== "storage");

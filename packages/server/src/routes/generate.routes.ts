@@ -1,3 +1,4 @@
+import { captureNaiChatDestination } from "../services/image/nai-result-application.js";
 import { applyClockCommandTags, TTS_SETTINGS_KEY, type RulesetClocks } from "@marinara-engine/shared";
 import {
   currentRoomGeneration,
@@ -13853,8 +13854,34 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
 
                       const imageResults = await generateIllustratorImageVariants({
                         count: chatMeta.illustratorImagesPerGeneration,
-                        generate: () =>
+                        generate: async () =>
                           generateImage(imgModel, imgBaseUrl, imgApiKey, imgServiceHint, {
+                            naiDestination: {
+                              ...(await captureNaiChatDestination(app.db, input.chatId, messageId, targetSwipeIndex, {
+                                provider: imgConnFull.provider ?? undefined,
+                                ...(commandTarget?.command.type === "illustrate" &&
+                                typeof commandTarget.activityIndex === "number"
+                                  ? { roleplayCommandIndex: commandTarget.activityIndex }
+                                  : {}),
+                              })),
+                              characterIds:
+                                imageSettings.autoSaveToGalleries === false ? [] : referenceResolution.characterIds,
+                              personaIds:
+                                imageSettings.autoSaveToGalleries === false || !referenceResolution.personaId
+                                  ? []
+                                  : [referenceResolution.personaId],
+                              generation: buildChatImageGenerationRecord({
+                                prompt: compiledPrompt.prompt,
+                                connectionId: imgConnFull.id,
+                                negativePrompt: finalNegativePrompt,
+                                characterPrompts: illustratorCharacterPrompts,
+                                referenceCharacterIds: useAvatarRefs ? referenceResolution.characterIds : [],
+                                referencePersonaId: useAvatarRefs ? referenceResolution.personaId : null,
+                                locationImageId: spatialLocationReferenceImage
+                                  ? ownerSpatialProjection?.referenceImageId
+                                  : null,
+                              }),
+                            },
                             prompt: compiledPrompt.prompt,
                             negativePrompt: finalNegativePrompt || undefined,
                             model: imgModel,
