@@ -10,7 +10,7 @@ Marinara Engine 2.5.1 (`8042ef6ec638801de45b8d82f82cd2dea85f51a4`) 기반의 독
 Git과 Docker Compose가 있는 서버에서 실행합니다.
 
 ```bash
-git clone https://github.com/marittini/ME-personal.git
+git clone --depth 1 --single-branch --branch main https://github.com/marittini/ME-personal.git
 cd ME-personal
 docker compose -p me-personal up -d --build
 ```
@@ -41,7 +41,7 @@ docker compose -p me-personal up -d --no-build
 Node.js 24 이상과 Git을 사용합니다. 프로젝트에 고정된 pnpm 버전은 Corepack으로 실행합니다.
 
 ```bash
-git clone https://github.com/marittini/ME-personal.git
+git clone --depth 1 --single-branch --branch main https://github.com/marittini/ME-personal.git
 cd ME-personal
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
@@ -58,3 +58,16 @@ Linux/macOS는 `./start.sh`, Termux는 `./start-termux.sh`, Windows는 `start.ba
 이전 전 데이터 전체와 환경 설정, API 키 암호화에 사용한 비밀값을 백업해야 합니다.
 복사한 데이터로 검증한 뒤 기존 서버를 중지하고 전환하세요.
 기존 라이선스·저작자 표시는 유지합니다.
+
+## 이 포크에서 제거한 기능
+
+대화와 롤플레이만 제공합니다. Game 모드, Noodle, Slurp, Gacha Forge,
+2D/3D Avatars, Storyboard, Haptic Feedback, Echo Chamber, 대화 미니게임,
+Combat, CYOA Choices는 제공하지 않습니다. Music DJ, 일반 프로필 사진,
+표정 스프라이트, TTS, 통화, 번역, 기억 기능은 유지합니다.
+
+기존 패키지의 실행 코드 복사본은 시작 시 정리합니다. 패키지 데이터와
+채팅·미디어는 자동 삭제하지 않습니다. Game 기록은 백업·내보내기를 위한
+기존 형식을 유지하지만 Game 실행과 새 Game 채팅 생성은 지원하지 않습니다.
+최초 설치에는 위 shallow clone 명령을 사용하면 과거 Git 이력을 받지 않습니다.
+로컬 기억 임베딩과 음성 인식에 쓰는 AI 런타임은 별도로 남습니다.

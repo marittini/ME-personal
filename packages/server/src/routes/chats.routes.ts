@@ -1,6 +1,3 @@
-// ──────────────────────────────────────────────
-// Routes: Chats
-// ──────────────────────────────────────────────
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { logger } from "../lib/logger.js";
@@ -227,6 +224,13 @@ import {
   isBackgroundAutonomousCandidate,
   hasRoleplayDmThreadMarkers,
 } from "../services/conversation/autonomous-candidates.js";
+
+// ──────────────────────────────────────────────
+// Routes: Chats
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Routes: Chats
+// ──────────────────────────────────────────────
 
 type TrackerWrapFormat = "xml" | "markdown" | "none";
 type EntryStateOverrides = Record<string, { ephemeral?: number | null; enabled?: boolean }>;
@@ -1355,11 +1359,9 @@ export async function chatsRoutes(app: FastifyInstance) {
   // Create chat
   app.post("/", async (req, reply) => {
     const input = createChatSchema.parse(req.body);
+    if (input.mode === "game") return reply.status(410).send({ error: "Game mode was removed from ME-personal." });
     if (input.characterIds.includes(PROFESSOR_MARI_ID)) {
       return reply.status(400).send({ error: "Professor Mari is only available from the Home screen." });
-    }
-    if (input.mode === "game" && input.personaCharacterId) {
-      return reply.status(400).send({ error: "Character identities are not available in Game chats." });
     }
     if (input.personaCharacterId && !(await isValidCharacterIdentity(app.db, input.personaCharacterId))) {
       return reply.status(400).send({ error: "Selected character identity is invalid or unavailable." });

@@ -24,7 +24,6 @@ import { hasActiveTextSelection } from "../../lib/text-selection";
 import { useAgentStore } from "../../stores/agent.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useSidecarStore } from "../../stores/sidecar.store";
-import { useConversationGamesStore } from "../../stores/conversation-games.store";
 import { useGenerate } from "../../hooks/use-generate";
 import { useApplyRegex } from "../../hooks/use-apply-regex";
 import { useCreateMessage, useDeleteMessage, useUpdateMessageExtra, useChat, chatKeys } from "../../hooks/use-chats";
@@ -36,7 +35,6 @@ import {
   getSlashCompletions,
   getSlashCommandUsage,
   withComposerReplyAndAttachments,
-  type ConversationGameSlashContribution,
   type SlashCommand,
   type SlashCommandContext,
 } from "../../lib/slash-commands";
@@ -80,7 +78,6 @@ import {
   type MariSuggestionChip,
   type Message,
   type Persona,
-  isInstalledCapabilityReady,
 } from "@marinara-engine/shared";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 
@@ -184,7 +181,6 @@ function buildConversationSlashCompletions(
   input: string,
   characters: Array<{ id: string; name: string }> | undefined,
   availableCapabilityIds: ReadonlySet<string>,
-  conversationGames: readonly ConversationGameSlashContribution[],
 ): ConversationSlashCompletion[] {
   if (!input.startsWith("/")) return [];
 
@@ -241,7 +237,7 @@ function buildConversationSlashCompletions(
       });
   }
 
-  return getSlashCompletions(input, { mode: "conversation", availableCapabilityIds, conversationGames })
+  return getSlashCompletions(input, { mode: "conversation", availableCapabilityIds })
     .filter((command) => !isConversationHiddenSlashCommand(command))
     .map((command) => {
       const { value, cursor } = buildSlashCommandPrefill(command, characters);
@@ -392,27 +388,6 @@ export function ConversationInput({
   const availableCapabilityIds = useMemo(
     () => new Set(installedCapabilities.filter((item) => item.status === "active").map((item) => item.id)),
     [installedCapabilities],
-  );
-  const availableConversationGames = useMemo(
-    () =>
-      installedCapabilities.filter(
-        (item) =>
-          isInstalledCapabilityReady(item) &&
-          item.manifest.kind.includes("turn-game") &&
-          item.manifest.entrypoints.client &&
-          item.manifest.contributions?.conversationGame,
-      ),
-    [installedCapabilities],
-  );
-  const conversationGameSlashContributions = useMemo<ConversationGameSlashContribution[]>(
-    () =>
-      availableConversationGames.map((game) => ({
-        packageId: game.id,
-        packageName: game.manifest.name,
-        command: game.manifest.contributions!.conversationGame!.command,
-        aliases: game.manifest.contributions!.conversationGame!.aliases,
-      })),
-    [availableConversationGames],
   );
   const chatName = activeChat?.name;
   const streamingChatId = useChatStore((s) => s.streamingChatId);
@@ -1058,7 +1033,6 @@ export function ConversationInput({
     const matched = matchSlashCommand(raw, {
       mode: "conversation",
       availableCapabilityIds,
-      conversationGames: conversationGameSlashContributions,
     });
     if (matched) {
       if (isConversationHiddenSlashCommand(matched.command)) {
@@ -1087,7 +1061,6 @@ export function ConversationInput({
         selfie: onGenerateSelfie,
         video: onGenerateVideo,
         availableCapabilityIds,
-        conversationGames: conversationGameSlashContributions,
       };
       const submittedInput: SubmittedConversationInput = {
         chatId: activeChatId,
@@ -1122,23 +1095,6 @@ export function ConversationInput({
         toast.error(msg);
       }
       return;
-    }
-
-    // Downloaded games contribute their own aliases. The message still sends so characters can react.
-    {
-      const normalized = raw.toLocaleLowerCase();
-      if (/\b(?:play|start|deal|rack)\b/i.test(normalized)) {
-        const matchedGame = availableConversationGames.find((game) => {
-          const contribution = game.manifest.contributions!.conversationGame!;
-          const aliases = [game.manifest.name, contribution.command.slice(1), ...contribution.aliases].map((alias) =>
-            alias.toLocaleLowerCase(),
-          );
-          return aliases.some((alias) => normalized.includes(alias));
-        });
-        if (matchedGame) {
-          useConversationGamesStore.getState().openSetup(matchedGame.id, activeChatId);
-        }
-      }
     }
 
     const message = await prepareUserMessage(raw, () =>
@@ -1214,7 +1170,7 @@ export function ConversationInput({
     activeChatId,
     replyDraft,
     setReplyDraft,
-    availableConversationGames,
+
     activeChatCharacters,
     lastMessageRole,
     attachments,
@@ -1242,7 +1198,6 @@ export function ConversationInput({
     onGenerateSelfie,
     onGenerateVideo,
     availableCapabilityIds,
-    conversationGameSlashContributions,
     localizeUi,
   ]);
 
@@ -1253,7 +1208,6 @@ export function ConversationInput({
       const matched = matchSlashCommand(commandLine, {
         mode: "conversation",
         availableCapabilityIds,
-        conversationGames: conversationGameSlashContributions,
       });
       if (!matched) return;
       if (isConversationHiddenSlashCommand(matched.command)) {
@@ -1287,7 +1241,6 @@ export function ConversationInput({
         selfie: onGenerateSelfie,
         video: onGenerateVideo,
         availableCapabilityIds,
-        conversationGames: conversationGameSlashContributions,
       };
 
       const submittedInput: SubmittedConversationInput = {
@@ -1344,7 +1297,6 @@ export function ConversationInput({
       onGenerateSelfie,
       onGenerateVideo,
       availableCapabilityIds,
-      conversationGameSlashContributions,
       qc,
       restoreSubmittedInput,
       syncInputState,
@@ -1368,7 +1320,6 @@ export function ConversationInput({
       shouldExecuteQuickPostAsCommand(raw, {
         mode: "conversation",
         availableCapabilityIds,
-        conversationGames: conversationGameSlashContributions,
       })
     ) {
       await handleSend();
@@ -1434,7 +1385,6 @@ export function ConversationInput({
     replaceAttachments,
     handleSend,
     availableCapabilityIds,
-    conversationGameSlashContributions,
     localizeUi,
   ]);
 
@@ -1677,12 +1627,7 @@ export function ConversationInput({
 
       // Slash completions
       if (formatted.startsWith("/")) {
-        const results = buildConversationSlashCompletions(
-          formatted,
-          activeChatCharacters,
-          availableCapabilityIds,
-          conversationGameSlashContributions,
-        );
+        const results = buildConversationSlashCompletions(formatted, activeChatCharacters, availableCapabilityIds);
         setCompletions(results);
         setSelectedCompletion(0);
       } else {
@@ -1747,7 +1692,6 @@ export function ConversationInput({
       setInputDraft,
       syncInputState,
       availableCapabilityIds,
-      conversationGameSlashContributions,
     ],
   );
 

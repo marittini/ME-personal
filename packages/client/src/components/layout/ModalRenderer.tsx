@@ -1,6 +1,27 @@
 // ──────────────────────────────────────────────
 // ModalRenderer: Maps store modal types → components
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// ModalRenderer: Maps store modal types → components
+// ──────────────────────────────────────────────
 import { lazy, Suspense } from "react";
 import { useUIStore } from "../../stores/ui.store";
 import {
@@ -87,12 +108,7 @@ const GameStateEditorModal = lazy(() =>
 const ChatVariablesEditorModal = lazy(() =>
   import("../modals/ChatVariablesEditorModal").then((module) => ({ default: module.ChatVariablesEditorModal })),
 );
-const GameDataEditorModal = lazy(() =>
-  import("../modals/GameDataEditorModal").then((module) => ({ default: module.GameDataEditorModal })),
-);
-const GameCheckpointsModal = lazy(() =>
-  import("../modals/GameCheckpointsModal").then((module) => ({ default: module.GameCheckpointsModal })),
-);
+
 const ActivityOverviewModal = lazy(() =>
   import("../modals/ActivityOverviewModal").then((module) => ({ default: module.ActivityOverviewModal })),
 );
@@ -283,10 +299,10 @@ export function ModalRenderer() {
       content = <ChatVariablesEditorModal open onClose={closeModal} chatId={(modal?.props?.chatId as string) ?? ""} />;
       break;
     case "game-data-editor":
-      content = <GameDataEditorModal open onClose={closeModal} chatId={(modal?.props?.chatId as string) ?? ""} />;
+      content = null;
       break;
     case "game-checkpoints":
-      content = <GameCheckpointsModal open onClose={closeModal} chatId={(modal?.props?.chatId as string) ?? ""} />;
+      content = null;
       break;
     case "activity-overview":
       content = <ActivityOverviewModal open onClose={closeModal} />;

@@ -4,7 +4,35 @@ import { useDecisionCalibration, useHasDecisionModel } from "../../hooks/use-dec
 // Full-Page Agent Editor
 // Click an agent → opens this editor
 // ──────────────────────────────────────────────
-import { lazy, Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Full-Page Agent Editor
+// Click an agent → opens this editor
+// ──────────────────────────────────────────────
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useUIStore } from "../../stores/ui.store";
@@ -67,7 +95,7 @@ import {
 import { cn } from "../../lib/utils";
 import { MacroTextarea } from "../ui/MacroTextarea";
 import { formatEstimatedTokens } from "../../lib/character-token-count";
-import { StoryboardAgentSettingsPanel } from "./StoryboardAgentSettingsPanel";
+
 import {
   getAgentRunIntervalMeta,
   getCadenceInputValue,
@@ -76,8 +104,6 @@ import {
 } from "../../lib/agent-cadence";
 import {
   DEFAULT_ECHO_CHAMBER_MESSAGE_DELAY_SECONDS,
-  MAX_ECHO_CHAMBER_MESSAGE_DELAY_SECONDS,
-  MIN_ECHO_CHAMBER_MESSAGE_DELAY_SECONDS,
   normalizeEchoChamberMessageDelaySeconds,
 } from "../../lib/echo-chamber-queue";
 import { HelpTooltip } from "../ui/HelpTooltip";
@@ -136,9 +162,6 @@ import { useSidecarStore } from "../../stores/sidecar.store";
 import { Trans, useTranslation as useUiTranslation } from "react-i18next";
 
 // The 2D and 3D Avatars setup loads only on those agents' pages.
-const AvatarAgentSetup = lazy(() =>
-  import("../../features/avatars/setup/AvatarAgentSetup").then((module) => ({ default: module.AvatarAgentSetup })),
-);
 
 function parseActivationKeywordsText(value: string): string[] {
   const seen = new Set<string>();
@@ -1966,7 +1989,6 @@ export function AgentEditor() {
   // The Engine draws the avatar agents and the agent pipeline never runs them, so the pipeline's
   // settings (phase, context, budget, prompt, tools, prompt section, batching) do nothing for them.
   const isAvatarAgent = isAvatarAgentId(currentAgentType);
-  const storyboardDefaultSettings = normalizeStoryboardAgentSettings(getDefaultBuiltInAgentSettings("storyboard"));
   const defaultPromptTemplateById = useMemo(() => {
     const defaultSettings = getDefaultBuiltInAgentSettings(currentAgentType);
     return new Map(
@@ -2262,7 +2284,7 @@ export function AgentEditor() {
               onExpandedChange={setAvatarSetupOpen}
             >
               <Suspense fallback={<Loader2 size="1rem" className="animate-spin text-[var(--muted-foreground)]" />}>
-                <AvatarAgentSetup agentId={currentAgentType} />
+                {null}
               </Suspense>
             </FieldGroup>
           )}
@@ -3239,35 +3261,6 @@ export function AgentEditor() {
                   markDirty();
                 }}
               />
-            </FieldGroup>
-          )}
-
-          {isEchoChamberAgent && (
-            <FieldGroup
-              label={localizeUi("ui.agents.agenteditor.messageDelay")}
-              icon={<Clock size="0.875rem" className="text-[var(--primary)]" />}
-              help={localizeUi("ui.agents.agenteditor.howLongEchoChamberWaitsBetweenMessages")}
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  aria-label={localizeUi("ui.agents.agenteditor.messageDelay")}
-                  min={MIN_ECHO_CHAMBER_MESSAGE_DELAY_SECONDS}
-                  max={MAX_ECHO_CHAMBER_MESSAGE_DELAY_SECONDS}
-                  value={localEchoMessageDelaySeconds}
-                  onChange={(event) => {
-                    setLocalEchoMessageDelaySeconds(normalizeEchoChamberMessageDelaySeconds(event.target.value));
-                    markDirty();
-                  }}
-                  className="w-28 rounded-xl bg-[var(--secondary)] px-3 py-2.5 text-sm tabular-nums ring-1 ring-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-                />
-                <span className="text-[0.6875rem] text-[var(--muted-foreground)]">
-                  {localizeUi("ui.agents.agenteditor.seconds")}
-                </span>
-              </div>
-              <p className="mt-1 text-[0.625rem] text-[var(--muted-foreground)]">
-                {localizeUi("ui.agents.agenteditor.echoChamberMessagesAppearOneAtATime")}
-              </p>
             </FieldGroup>
           )}
 
@@ -4370,18 +4363,7 @@ export function AgentEditor() {
               icon={<ImageIcon size="0.875rem" className="text-[var(--primary)]" />}
               help={localizeUi("ui.agents.storyboard.settingsDescription")}
             >
-              <StoryboardAgentSettingsPanel
-                settings={localStoryboardSettings}
-                defaults={storyboardDefaultSettings}
-                plannerPrompt={localPrompt}
-                defaultPlannerPrompt={defaultPrompt ?? ""}
-                plannerTemplates={localPromptTemplates}
-                connections={allConnections}
-                onChange={setLocalStoryboardSettings}
-                onPlannerPromptChange={setLocalPrompt}
-                onPlannerTemplatesChange={setLocalPromptTemplates}
-                onDirty={markDirty}
-              />
+              {null}
             </FieldGroup>
           )}
 

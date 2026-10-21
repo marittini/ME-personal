@@ -2116,18 +2116,7 @@ export function HomeBrowserHub({ pageActive, onOpenCredits }: HomeBrowserHubProp
                         {t("home.recentChats.mode.roleplay")}
                       </span>
                     </HomeNewChatLauncher>
-                    <HomeNewChatLauncher
-                      mode="game"
-                      className="group !h-auto !min-h-11 !w-full !gap-1.5 !border-[color-mix(in_srgb,var(--home-chat-mode-accent)_35%,var(--border))] !bg-[color-mix(in_srgb,var(--home-chat-mode-accent)_7%,var(--card))] !px-2 !py-1 !text-center sm:!min-h-9"
-                      ariaLabel={t("home.shortcuts.newGame")}
-                    >
-                      <ShortcutIcon tone={HOME_CHAT_MODE_ACCENTS.game}>
-                        <ChatModeIcon mode="game" size="1rem" className="mari-rgb-static-icon" />
-                      </ShortcutIcon>
-                      <span className="text-[0.65rem] font-bold text-[var(--foreground)] sm:text-xs">
-                        {t("home.recentChats.mode.game")}
-                      </span>
-                    </HomeNewChatLauncher>
+                    {null}
                   </div>
                 </section>
                 <div ref={feedShellRef} className="mari-home-feed-shell">

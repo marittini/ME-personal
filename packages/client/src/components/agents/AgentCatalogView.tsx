@@ -146,7 +146,7 @@ function kindLabel(kind: CapabilityCatalogPackage["manifest"]["kind"][number]) {
 }
 
 function packageModes(packageId: string): readonly CatalogMode[] {
-  return OFFICIAL_PACKAGE_MODES[packageId] ?? [];
+  return (OFFICIAL_PACKAGE_MODES[packageId] ?? []).filter((mode) => mode !== "game");
 }
 
 export function AgentCatalogView() {

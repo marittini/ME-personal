@@ -20955,7 +20955,6 @@ test("chat mode tabs and new-chat actions stay reachable", { tag: "@smoke" }, as
       iconClass: /lucide-message-square/,
     },
     { mode: "roleplay", tour: "chat-mode-roleplay", label: "New Roleplay", iconClass: /lucide-theater/ },
-    { mode: "game", tour: "chat-mode-game", label: "New Game", iconClass: /lucide-gamepad-2/ },
   ] as const;
   const characterlessChats = await Promise.all(
     modes.map(async (mode) => {
@@ -20989,7 +20988,6 @@ test("chat mode tabs and new-chat actions stay reachable", { tag: "@smoke" }, as
         mode: getComputedStyle(icon.parentElement!).color,
       }));
       expect(colors.icon).toBe(colors.mode);
-      if (mode.mode === "game") expect(colors.icon).toBe("rgb(236, 75, 151)");
       const buttonColors = await newChatButton.evaluate((button) => ({
         icon: getComputedStyle(button.querySelector("svg")!).color,
         text: getComputedStyle(button).color,
@@ -20997,6 +20995,7 @@ test("chat mode tabs and new-chat actions stay reachable", { tag: "@smoke" }, as
       expect(buttonColors.icon).toBe(buttonColors.text);
     }
 
+    await expect(page.locator('[data-tour="chat-mode-game"]')).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     await Promise.allSettled(characterlessChats.map((chat) => page.request.delete(`/api/chats/${chat.id}?force=true`)));

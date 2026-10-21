@@ -78,9 +78,6 @@ import { saveHiddenCommandAnchor } from "./generate/hidden-command-anchor.js";
 import { saveGeneratedReply } from "./generate/save-generated-reply.js";
 import { buildGenerationInfoExtra } from "./generate/saved-message-extra.js";
 import { runToolRounds } from "./generate/tool-rounds.js";
-// ──────────────────────────────────────────────
-// Routes: Generation (SSE Streaming with Tool Use + Agent Pipeline)
-// ──────────────────────────────────────────────
 import type { FastifyInstance } from "fastify";
 import type { input as SchemaInput } from "zod";
 import { translateGeneratedMessage } from "../services/translation.service.js";
@@ -161,7 +158,6 @@ import type {
   SourceMessageRef,
   AgentCallDebugEvent,
   AgentResult,
-  HapticDeviceCommand,
   PlayerStats,
   LorebookEntryTimingState,
   ChatSummaryEntry,
@@ -709,14 +705,7 @@ import {
   buildGenerationReplay,
   normalizeGenerationReplay,
 } from "./generate/generation-replay.js";
-import {
-  MAX_AGENT_HAPTIC_COMMANDS,
-  formatHapticSettingsForPrompt,
-  getChatHapticIntifaceUrl,
-  getChatHapticSettings,
-  normalizeHapticAgentCommand,
-  normalizeHapticAgentCommands,
-} from "../services/generation/haptic-runtime.js";
+
 import { buildConversationCommandsReminder } from "../services/generation/conversation-command-runtime.js";
 import {
   DIRECTOR_SECRET_PLOT_LAST_MESSAGE_KEY,
@@ -750,7 +739,7 @@ import { withLatestMessageReply } from "../services/generation/message-reply.js"
 import { handleRoleplayDmCommand } from "../services/generation/roleplay-dm-command-runtime.js";
 import { handleConversationScheduleCommand } from "../services/generation/conversation-schedule-command-runtime.js";
 import { handleConversationCrossPostCommand } from "../services/generation/conversation-cross-post-command-runtime.js";
-import { handleHapticCommand } from "../services/generation/haptic-command-runtime.js";
+
 import { handleConversationSelfieCommand } from "../services/generation/conversation-selfie-command-runtime.js";
 import {
   CONTINUE_ASSISTANT_MESSAGE_PROMPT,
@@ -940,6 +929,13 @@ import {
   isAgentWriteApprovalEnvelope,
   stampLorebookWriteApprovalSource,
 } from "./generate/agent-write-approval.js";
+
+// ──────────────────────────────────────────────
+// Routes: Generation (SSE Streaming with Tool Use + Agent Pipeline)
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Routes: Generation (SSE Streaming with Tool Use + Agent Pipeline)
+// ──────────────────────────────────────────────
 
 function scopeLorebookPromptMessagesForCharacter(
   messages: GenerationPromptMessage[],
@@ -1200,6 +1196,8 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
     if (!chat) {
       return rejectGenerationOutput(reply, 404, { error: "Chat not found" });
     }
+    if (chat.mode === "game")
+      return rejectGenerationOutput(reply, 410, { error: "Game mode was removed from ME-personal." });
     const roomPolicy = currentRoomGeneration();
     try {
       // Recheck after the wrapper's await: Stop or a new hosting epoch invalidates stale work.
@@ -6299,47 +6297,8 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
         }
 
         // If the haptic agent is enabled, inject connected device info (names + capabilities) into context
-        if (resolvedAgents.some((a) => a.type === "haptic")) {
-          try {
-            const { hapticService } = await import("../services/haptic/buttplug-service.js");
-            const hapticSettings = getChatHapticSettings(chatMeta);
-            agentContext.memory._hapticSettings = formatHapticSettingsForPrompt(hapticSettings);
-            // Auto-connect to Intiface Central if not already connected
-            if (!hapticService.connected) {
-              try {
-                await hapticService.connect(getChatHapticIntifaceUrl(chatMeta));
-              } catch {
-                logger.warn("[haptic] Auto-connect to Intiface Central failed — is the server running?");
-              }
-            }
-            if (hapticService.connected && hapticService.devices.length > 0) {
-              agentContext.memory._connectedDevices = hapticService.devices.map((d) => ({
-                name: d.name,
-                type: d.type,
-                index: d.index,
-                capabilities: d.capabilities,
-              }));
-              logger.debug(`[haptic] Injected ${hapticService.devices.length} device(s) into agent context`);
-            } else if (!hapticService.connected) {
-              logger.warn("[haptic] Agent enabled but Intiface Central is not connected — skipping device injection");
-            } else {
-              logger.warn("[haptic] Agent enabled and connected, but no devices found — did you scan for devices?");
-            }
-          } catch (err) {
-            logger.error(err, "[haptic] Failed to inject device info");
-          }
-        }
 
         // If the CYOA agent is enabled, inject previous choices for anti-repetition
-        if (resolvedAgents.some((a) => a.type === "cyoa")) {
-          const lastAssistantMsg = chatMessages.filter((m: any) => m.role === "assistant").at(-1);
-          if (lastAssistantMsg) {
-            const lastExtra = parseExtra((lastAssistantMsg as any).extra);
-            if (lastExtra.cyoaChoices) {
-              agentContext.memory._lastCyoaChoices = lastExtra.cyoaChoices;
-            }
-          }
-        }
 
         // If the knowledge-retrieval agent is enabled, load lorebook + file source material
         const knowledgeRetrievalAgent = resolvedAgents.find((a) => a.type === "knowledge-retrieval");
@@ -12599,18 +12558,6 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
             }
 
             // Persist CYOA choices onto message/swipe extra so they survive page refresh
-            if (result.success && result.type === "cyoa_choices" && result.data && typeof result.data === "object") {
-              const cyoaData = result.data as { choices?: Array<{ label: string; text: string }> };
-              if (cyoaData.choices && cyoaData.choices.length > 0) {
-                try {
-                  await chats.updateMessageExtraForSwipe(messageId, targetSwipeIndex, {
-                    cyoaChoices: cyoaData.choices,
-                  });
-                } catch {
-                  /* non-critical */
-                }
-              }
-            }
 
             // Persist game state snapshots from world-state agent
             if (
@@ -13449,67 +13396,6 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
             }
 
             // ── Haptic agent: execute device commands from agent output ──
-            if (result.success && result.type === "haptic_command" && result.data && typeof result.data === "object") {
-              try {
-                const hData = result.data as Record<string, unknown>;
-                if (hData.parseError) {
-                  logger.warn(
-                    "[haptic] Agent output could not be parsed as JSON: %s",
-                    (hData.raw as string)?.slice(0, 200),
-                  );
-                } else {
-                  const cmds = normalizeHapticAgentCommands(hData).slice(0, MAX_AGENT_HAPTIC_COMMANDS);
-                  if (cmds.length > 0) {
-                    const hapticSettings = getChatHapticSettings(chatMeta);
-                    const { hapticService } = await import("../services/haptic/buttplug-service.js");
-                    if (hapticService.connected) {
-                      const executedCommands: HapticDeviceCommand[] = [];
-                      for (const cmd of cmds) {
-                        const hapticCommand = normalizeHapticAgentCommand(cmd, hapticSettings);
-                        if (!hapticCommand) {
-                          logger.warn("[haptic] Agent produced unsupported command action: %s", String(cmd.action));
-                          continue;
-                        }
-
-                        try {
-                          await hapticService.executeCommand(hapticCommand);
-                          executedCommands.push(hapticCommand);
-                        } catch (commandErr) {
-                          logger.warn(commandErr, "[haptic] Agent command %s skipped", hapticCommand.action);
-                        }
-                      }
-                      if (executedCommands.length > 0) {
-                        sendSseEvent(reply, {
-                          type: "haptic_command",
-                          data: { commands: executedCommands, reasoning: hData.reasoning },
-                        });
-                        logger.info(
-                          "[haptic] Agent executed %d command(s): %s",
-                          executedCommands.length,
-                          hData.reasoning ?? "",
-                        );
-                      } else {
-                        logger.warn(
-                          "[haptic] Agent produced %d command(s), but none could be executed: %s",
-                          cmds.length,
-                          hData.reasoning ?? "",
-                        );
-                      }
-                    } else {
-                      logger.warn(
-                        `[haptic] Agent produced ${cmds.length} command(s) but Intiface Central is disconnected — commands dropped`,
-                      );
-                    }
-                  } else {
-                    logger.debug(
-                      `[haptic] Agent returned no commands (reasoning: ${(hData.reasoning as string) ?? "none"})`,
-                    );
-                  }
-                }
-              } catch (hapErr) {
-                logger.error(hapErr, "[haptic] Agent command execution failed");
-              }
-            }
 
             // ── ILLUSTRATOR HANDLER: generate image from agent prompt ──
             if (
@@ -14518,13 +14404,6 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
                   chats,
                   sendAssistantAction: (data) => {
                     sendSseEvent(reply, { type: "assistant_action", data });
-                  },
-                });
-
-                await handleHapticCommand({
-                  command,
-                  sendEvent: (data) => {
-                    sendSseEvent(reply, { type: "haptic_command", data });
                   },
                 });
 

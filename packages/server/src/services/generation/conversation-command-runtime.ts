@@ -7,13 +7,12 @@ import {
   type ConversationCommandKey,
   type WrapFormat,
 } from "@marinara-engine/shared";
-
 import { logger } from "../../lib/logger.js";
 import type { CharacterCommand } from "../conversation/character-commands.js";
 import { wrapContent } from "../prompt/format-engine.js";
 import { resolveSpotifyCredentials, spotifyHasScope } from "../spotify/spotify.service.js";
 import { getActiveTurnGame } from "../turn-games/turn-game-runner.service.js";
-import { describeHapticDeviceType, getChatHapticIntifaceUrl } from "./haptic-runtime.js";
+
 import { listCapabilityConversationCommandInstructions } from "../capability-packages/capability-command-registry.service.js";
 
 type ChatRowForCommands = {
@@ -159,8 +158,6 @@ export async function buildConversationCommandsReminder(args: {
   const callCommandEnabled = isConversationCommandAvailable("call") && isConversationCommandEnabled(chatMeta, "call");
   const musicCommandEnabled =
     isConversationCommandAvailable("music") && isConversationCommandEnabled(chatMeta, "music");
-  const hapticCommandEnabled =
-    isConversationCommandAvailable("haptic") && isConversationCommandEnabled(chatMeta, "haptic");
   const activeMusicCommandSource =
     args.musicPlayerEnabled === false
       ? null
@@ -386,31 +383,6 @@ export async function buildConversationCommandsReminder(args: {
   if (capabilityCommandLines.length > 0) addCommandLines(...capabilityCommandLines);
 
   // Haptic command: only when devices are connected and haptic feedback is enabled
-  const hapticEnabled = chatMeta.enableHapticFeedback === true;
-  if (hapticCommandEnabled && hapticEnabled) {
-    const { hapticService } = await import("../haptic/buttplug-service.js");
-    // Auto-connect to Intiface Central if not already connected
-    if (!hapticService.connected) {
-      try {
-        await hapticService.connect(getChatHapticIntifaceUrl(chatMeta));
-      } catch {
-        logger.warn("[haptic] Auto-connect to Intiface Central failed — is the server running?");
-      }
-    }
-    if (hapticService.connected && hapticService.devices.length > 0) {
-      const deviceDescriptions = hapticService.devices
-        .map(
-          (device) =>
-            `${device.name} (index ${device.index}; ${device.type ?? describeHapticDeviceType(device.capabilities)}; actions: ${device.capabilities.join("|")})`,
-        )
-        .join(", ");
-      addCommandLines(
-        `- [haptic: action="supported action", intensity=0.0-1.0, duration=seconds, pattern="steady|tap|pulse|wave|ramp|impact"] or [haptic: action="stop"] - control or stop the user's connected intimate device(s): ${deviceDescriptions}.`,
-        `   Match the action to the device and scene. Position controls linear stroking, thrusting, or pumping; inflate controls air-pressure pumping; constrict controls squeezing. Every named pattern works with scalar and position actions. Use the full intensity range when appropriate.`,
-        `   Example: *sets a firm, rhythmic pace* [haptic: action="position", intensity=1, duration=3, pattern="pulse"]`,
-      );
-    }
-  }
 
   if (availableCommandCount === 0) return null;
   commandLines.push(

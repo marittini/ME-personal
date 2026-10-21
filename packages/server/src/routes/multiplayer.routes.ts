@@ -9,7 +9,7 @@ import { logger } from "../lib/logger.js";
 import { MultiplayerService } from "../services/multiplayer/service.js";
 import { MultiplayerError } from "../services/multiplayer/room-store.js";
 import { multiplayerGuestDocument } from "../services/multiplayer/guest-document.js";
-import { parseRoomGameConfig } from "./game.routes.js";
+
 import { WORLD_SHARE_FILE_MAX_BYTES } from "@marinara-engine/shared";
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/u);
@@ -41,15 +41,6 @@ const hostAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("proposal-decline"), proposalId: id }).strict(),
   z.object({ type: z.literal("add-character"), characterId: id, role: z.enum(["character", "gm"]) }).strict(),
   z.object({ type: z.literal("remove-character"), characterId: id }).strict(),
-  z
-    .object({
-      type: z.literal("startGame"),
-      config: z.unknown().transform(parseRoomGameConfig),
-      preferences: z.string().max(16_000),
-      gmConnectionId: id.optional(),
-      gameName: z.string().trim().min(1).max(80).optional(),
-    })
-    .strict(),
 ]);
 
 /** These are the user's own authenticated controls. The peer listener never registers this plugin. */
@@ -92,9 +83,7 @@ export async function multiplayerRoutes(app: FastifyInstance, options: { service
       z
         .union([
           z.object({ chatId: id }).strict(),
-          z
-            .object({ mode: z.enum(["conversation", "roleplay", "game"]), name: z.string().trim().min(1).max(80) })
-            .strict(),
+          z.object({ mode: z.enum(["conversation", "roleplay"]), name: z.string().trim().min(1).max(80) }).strict(),
         ])
         .parse(request.body),
     ),

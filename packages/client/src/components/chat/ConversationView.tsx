@@ -1,6 +1,27 @@
 // ──────────────────────────────────────────────
 // Chat: Conversation View — Discord-style composite
 // ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
+// ──────────────────────────────────────────────
+// Chat: Conversation View — Discord-style composite
+// ──────────────────────────────────────────────
 import {
   Fragment,
   Suspense,
@@ -19,7 +40,7 @@ import { useTranslation, useTranslation as useUiTranslation } from "react-i18nex
 import { Loader2, ChevronUp, Puzzle } from "lucide-react";
 import { ConversationMessage } from "./ConversationMessage";
 import { ConversationInput } from "./ConversationInput";
-import { ConversationGamesPicker } from "./ConversationGamesPicker";
+
 import { SceneBanner, EndSceneBar } from "./SceneBanner";
 import { CHAT_TOOLBAR_OVERFLOW_BUTTON_SIZE_CLASS, getChatToolbarButtonClass } from "./ChatToolbarControls";
 import { CHAT_CONTROL_WINDOW_IDS, ChatControlWindow } from "./ChatControlWindow";
@@ -29,7 +50,6 @@ import { HISTORY_PAGER_BUTTON_CLASS, TranscriptWindowControls } from "./Transcri
 import { PinnedImageOverlay } from "./PinnedImageOverlay";
 import { useChatStore } from "../../stores/chat.store";
 import { hasActiveTextSelection } from "../../lib/text-selection";
-import { useConversationGamesStore } from "../../stores/conversation-games.store";
 import { useUIStore } from "../../stores/ui.store";
 import { playConfiguredNotificationPing } from "../../lib/notification-sound";
 import { rememberBoundedSetValue } from "../../lib/bounded-set";
@@ -54,7 +74,6 @@ import {
 } from "@marinara-engine/shared";
 import {
   selectConversationSurfacePackages,
-  selectConversationTurnGamePackages,
   selectEnabledConversationPackages,
   useInstalledCapabilityPackages,
 } from "../../hooks/use-capability-packages";
@@ -426,12 +445,7 @@ export function ConversationView({
     window.addEventListener(TURN_GAME_BOT_REQUEST_EVENT, handleBotRequest);
     return () => window.removeEventListener(TURN_GAME_BOT_REQUEST_EVENT, handleBotRequest);
   }, [chatId, generateTurnGameBots]);
-  const gamesPickerOpen = useConversationGamesStore((s) => s.pickerChatId === chatId);
-  const closeGamesPicker = useConversationGamesStore((s) => s.closePicker);
-  const gameSetup = useConversationGamesStore((s) => (s.setup?.chatId === chatId ? s.setup : null));
-  const closeGameSetup = useConversationGamesStore((s) => s.closeSetup);
   const { data: installedCapabilities = [] } = useInstalledCapabilityPackages();
-  const turnGamePackages = selectConversationTurnGamePackages(installedCapabilities);
   const hasLiveStream = isStreaming;
   const streamBuffer = useThrottledStreamBuffer();
   const thinkingBuffer = useChatStore((s) => s.thinkingBuffer);
@@ -1583,9 +1597,7 @@ export function ConversationView({
       )}
 
       {/* Downloaded games own their board and setup UI. The base client only provides stable slots. */}
-      {turnGamePackages.map((game) => (
-        <CapabilityElement key={`${game.id}-surface`} packageId={game.id} view="surface" capabilityProps={{ chatId }} />
-      ))}
+
       {callsPackage && (
         <CapabilityElement
           packageId={callsPackage.id}
@@ -1610,20 +1622,7 @@ export function ConversationView({
       {/* Keys must be unique across this whole children list — ConversationInput
           below is also keyed by chatId, and duplicate sibling keys make React
           duplicate/orphan the setup modals (stuck un-closable "Start UNO"). */}
-      <ConversationGamesPicker
-        key={`games-${chatId}`}
-        chatId={chatId}
-        open={gamesPickerOpen}
-        onClose={closeGamesPicker}
-      />
-      {gameSetup && turnGamePackages.some((game) => game.id === gameSetup.packageId) && (
-        <CapabilityElement
-          key={`${gameSetup.packageId}-setup-${chatId}`}
-          packageId={gameSetup.packageId}
-          view="setup"
-          capabilityProps={{ chatId, open: true, onClose: closeGameSetup }}
-        />
-      )}
+      {null}
 
       {/* ── Input area ── */}
       <ConversationInput

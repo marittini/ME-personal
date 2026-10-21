@@ -1,7 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { normalizeSemanticSummaryRetrievalSettings } from "@marinara-engine/shared";
-import { toast } from "sonner";
+
 import {
   Suspense,
   lazy,
@@ -24,8 +23,6 @@ import { usePageActivity } from "../../hooks/use-page-activity";
 import {
   appendContinuationMessageContent,
   isLongTermMemoryChatSummaryPromptAllowed,
-  STORYBOARD_AGENT_ID,
-  type GameTurnStoryboard,
   type ChatSummaryEntry,
   type AdvancedMemoryJob,
   type MarkerConfig,
@@ -69,7 +66,7 @@ import { useInstalledCapabilityPackages } from "../../hooks/use-capability-packa
 import { CapabilityElement } from "../capabilities/CapabilityElement";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
-import { CyoaChoices } from "./CyoaChoices";
+
 import { CHAT_CONTROL_WINDOW_IDS, ChatConnectedChatWindow, ChatControlWindow } from "./ChatControlWindow";
 import { TrackerPanelBubble } from "./TrackerPanelBubble";
 import { PHONE_BUBBLE_SIZE_PX, WINDOW_BUBBLE_SIZE_PX, WINDOW_MARGIN_PX } from "../../lib/floating-window-layout";
@@ -81,8 +78,7 @@ import { ChatCommonOverlays, type ChatSettingsTools } from "./ChatCommonOverlays
 import { useProvideChatGalleryActions } from "../../hooks/use-chat-gallery-actions";
 import { PinnedImageOverlay } from "./PinnedImageOverlay";
 import type { SpriteDisplayMode } from "./sprite-display-modes";
-import { chatAvatarParticipants } from "../../features/avatars/stage/avatar-stage-logic";
-import { useChatAvatarAgentIds } from "../../features/avatars/stage/use-chat-avatar-agents";
+
 import type {
   CharacterMap,
   ExpressionAvatarResolver,
@@ -92,11 +88,6 @@ import type {
   PersonaInfo,
 } from "./chat-area.types";
 import type { ChatImage } from "../../hooks/use-gallery";
-import {
-  gameStoryboardKeys,
-  useGameChatStoryboards,
-  useGenerateGameTurnStoryboard,
-} from "../../hooks/use-game-storyboards";
 
 type ChatData = ComponentProps<typeof ChatCommonOverlays>["chat"];
 
@@ -120,20 +111,6 @@ const SpriteOverlay = lazy(async () => {
 });
 
 // 2D and 3D Avatars: loads only in chats where an avatar agent is on.
-const AvatarStage = lazy(async () => {
-  const module = await import("../../features/avatars/stage/AvatarStage");
-  return { default: module.AvatarStage };
-});
-
-const EchoChamberPanel = lazy(async () => {
-  const module = await import("./EchoChamberPanel");
-  return { default: module.EchoChamberPanel };
-});
-
-const EncounterModal = lazy(async () => {
-  const module = await import("./EncounterModal");
-  return { default: module.EncounterModal };
-});
 
 const ChatSummaryPanel = lazy(async () => {
   const module = await import("./ChatSummaryPanel");
@@ -492,8 +469,6 @@ function RegeneratingMessageContent({
         />
       )}
       {...rest}
-      storyboard={isContinuation ? rest.storyboard : null}
-      storyboardGenerating={isContinuation ? rest.storyboardGenerating : false}
     />
   );
 }
@@ -788,7 +763,6 @@ type RoleplaySurfaceProps = {
   onToggleSelectMessage: (toggle: MessageSelectionToggle) => void;
   onRerunTrackers: () => void;
   onRerunSingleTracker: (agentType: string) => void;
-  onStartEncounter: () => void;
   onConcludeScene: () => void;
   onAbandonScene: () => void;
   onForkScene: (sceneChatId: string, mode: SceneForkMode) => void;
@@ -814,7 +788,7 @@ type RoleplaySurfaceProps = {
   onSpritePlacementChange: (placementKey: string, placement: SpritePlacement) => void;
   onFinishSpritePlacement: () => void;
   avatarLayout?: ComponentProps<typeof ChatCommonOverlays>["sceneSettings"]["avatarLayout"];
-  onAvatarsShown?: ComponentProps<typeof AvatarStage>["onShownChange"];
+  onAvatarsShown?: (avatars: import("../../features/avatars/stage/avatar-stage-logic").StageAvatarSummary[]) => void;
   onDeleteConfirm: () => void;
   onDeleteSwipe: () => void;
   onDeleteOtherSwipes: () => void;
@@ -908,7 +882,6 @@ export function ChatRoleplaySurface({
   onToggleSelectMessage,
   onRerunTrackers,
   onRerunSingleTracker,
-  onStartEncounter,
   onConcludeScene,
   onAbandonScene,
   onForkScene,
@@ -932,7 +905,6 @@ export function ChatRoleplaySurface({
   onSpritePlacementChange,
   onFinishSpritePlacement,
   avatarLayout,
-  onAvatarsShown,
   onDeleteConfirm,
   onDeleteSwipe,
   onDeleteOtherSwipes,
@@ -1003,8 +975,6 @@ export function ChatRoleplaySurface({
   const linkedChatName = chat?.connectedChatId
     ? getConnectedChatDisplayName(allChats?.find((c) => c.id === chat.connectedChatId))
     : undefined;
-  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
-  const rightPanelOpen = useUIStore((s) => s.rightPanelOpen);
   const chatBackgroundBlur = useUIStore((s) => s.chatBackgroundBlur);
   const roleplayReducedPaintEffects = useUIStore((s) => s.roleplayReducedPaintEffects);
   const defaultDisplayStyle = useUIStore((s) => s.roleplayDisplayStyle);
@@ -1161,8 +1131,7 @@ export function ChatRoleplaySurface({
     visibleVnMessages,
     vnParagraphCount,
   ]);
-  const queryClient = useQueryClient();
-  const automaticStoryboardMessageRef = useRef<string | undefined>(undefined);
+
   const initialLoadSettledRef = useRef(false);
   const prevMessageKeysRef = useRef<Set<string>>(new Set());
   const seenMessageKeysRef = useRef(roleplayNotificationSeenKeys);
@@ -1212,14 +1181,8 @@ export function ChatRoleplaySurface({
   const ambientVisualsPaused =
     generationVisualsPaused || (isMobileToolbarViewport && (keyboardOpen || composerFocused || hasMobileDraftInput));
   const weatherEffectsPaused = isMobileToolbarViewport && (keyboardOpen || composerFocused || hasMobileDraftInput);
-  const hideEchoChamberOnMobile = sidebarOpen || rightPanelOpen || settingsOpen || wizardOpen;
   const showSpriteOverlay = expressionAgentEnabled && spriteCharacterIds.length > 0 && spriteDisplayModes.length > 0;
   // Avatars show independently of the Expression Engine; the user hides the full-body sprite by hand.
-  const avatarAgentIds = useChatAvatarAgentIds(chatMeta);
-  const avatarParticipants = useMemo(
-    () => chatAvatarParticipants(chatCharIds, characterMap, personaInfo),
-    [characterMap, chatCharIds, personaInfo],
-  );
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -1519,131 +1482,16 @@ export function ChatRoleplaySurface({
     typeof chatMeta.summaryTailMessages === "number" && Number.isFinite(chatMeta.summaryTailMessages)
       ? chatMeta.summaryTailMessages
       : undefined;
-  const storyboardAgentActive = chatMeta.enableAgents === true && summaryActiveAgentIds.includes(STORYBOARD_AGENT_ID);
-  const roleplayStoryboardAutoMode =
-    chatMeta.roleplayStoryboardAutoGenerateMode === "manual" ||
-    chatMeta.roleplayStoryboardAutoGenerateMode === "illustration" ||
-    chatMeta.roleplayStoryboardAutoGenerateMode === "animation"
-      ? chatMeta.roleplayStoryboardAutoGenerateMode
-      : null;
-  const latestStoryboardMessage = useMemo(
-    () => messages?.find((message) => message.id === lastAssistantMessageId) ?? null,
-    [lastAssistantMessageId, messages],
-  );
-  const roleplayStoryboardsQuery = useGameChatStoryboards(activeChatId, storyboardAgentActive);
-  const generateRoleplayStoryboard = useGenerateGameTurnStoryboard();
-  const roleplayStoryboardByTurn = useMemo(() => {
-    const byTurn = new Map<string, GameTurnStoryboard>();
-    for (const storyboard of roleplayStoryboardsQuery.data ?? []) {
-      const key = `${storyboard.messageId}:${storyboard.swipeIndex}`;
-      const existing = byTurn.get(key);
-      if (!existing || storyboard.createdAt > existing.createdAt) byTurn.set(key, storyboard);
-    }
-    return byTurn;
-  }, [roleplayStoryboardsQuery.data]);
-  const storeGeneratedStoryboard = useCallback(
-    (storyboard: GameTurnStoryboard) => {
-      queryClient.setQueryData<GameTurnStoryboard[]>(gameStoryboardKeys.list(activeChatId), (current) => [
-        storyboard,
-        ...(current ?? []).filter((row) => row.id !== storyboard.id),
-      ]);
-      queryClient.setQueryData<GameTurnStoryboard[]>(
-        gameStoryboardKeys.turn(activeChatId, storyboard.messageId, storyboard.swipeIndex),
-        (current) => [storyboard, ...(current ?? []).filter((row) => row.id !== storyboard.id)],
-      );
-      void queryClient.invalidateQueries({ queryKey: ["gallery", activeChatId] });
-      void queryClient.invalidateQueries({ queryKey: ["gallery", "assets", activeChatId] });
-    },
-    [activeChatId, queryClient],
-  );
-  const handleGenerateRoleplayStoryboard = useCallback(async () => {
-    if (!latestStoryboardMessage) return;
-    try {
-      const result = await generateRoleplayStoryboard.mutateAsync({
-        chatId: activeChatId,
-        messageId: latestStoryboardMessage.id,
-        swipeIndex: latestStoryboardMessage.activeSwipeIndex ?? 0,
-        automatic: false,
-        debugMode: useUIStore.getState().debugMode,
-      });
-      if ("storyboard" in result) storeGeneratedStoryboard(result.storyboard);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : localizeUi("ui.chat.chatgallery.storyboardGenerationFailed"),
-      );
-    }
-  }, [activeChatId, generateRoleplayStoryboard, latestStoryboardMessage, localizeUi, storeGeneratedStoryboard]);
-
-  useEffect(() => {
-    automaticStoryboardMessageRef.current = undefined;
-  }, [activeChatId]);
-
-  useEffect(() => {
-    const messageId = latestStoryboardMessage?.id;
-    if (!messageId) return;
-    if (automaticStoryboardMessageRef.current === undefined) {
-      automaticStoryboardMessageRef.current = messageId;
-      return;
-    }
-    if (automaticStoryboardMessageRef.current === messageId) return;
-    if (!storyboardAgentActive || roleplayStoryboardAutoMode === "manual") {
-      automaticStoryboardMessageRef.current = messageId;
-      return;
-    }
-    if (
-      isStreaming ||
-      agentProcessing ||
-      messageHasPendingPostProcessing(latestStoryboardMessage) ||
-      generateRoleplayStoryboard.isPending
-    ) {
-      return;
-    }
-
-    automaticStoryboardMessageRef.current = messageId;
-    void generateRoleplayStoryboard
-      .mutateAsync({
-        chatId: activeChatId,
-        messageId,
-        swipeIndex: latestStoryboardMessage.activeSwipeIndex ?? 0,
-        automatic: true,
-        ...(roleplayStoryboardAutoMode ? { generateVideos: roleplayStoryboardAutoMode === "animation" } : {}),
-        debugMode: useUIStore.getState().debugMode,
-      })
-      .then((result) => {
-        if ("storyboard" in result) storeGeneratedStoryboard(result.storyboard);
-      })
-      .catch(() => undefined);
-  }, [
-    activeChatId,
-    agentProcessing,
-    generateRoleplayStoryboard,
-    isStreaming,
-    latestStoryboardMessage,
-    roleplayStoryboardAutoMode,
-    storyboardAgentActive,
-    storeGeneratedStoryboard,
-  ]);
-
-  const canGenerateRoleplayStoryboard =
-    storyboardAgentActive && !!latestStoryboardMessage && !generateRoleplayStoryboard.isPending;
   const galleryActions = useMemo(
     () => ({
       onIllustrate,
       onIllustrateWithAgent,
-      onGenerateStoryboard: canGenerateRoleplayStoryboard ? handleGenerateRoleplayStoryboard : undefined,
+
       onGenerateVideo,
       onAnimateImage,
       onGenerateBackground,
     }),
-    [
-      canGenerateRoleplayStoryboard,
-      handleGenerateRoleplayStoryboard,
-      onAnimateImage,
-      onGenerateBackground,
-      onGenerateVideo,
-      onIllustrate,
-      onIllustrateWithAgent,
-    ],
+    [onAnimateImage, onGenerateBackground, onGenerateVideo, onIllustrate, onIllustrateWithAgent],
   );
   useProvideChatGalleryActions(activeChatId, galleryActions);
   const chatTools: ChatSettingsTools = chat
@@ -1761,25 +1609,6 @@ export function ChatRoleplaySurface({
             />
           </Suspense>
         )}
-        {avatarAgentIds.length > 0 && avatarParticipants.length > 0 && (
-          <Suspense fallback={null}>
-            <AvatarStage
-              chatId={activeChatId}
-              mode="roleplay"
-              participants={avatarParticipants}
-              enabledAgentIds={avatarAgentIds}
-              side={visualNovel ? "center" : spritePosition}
-              placements={spritePlacements}
-              characterVisualSettings={spriteVisualSettings?.characterOverrides}
-              scale={fullBodySpriteScale}
-              scaleMultiplier={visualNovel ? vnSpriteScale : 1}
-              framings={spriteVisualSettings?.avatarFramings}
-              editing={spriteArrangeMode}
-              onPlacementChange={onSpritePlacementChange}
-              onShownChange={onAvatarsShown}
-            />
-          </Suspense>
-        )}
 
         <div className="relative flex flex-1 overflow-hidden">
           <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -1860,11 +1689,7 @@ export function ChatRoleplaySurface({
               </div>
             </div>
 
-            {encounterActive && (
-              <Suspense fallback={null}>
-                <EncounterModal />
-              </Suspense>
-            )}
+            {encounterActive && <Suspense fallback={null}>{null}</Suspense>}
 
             <div
               data-chat-resource-drop-surface
@@ -1943,14 +1768,7 @@ export function ChatRoleplaySurface({
                   const messageDepth = (messages?.length ?? 0) - 1 - sourceIndex;
                   const messageOrderIndex = loadedMessageOffset + sourceIndex;
                   const isRegenerating = hasLiveStream && inlineStreamingMessageId === msg.id;
-                  const inlineStoryboard =
-                    roleplayStoryboardByTurn.get(`${msg.id}:${msg.activeSwipeIndex ?? 0}`) ?? null;
-                  const inlineStoryboardGenerating =
-                    msg.id === generateRoleplayStoryboard.variables?.messageId &&
-                    generateRoleplayStoryboard.isPending &&
-                    (generateRoleplayStoryboard.variables?.automatic !== true ||
-                      roleplayStoryboardAutoMode === "illustration" ||
-                      roleplayStoryboardAutoMode === "animation");
+
                   return (
                     <div
                       key={msg.id}
@@ -1989,8 +1807,7 @@ export function ChatRoleplaySurface({
                           multiSelectMode={multiSelectMode}
                           isSelected={selectedMessageIds.has(msg.id)}
                           onToggleSelect={onToggleSelectMessage}
-                          storyboard={inlineStoryboard}
-                          storyboardGenerating={inlineStoryboardGenerating}
+
                           memoryStartCharacterIds={memoryContextStarts.get(msg.id)}
                         />
                       ) : (
@@ -2027,8 +1844,7 @@ export function ChatRoleplaySurface({
                           multiSelectMode={multiSelectMode}
                           isSelected={selectedMessageIds.has(msg.id)}
                           onToggleSelect={onToggleSelectMessage}
-                          storyboard={inlineStoryboard}
-                          storyboardGenerating={inlineStoryboardGenerating}
+
                           memoryStartCharacterIds={memoryContextStarts.get(msg.id)}
                         />
                       )}
@@ -2044,7 +1860,7 @@ export function ChatRoleplaySurface({
                   buttonClassName="border-[var(--marinara-chat-chrome-button-border-active)] bg-[var(--marinara-chat-chrome-button-bg-active)] text-[var(--marinara-chat-chrome-button-text-active)] hover:border-[var(--marinara-chat-chrome-button-border-hover)] hover:bg-[var(--marinara-chat-chrome-button-bg-hover)] hover:text-[var(--marinara-chat-chrome-button-text-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--marinara-chat-chrome-focus-ring)]"
                 />
 
-                {showHistory && !isStreaming && <CyoaChoices messages={messages} />}
+                {showHistory && !isStreaming && null}
 
                 {showHistory && hasLiveStream && !inlineStreamingMessageId && (
                   <StreamingIndicator
@@ -2203,7 +2019,7 @@ export function ChatRoleplaySurface({
                         )}
                       </div>
                     )}
-                    {!vnHistoryOpen && !isStreaming && <CyoaChoices messages={messages} />}
+                    {!vnHistoryOpen && !isStreaming && null}
                   </div>
                 )}
                 {chatMeta.sceneStatus === "active" && (
@@ -2221,7 +2037,7 @@ export function ChatRoleplaySurface({
                   key={activeChatId}
                   mode={isRoleplay ? "roleplay" : "conversation"}
                   combatAgentEnabled={combatAgentEnabled}
-                  onStartEncounter={onStartEncounter}
+
                   characterNames={characterNames}
                   groupResponseOrder={
                     chatCharIds.length > 1 && groupChatMode === "individual"
@@ -2250,9 +2066,7 @@ export function ChatRoleplaySurface({
         </div>
 
         {/* Always mount so stagger timer runs even when panel is hidden */}
-        <Suspense fallback={null}>
-          <EchoChamberPanel hiddenOnMobile={hideEchoChamberOnMobile} />
-        </Suspense>
+        <Suspense fallback={null}>{null}</Suspense>
       </div>
 
       {/* Package toolbars, Beholder and the connected chat are windows that minimize to bubbles. */}

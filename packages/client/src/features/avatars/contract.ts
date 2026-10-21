@@ -1,11 +1,3 @@
-// ──────────────────────────────────────────────
-// Avatar agents: the client contract (no lane edits this file)
-// ──────────────────────────────────────────────
-// Renderers, setup panels and the generation panel load through dynamic import(), so three, @pixiv/three-vrm
-// and mesh-avatar stay out of the main bundle and load only when an avatar of that kind is set up or shown.
-// Import this file only for types and the loaders below; never import a renderer module statically.
-// The shared half of the contract is packages/shared/src/types/avatars.ts.
-import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import type {
   AvatarAgentId,
   AvatarConfig,
@@ -16,6 +8,14 @@ import type {
   AvatarViseme,
   ChatMode,
 } from "@marinara-engine/shared";
+
+// ──────────────────────────────────────────────
+// Avatar agents: the client contract (no lane edits this file)
+// ──────────────────────────────────────────────
+// Renderers, setup panels and the generation panel load through dynamic import(), so three, @pixiv/three-vrm
+// and mesh-avatar stay out of the main bundle and load only when an avatar of that kind is set up or shown.
+// Import this file only for types and the loaders below; never import a renderer module statically.
+// The shared half of the contract is packages/shared/src/types/avatars.ts.
 
 // ── Performance budget ──
 
@@ -73,17 +73,7 @@ export interface AvatarRendererModule {
   createAvatarRenderer(): AvatarRenderer;
 }
 
-const AVATAR_RENDERER_MODULES: Readonly<Record<AvatarKind, () => Promise<AvatarRendererModule>>> = {
-  pngtuber: () => import("./renderers/pngtuber/pngtuber-renderer"),
-  "mesh-avatar": () => import("./renderers/mesh-avatar/mesh-avatar-renderer"),
-  vrm: () => import("./renderers/vrm/vrm-renderer"),
-};
-
 /** Loads a kind's renderer chunk on first use and creates a renderer. */
-export async function loadAvatarRenderer(kind: AvatarKind): Promise<AvatarRenderer> {
-  const module = await AVATAR_RENDERER_MODULES[kind]();
-  return module.createAvatarRenderer();
-}
 
 // ── Director (lane director) and audio (lane TTS) ──
 
@@ -176,22 +166,7 @@ export interface AvatarKindSetupPanelProps {
   onChanged: () => void;
 }
 
-export const AVATAR_KIND_SETUP_PANELS: Readonly<
-  Record<AvatarKind, LazyExoticComponent<ComponentType<AvatarKindSetupPanelProps>>>
-> = {
-  pngtuber: lazy(() =>
-    import("./renderers/pngtuber/PngtuberSetupPanel").then((m) => ({ default: m.PngtuberSetupPanel })),
-  ),
-  "mesh-avatar": lazy(() =>
-    import("./renderers/mesh-avatar/MeshAvatarSetupPanel").then((m) => ({ default: m.MeshAvatarSetupPanel })),
-  ),
-  vrm: lazy(() => import("./renderers/vrm/VrmSetupPanel").then((m) => ({ default: m.VrmSetupPanel }))),
-};
-
 /** One-click generation from a sprite (2D agent page only). */
-export const AVATAR_GENERATION_PANEL: LazyExoticComponent<ComponentType<AvatarKindSetupPanelProps>> = lazy(() =>
-  import("./generation/AvatarGenerationPanel").then((m) => ({ default: m.AvatarGenerationPanel })),
-);
 
 /** Props of the setup the base lane mounts on an avatar agent's Agent editor page. */
 export interface AvatarAgentSetupProps {

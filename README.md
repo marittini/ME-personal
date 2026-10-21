@@ -2,6 +2,9 @@
 > Engine v2.5.1 (`8042ef6ec`). This is not an official Pasta-Devs release.
 > Engine updates come only from this repository. Official agent downloads remain
 > available; they do not update the Engine itself.
+> This fork provides Conversation and Roleplay. Game, Noodle, Slurp, Gacha Forge,
+> animated 2D/3D avatars, Storyboard, Haptics, Echo Chamber, conversation minigames,
+> Combat and CYOA are removed. TTS, calls, translation, memory, sprites and music remain.
 >
 > For Docker, clone this repository and run `docker compose up -d --build`.
 > The default Compose file builds `me-personal:local` from this checkout and never

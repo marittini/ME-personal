@@ -31,7 +31,7 @@ import {
   normalizeSpriteDisplayModes,
   type SpriteDisplayMode,
 } from "./sprite-display-modes";
-import { HAPTIC_SENSITIVITY_OPTIONS } from "./haptic-sensitivity-options";
+
 import { SettingsSwitch } from "../panels/settings/SettingControls";
 import { useTranslation as useUiTranslation } from "react-i18next";
 
@@ -1285,76 +1285,6 @@ function MusicDjSetupFields({
   );
 }
 
-function HapticSetupFields({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: AgentAddSetupState;
-  disabled?: boolean;
-  onChange: (patch: Partial<AgentAddSetupState>) => void;
-}) {
-  const { t: localizeUi } = useUiTranslation();
-  return (
-    <div className="space-y-2.5 rounded-lg bg-[var(--background)]/65 px-3 py-2.5 ring-1 ring-[var(--border)]">
-      <SetupToggle
-        label={localizeUi("ui.chat.hapticsetupfields.hapticFeedback")}
-        description={
-          value.hapticFeedbackEnabled
-            ? localizeUi("ui.chat.hapticsetupfields.touchCuesAreEnabledForThisChat")
-            : localizeUi("ui.chat.hapticsetupfields.allowThisAgentToSendTouchCuesDuringThe")
-        }
-        enabled={value.hapticFeedbackEnabled}
-        disabled={disabled}
-        onToggle={() => onChange({ hapticFeedbackEnabled: !value.hapticFeedbackEnabled })}
-      />
-      {value.hapticFeedbackEnabled && (
-        <>
-          <div className="space-y-1">
-            <SetupLabel>{localizeUi("ui.chat.hapticsetupfields.touchSensitivity")}</SetupLabel>
-            <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--background)]/35 p-1">
-              {HAPTIC_SENSITIVITY_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onChange({ hapticSensitivity: option.id })}
-                  className={cn(
-                    "rounded-md px-2 py-1.5 text-[0.625rem] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                    value.hapticSensitivity === option.id
-                      ? "bg-[var(--accent)] text-[var(--foreground)] ring-1 ring-[var(--border)]"
-                      : "text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]",
-                  )}
-                  title={localizeUi(option.descriptionKey)}
-                >
-                  {localizeUi(option.labelKey)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <SetupToggle
-            label={localizeUi("ui.chat.hapticsetupfields.incidentalContact")}
-            description={localizeUi("ui.chat.hapticsetupfields.tinyTapsForAccidentalBrushesAndBumps")}
-            enabled={value.hapticIncidentalContact}
-            disabled={disabled}
-            onToggle={() => onChange({ hapticIncidentalContact: !value.hapticIncidentalContact })}
-          />
-          <label className="flex flex-col gap-1">
-            <SetupLabel>{localizeUi("ui.chat.hapticsetupfields.intifaceUrl")}</SetupLabel>
-            <input
-              value={value.hapticIntifaceUrl}
-              disabled={disabled}
-              onChange={(event) => onChange({ hapticIntifaceUrl: event.target.value })}
-              placeholder={localizeUi("ui.chat.hapticsetupfields.ws12700112345")}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/50 disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </label>
-        </>
-      )}
-    </div>
-  );
-}
-
 export function AgentAddSetupFields({
   agentId,
   value,
@@ -1581,7 +1511,7 @@ export function AgentAddSetupFields({
 
       {agentId === "spotify" && <MusicDjSetupFields value={value} disabled={disabled} onChange={onChange} />}
 
-      {agentId === "haptic" && <HapticSetupFields value={value} disabled={disabled} onChange={onChange} />}
+      {agentId === "haptic" && null}
     </div>
   );
 }

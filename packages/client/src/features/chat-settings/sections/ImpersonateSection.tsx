@@ -13,8 +13,6 @@ interface ImpersonateSectionProps {
 
 export function ImpersonateSection({ presets, connections }: ImpersonateSectionProps) {
   const { t: localizeUi } = useUiTranslation();
-  const cyoaChoices = useUIStore((state) => state.impersonateCyoaChoices);
-  const setCyoaChoices = useUIStore((state) => state.setImpersonateCyoaChoices);
   const presetId = useUIStore((state) => state.impersonatePresetId);
   const setPresetId = useUIStore((state) => state.setImpersonatePresetId);
   const connectionId = useUIStore((state) => state.impersonateConnectionId);
@@ -107,17 +105,7 @@ export function ImpersonateSection({ presets, connections }: ImpersonateSectionP
               labelClassName="text-xs font-semibold"
             />
 
-            <SettingsSwitch
-              label={localizeUi("ui.chatSettings.impersonatesection.useCyoaAsDirection")}
-              help={localizeUi("ui.chatSettings.impersonatesection.whenEnabledClickingACyoaOptionUsesItAs")}
-              description={localizeUi("ui.chatSettings.impersonatesection.treatChoicesAsImpersonateGuidance")}
-              helpPosition="label"
-              checked={cyoaChoices}
-              onChange={setCyoaChoices}
-              labelPosition="start"
-              className="justify-between rounded-md px-2 py-1.5 text-left"
-              labelClassName="text-xs font-semibold"
-            />
+            {null}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)]/60 px-2 pt-2">

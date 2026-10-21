@@ -50,6 +50,8 @@ import { logger } from "../../lib/logger.js";
 import { openZipArchive, type ZipArchive, type ZipEntry, type ZipEntryBudget } from "../../lib/zip-reader.js";
 import { getBuildBranch } from "../../config/build-info.js";
 import { sidecarSpeechService } from "../sidecar/sidecar-speech.service.js";
+import { removeExcludedPackageCode } from "./fork-profile.service.js";
+import { isRemovedFeatureId, isRemovedFeaturePackage } from "@marinara-engine/shared";
 
 const ROOT = join(DATA_DIR, "capability-packages");
 const VERSIONS = join(ROOT, "versions");
@@ -313,6 +315,7 @@ function inside(root: string, candidate: string): string {
 }
 
 function runtimeBlockReason(installed: InstalledCapabilityPackage): string | null {
+  if (isRemovedFeaturePackage(installed.manifest)) return "This feature is removed from ME-personal.";
   return (
     getCapabilityApiCompatibilityIssue(installed.manifest) ??
     KNOWN_INCOMPATIBLE_RUNTIMES.get(`${installed.id}@${installed.version}`) ??
@@ -6251,6 +6254,7 @@ async function hydratePreviousManifest(installed: InstalledCapabilityPackage): P
 async function resolveServableInstalledPackage(
   installed: InstalledCapabilityPackage,
 ): Promise<InstalledCapabilityPackage | null> {
+  if (isRemovedFeaturePackage(installed.manifest)) return null;
   if (isInstalledCapabilityReady(installed)) return installed;
   const hydrated = await hydratePreviousManifest(installed);
   if (hydrated.status !== "restart-required" || !hydrated.previousVersion || !hydrated.previousManifest) return null;
@@ -6387,6 +6391,8 @@ export function findPendingCapabilityPackageUpdates(
 
 async function installCatalogPackage(entry: CapabilityCatalogPackage, activateDuringStartup = false) {
   const { manifest, artifact } = entry;
+  if (isRemovedFeaturePackage(manifest))
+    throw new CapabilityPackageCompatibilityError("This feature is removed from ME-personal.");
   const installIssue = getCapabilityPackageInstallIssue(manifest);
   if (installIssue) throw new CapabilityPackageCompatibilityError(installIssue);
   const initiallyInstalled = await readInstalledVersion(manifest.id);
@@ -6669,6 +6675,12 @@ export function resetCapabilityReleaseNotesCache() {
 }
 
 export const capabilityPackageManager = {
+  async removeExcludedPackageCode() {
+    return removeExcludedPackageCode(
+      VERSIONS,
+      (await readRegistry()).packages.map((item) => item.manifest),
+    );
+  },
   async catalog(
     fetchCatalog: typeof safeFetch = safeFetch,
     previewCatalogUrl: string | null = PREVIEW_CATALOG_URL,
@@ -6731,7 +6743,10 @@ export const capabilityPackageManager = {
         ...catalog.packages.map((entry) => decorate(entry, CATALOG_URL, false)),
         ...(previewCatalogUrl ? previewPackages.map((entry) => decorate(entry, previewCatalogUrl, true)) : []),
       ]
-        .filter((entry) => !NON_DOWNLOADABLE_CORE_PACKAGE_IDS.has(entry.manifest.id))
+        .filter(
+          (entry) =>
+            !NON_DOWNLOADABLE_CORE_PACKAGE_IDS.has(entry.manifest.id) && !isRemovedFeaturePackage(entry.manifest),
+        )
         .sort(
           (left, right) =>
             CATALOG_SORT_COLLATOR.compare(left.manifest.name, right.manifest.name) ||
@@ -6750,7 +6765,11 @@ export const capabilityPackageManager = {
   },
 
   async installed() {
-    return Promise.all((await readRegistry()).packages.map(hydratePreviousManifest));
+    return Promise.all(
+      (await readRegistry()).packages
+        .filter((item) => !isRemovedFeaturePackage(item.manifest))
+        .map(hydratePreviousManifest),
+    );
   },
 
   async diagnostics() {
@@ -6797,7 +6816,12 @@ export const capabilityPackageManager = {
   async runtimePackages() {
     const registry = await readRegistry();
     return registry.packages
-      .filter((installed) => installed.status !== "error" && installed.manifest.entrypoints.server)
+      .filter(
+        (installed) =>
+          installed.status !== "error" &&
+          installed.manifest.entrypoints.server &&
+          !isRemovedFeaturePackage(installed.manifest),
+      )
       .map((installed) => ({
         installed,
         serverEntrypoint: inside(
@@ -7320,6 +7344,8 @@ export const capabilityPackageManager = {
   },
 
   async install(packageId: string, expectedVersion: string, expectedArtifactSha256: string) {
+    if (isRemovedFeatureId(packageId))
+      throw new CapabilityPackageCompatibilityError("This feature is removed from ME-personal.");
     const catalog = await this.catalog();
     const entry = catalog.packages.find((candidate) => candidate.manifest.id === packageId);
     if (!entry) throw new Error("Package is not present in the configured catalog");
