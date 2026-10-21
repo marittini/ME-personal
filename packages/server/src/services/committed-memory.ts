@@ -16,7 +16,7 @@ import {
   resolveChatSummaryTemperatureOptions,
 } from "./chat-summary/connection-resolution.js";
 import { resolveBaseUrl } from "./generation/connection-base-url.js";
-import { resolveChatSummaryPrompt } from "./generation/roleplay-summary-runtime.js";
+import { resolveChatSummaryPrompt, clampRoleplaySummaryMaxTokens } from "./generation/roleplay-summary-runtime.js";
 import { parseRoleplayUserCommands } from "./generation/roleplay-commands.js";
 import {
   memoryExtra,
@@ -168,9 +168,20 @@ async function runCommittedMemory(
           hiddenFromAICharacterIds: memoryExtra(m.extra).hiddenFromAICharacterIds ?? [],
         })),
       );
-      const maxTokens = Math.min(6000, connection.provider.maxTokensOverrideValue ?? 6000);
-      if (estimateChatSummaryTokens(system + input) + maxTokens + 256 > (connection.provider.maxContextValue ?? 32768))
-        throw new Error("The summary model has insufficient context for this batch");
+      const maxTokens = Math.min(
+        clampRoleplaySummaryMaxTokens(metadata.summaryMaxTokens),
+        connection.provider.maxTokensOverrideValue ?? Infinity,
+      );
+      if (
+        estimateChatSummaryTokens(system + input) + maxTokens + 256 >
+        (connection.provider.maxContextValue ?? 32768)
+      ) {
+        if (sources.length < 2) throw new Error("One message exceeds the summary model's context capacity");
+        const midpoint = Math.ceil(sources.length / 2);
+        batches.splice(index, 1, sources.slice(0, midpoint), sources.slice(midpoint));
+        index--;
+        continue;
+      }
       logDebugOverride(debugMode, "[committed-memory] %s %s", system, input);
       const result = await connection.provider.chatComplete(
         [
@@ -225,7 +236,12 @@ async function runCommittedMemory(
           committedMemory: {
             ...latest,
             batches: [...latest.batches, record],
-            job: { ...latest.job, completed: index + 1, status: index + 1 === batches.length ? "complete" : "running" },
+            job: {
+              ...latest.job,
+              completed: index + 1,
+              total: batches.length,
+              status: index + 1 === batches.length ? "complete" : "running",
+            },
           },
         };
       });

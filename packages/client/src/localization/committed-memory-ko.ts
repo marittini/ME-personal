@@ -1,4 +1,5 @@
 export const committedMemoryKoreanMessages: Record<string, string> = {
+  "chat.committedMemory.restrictedAudience": "제한된 지식: {{audience}}",
   "chat.committedMemory.title": "통합 기억",
   "chat.committedMemory.help":
     "원하는 답변을 선택한 뒤 기억 정리를 누르세요. 확정된 대화만 기억하며 정리·검색·오래된 기억 압축은 자동으로 진행합니다. 기존 기억은 보존하며 사용 중에는 다른 자동 기억 작성 기능을 멈춥니다. 숨긴 메시지는 제외합니다.",

@@ -700,6 +700,7 @@
   "chat.committedMemory.receiptHelp": "These records were found verbatim in the final prompt. Peek Prompt shows all text, including macro-transformed memory.",
   "chat.committedMemory.records": "Stored memories and evidence",
   "chat.committedMemory.restricted": "Restricted knowledge",
+  "chat.committedMemory.restrictedAudience": "Restricted knowledge: {{audience}}",
   "chat.committedMemory.search": "Search",
   "chat.committedMemory.shared": "Shared knowledge",
   "chat.committedMemory.source": "Source",

@@ -41,7 +41,8 @@ export function emptyCommittedMemory(chatId: string): CommittedMemoryState {
 }
 export function readCommittedMemory(metadata: Record<string, unknown>, chatId: string): CommittedMemoryState {
   const s = metadata.committedMemory as CommittedMemoryState | undefined;
-  if (s?.version !== 1 || s.ownerChatId !== chatId || !Array.isArray(s.batches)) return emptyCommittedMemory(chatId);
+  if (s?.version !== 1 || s.ownerChatId !== chatId || typeof s.enabled !== "boolean" || !Array.isArray(s.batches))
+    return emptyCommittedMemory(chatId);
   if (
     !s.batches.every(
       (b) =>
@@ -52,7 +53,7 @@ export function readCommittedMemory(metadata: Record<string, unknown>, chatId: s
         typeof b.core === "string" &&
         Array.isArray(b.sources) &&
         b.sources.length &&
-        b.sources.every((r) => typeof r.id === "string" && typeof r.fingerprint === "string") &&
+        b.sources.every((r) => r && typeof r.id === "string" && typeof r.fingerprint === "string") &&
         Array.isArray(b.facts) &&
         b.facts.every(
           (f) =>

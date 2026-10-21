@@ -98,7 +98,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                         ·{" "}
                         {f.audience === "shared"
                           ? t("chat.committedMemory.shared")
-                          : `${t("chat.committedMemory.restricted")}: ${f.audience.join(", ")}`}
+                          : t("chat.committedMemory.restrictedAudience", { audience: f.audience.join(", ") })}
                       </p>
                       <p className="whitespace-pre-wrap">{f.content}</p>
                     </div>
