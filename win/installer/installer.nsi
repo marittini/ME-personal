@@ -16,9 +16,9 @@ ${StrTrimNewLines}
 ; ── App metadata ──
 !define APP_NAME "Marinara Engine"
 !define APP_VERSION "2.5.1"
-!define APP_PUBLISHER "Pasta-Devs"
-!define APP_URL "https://github.com/Pasta-Devs/Marinara-Engine"
-!define REPO_URL "https://github.com/Pasta-Devs/Marinara-Engine.git"
+!define APP_PUBLISHER "marittini"
+!define APP_URL "https://github.com/marittini/ME-personal"
+!define REPO_URL "https://github.com/marittini/ME-personal.git"
 !define DEFAULT_DIR "$LOCALAPPDATA\Marinara-Engine"
 !define PNPM_VERSION "10.34.5"
 !define PNPM_DESCRIPTOR "10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e"
@@ -435,6 +435,12 @@ Please restart your computer and run this installer again."
   DetailPrint ""
   ${If} ${FileExists} "$INSTDIR\.git\*.*"
     DetailPrint "Existing installation found — fetching ${RELEASE_TAG}..."
+    nsExec::ExecToLog 'git remote set-url origin "${REPO_URL}"'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_OK|MB_ICONSTOP "Could not select the ME-personal repository. Installation stopped."
+      Abort
+    ${EndIf}
     nsExec::ExecToLog 'git fetch --quiet --force origin refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}'
     Pop $0
     ${If} $0 != 0

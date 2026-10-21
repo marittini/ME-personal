@@ -2,10 +2,12 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const LATEST_RELEASE_URL = "https://github.com/Pasta-Devs/Marinara-Engine/releases/latest";
+export const LATEST_RELEASE_URL = "https://github.com/marittini/ME-personal/releases/latest";
 
 export function normalizeStableVersion(value) {
-  const match = String(value).trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  const match = String(value)
+    .trim()
+    .match(/^v?(\d+)\.(\d+)\.(\d+)$/);
   return match ? match.slice(1).map(Number) : null;
 }
 
@@ -26,9 +28,7 @@ export function getVersionFromReleaseUrl(value) {
   try {
     const url = new URL(value);
     if (url.origin !== "https://github.com") return null;
-    const match = url.pathname.match(
-      /^\/Pasta-Devs\/Marinara-Engine\/releases\/tag\/(v?\d+\.\d+\.\d+)\/?$/,
-    );
+    const match = url.pathname.match(/^\/marittini\/ME-personal\/releases\/tag\/(v?\d+\.\d+\.\d+)\/?$/);
     return match?.[1]?.replace(/^v/, "") ?? null;
   } catch {
     return null;

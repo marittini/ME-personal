@@ -3,8 +3,10 @@
 # ──────────────────────────────────────────────
 services:
   marinara:
-    # Use the pre-built image from GHCR
-    image: ghcr.io/pasta-devs/marinara-engine:latest
+    # Build this checkout; never fall back to the upstream image.
+    build: .
+    image: me-personal:local
+    pull_policy: never
     init: true
     ports:
       - "127.0.0.1:${PORT:-7860}:7860"

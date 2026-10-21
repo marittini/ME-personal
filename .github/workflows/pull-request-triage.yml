@@ -22,13 +22,17 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           REPOSITORY: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
+          if [ "$REPOSITORY" = "marittini/ME-personal" ] && [ "$BASE_REF" = "main" ]; then
+            exit 0
+          fi
           if [ "$BASE_REF" = "staging" ]; then
             exit 0
           fi
 
           if [ "$BASE_REF" = "main" ] &&
-             [ "$AUTHOR_LOGIN" = "SpicyMarinara" ] &&
+             [ "$AUTHOR_LOGIN" = "$REPOSITORY_OWNER" ] &&
              [ "$HEAD_REPO" = "$REPOSITORY" ]; then
             if [ "$HEAD_REF" = "staging" ]; then
               exit 0
@@ -46,7 +50,7 @@ jobs:
 
   owner-approval:
     name: Evaluate staging owner approval
-    if: github.event.pull_request.base.ref == 'staging'
+    if: github.repository == 'Pasta-Devs/Marinara-Engine' && github.event.pull_request.base.ref == 'staging'
     runs-on: ubuntu-latest
     permissions:
       contents: read

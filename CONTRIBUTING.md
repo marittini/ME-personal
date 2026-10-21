@@ -1,5 +1,17 @@
 # Contributing to Marinara Engine
 
+## ME-personal fork policy (authoritative)
+
+This is marittini's independent fork, based on Marinara Engine v2.5.1,
+commit `8042ef6ec`. The upstream project policies below are historical context.
+For this fork, marittini owns development, review and releases; do not assign or
+request reviews from Pasta-Devs maintainers. Target this repository's `main`
+until the owner chooses another branch model. Preserve the AGPL license,
+upstream attribution and existing data compatibility. Never synchronize upstream
+or publish a release/deploy without the owner's request. Engine update sources
+must remain `marittini/ME-personal`; official agent downloads stay separate.
+Keep applicable code quality and validation guidance below.
+
 This is the canonical contributor guide for Marinara Engine. Use it with `README.md` for the product overview, `CHANGELOG.md` for release notes, and `AGENTS.md` as the repository's coding-agent companion. All participants are expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Tech Stack

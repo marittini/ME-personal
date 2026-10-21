@@ -1,5 +1,10 @@
 # Marinara Engine - Android APK
 
+> ME-personal fork: Engine installs and updates use `marittini/ME-personal`.
+> Docker builds from local source; run `docker compose up -d --build` after
+> updating this checkout. Upstream release instructions below are reference only.
+
+
 The Android app is a Termux bootstrap + WebView shell for Marinara Engine. It is not a native Android server build, but it can help launch the Termux setup flow and then opens the local Marinara server in a fullscreen WebView by default.
 
 > **Android permission reality:** Android does not allow an ordinary APK to silently install another app or run commands inside Termux without user approval. First launch may still ask the user to install Termux, grant **Run commands in Termux environment** permission, and enable Termux external commands.
@@ -20,7 +25,7 @@ The Android app is a Termux bootstrap + WebView shell for Marinara Engine. It is
 - Release and versioning policy follows the main repo docs in [../CONTRIBUTING.md](../CONTRIBUTING.md): root `package.json` is canonical, Android `versionName` should match the app version, and `versionCode` must increase for every shipped APK.
 - If you build the APK with a non-default port, Termux must use the same `PORT` value in `.env`.
 
-**Fast path:** [download the latest APK](https://github.com/Pasta-Devs/Marinara-Engine/releases/latest/download/marinara-engine-android.apk), open it, tap **Install / Start Marinara**, approve Android/Termux prompts, wait for the Termux launcher to finish, then return to the Marinara Engine app. No signing key, password, local-access secret, or `CSRF_TRUSTED_ORIGINS` change is required from the user. In particular, never add `null`; the APK's self-authenticating handshake handles Android's opaque WebView origin without trusting it for the rest of the API.
+**Fast path:** [download the latest APK](https://github.com/marittini/ME-personal/releases/latest/download/marinara-engine-android.apk), open it, tap **Install / Start Marinara**, approve Android/Termux prompts, wait for the Termux launcher to finish, then return to the Marinara Engine app. No signing key, password, local-access secret, or `CSRF_TRUSTED_ORIGINS` change is required from the user. In particular, never add `null`; the APK's self-authenticating handshake handles Android's opaque WebView origin without trusting it for the rest of the API.
 
 **Manual fallback:** install Termux from F-Droid, paste the fresh-Termux command below so it creates/updates the Marinara folder, then open the Marinara Engine Android app. When prompted, confirm **Open manual server**. Clipboard fallback commands never contain the APK's private local-access secret.
 
@@ -117,7 +122,7 @@ cd android
 On a fresh Termux install, paste this command first:
 
 ```bash
-pkg update -y && pkg install -y git nodejs-lts && ([ -d "$HOME/Marinara-Engine/.git" ] || git clone https://github.com/Pasta-Devs/Marinara-Engine.git "$HOME/Marinara-Engine") && cd "$HOME/Marinara-Engine" && chmod +x start-termux.sh && ./start-termux.sh
+pkg update -y && pkg install -y git nodejs-lts && ([ -d "$HOME/Marinara-Engine/.git" ] || git clone https://github.com/marittini/ME-personal.git "$HOME/Marinara-Engine") && cd "$HOME/Marinara-Engine" && chmod +x start-termux.sh && ./start-termux.sh
 ```
 
 After Marinara has been installed once, start it again in Termux:
@@ -146,6 +151,6 @@ On Android 13 and newer, enabling **Mobile app** under **Background Notification
 
 ## Pre-built APKs
 
-When maintainers attach them to a tagged release, the current pre-built APK has a stable [direct download link](https://github.com/Pasta-Devs/Marinara-Engine/releases/latest/download/marinara-engine-android.apk) and is also listed on the main [Releases](https://github.com/Pasta-Devs/Marinara-Engine/releases) page.
+When maintainers attach them to a tagged release, the current pre-built APK has a stable [direct download link](https://github.com/marittini/ME-personal/releases/latest/download/marinara-engine-android.apk) and is also listed on the main [Releases](https://github.com/marittini/ME-personal/releases) page.
 
 Release APKs include the bootstrap controls above. They still rely on Termux for the local Linux/Node runtime, and Android still requires the user-visible permission handoff before the APK can ask Termux to install or start Marinara Engine.

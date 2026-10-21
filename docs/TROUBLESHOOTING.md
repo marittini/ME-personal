@@ -1,5 +1,10 @@
 # Troubleshooting Marinara Engine
 
+> ME-personal fork: Engine installs and updates use `marittini/ME-personal`.
+> Docker builds from local source; run `docker compose up -d --build` after
+> updating this checkout. Upstream release instructions below are reference only.
+
+
 This guide lists common problems in Marinara Engine and how to fix them. Find the section that matches your symptom, then follow the steps. If nothing here helps, see the last section, Getting more help.
 
 ## First things to try
@@ -382,7 +387,7 @@ Also confirm the app and Termux use the same port. The default is `7860`. If you
 
 ### Android localhost opens the login page or returns 401/503
 
-APK-managed Termux installs protect localhost with a private per-install secret. The Android app authenticates automatically and should not display this login page during setup. If the login page appears inside the Marinara Engine app, install the [latest APK](https://github.com/Pasta-Devs/Marinara-Engine/releases/latest/download/marinara-engine-android.apk), tap **Install / Start Marinara** again, and return to the app when Termux finishes.
+APK-managed Termux installs protect localhost with a private per-install secret. The Android app authenticates automatically and should not display this login page during setup. If the login page appears inside the Marinara Engine app, install the [latest APK](https://github.com/marittini/ME-personal/releases/latest/download/marinara-engine-android.apk), tap **Install / Start Marinara** again, and return to the app when Termux finishes.
 
 An error naming origin `null` means an older APK/server pair let Android's opaque WebView origin reach the general CSRF gate before the private handshake. Editing `.env` cannot fix that: literal `null` is deliberately ignored, and trusting an opaque origin globally would weaken every unsafe API route. Update the APK and Engine instead; current Android login routes verify their own one-time proof or per-install secret while `null` remains rejected everywhere else.
 
@@ -512,9 +517,9 @@ Before sharing debug output, remove API keys, access tokens, admin secrets, priv
 
 Then reach the community:
 
-- Read the open issues at https://github.com/Pasta-Devs/Marinara-Engine/issues
+- Read the open issues at https://github.com/marittini/ME-personal/issues
 - Join the Discord for community help at https://discord.com/invite/KdAkTg94ME
-- File a bug report at https://github.com/Pasta-Devs/Marinara-Engine/issues with your details above.
+- File a bug report at https://github.com/marittini/ME-personal/issues with your details above.
 
 ## Related guides
 

@@ -1154,7 +1154,7 @@ public class MainActivity extends Activity {
                 + "  git -C \"$HOME/Marinara-Engine\" init\n"
                 + "fi\n"
                 + "cd \"$HOME/Marinara-Engine\"\n"
-                + "if git remote get-url origin >/dev/null 2>&1; then git remote set-url origin https://github.com/Pasta-Devs/Marinara-Engine.git; else git remote add origin https://github.com/Pasta-Devs/Marinara-Engine.git; fi\n"
+                + "if git remote get-url origin >/dev/null 2>&1; then git remote set-url origin https://github.com/marittini/ME-personal.git; else git remote add origin https://github.com/marittini/ME-personal.git; fi\n"
                 + "git fetch --depth 1 origin " + releaseCommit + "\n"
                 + "test \"$(git rev-parse FETCH_HEAD)\" = " + releaseCommit + "\n"
                 + "if [ -f scripts/protect-launcher-data.mjs ]; then\n"

@@ -1,5 +1,10 @@
 # Frequently Asked Questions
 
+> ME-personal fork: Engine installs and updates use `marittini/ME-personal`.
+> Docker builds from local source; run `docker compose up -d --build` after
+> updating this checkout. Upstream release instructions below are reference only.
+
+
 This guide answers the questions people ask most about Marinara Engine. Answers are grouped by topic. Each one links to a full guide when you want more detail.
 
 ## How do I access Marinara Engine from my phone or another device?
@@ -42,7 +47,7 @@ If the two devices are not on the same network, a tool like Tailscale can help. 
 
 There is no separate native mobile app. On a phone or tablet, you use the same web app in a browser. Most mobile browsers offer an **Add to Home Screen** or **Install App** option that makes it feel like a real app, with no browser bar. This is called a PWA (Progressive Web App, a website you can install like an app).
 
-On Android, you can also [download the latest APK directly](https://github.com/Pasta-Devs/Marinara-Engine/releases/latest/download/marinara-engine-android.apk). It runs Marinara locally on the phone through Termux. Installing it does not require a signing key, password, or local-access secret; see [Android Installation](installation/android-termux.md) for the Android permission prompts. On iPhone and iPad, see the [iOS PWA Guide](installation/ios-pwa.md).
+On Android, you can also [download the latest APK directly](https://github.com/marittini/ME-personal/releases/latest/download/marinara-engine-android.apk). It runs Marinara locally on the phone through Termux. Installing it does not require a signing key, password, or local-access secret; see [Android Installation](installation/android-termux.md) for the Android permission prompts. On iPhone and iPad, see the [iOS PWA Guide](installation/ios-pwa.md).
 
 The Android wrapper signs in automatically in the app or your browser. Select **Open in browser** on its launcher and tap **Retry connection**; use **Install / Start Marinara** when the server is stopped. This choice is remembered. In the app, **Settings > General > App Behavior > Open Android launcher (app or browser)** returns to that choice. Update both the APK and Engine to use the automatic browser handoff. Older APKs still offer manual sign-in at `/android-login`. The local `mari` CLI reads the launcher-managed secret automatically, and manual Termux installs retain normal localhost rules.
 

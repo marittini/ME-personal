@@ -227,6 +227,8 @@ if [ "$SKIP_UPDATE" = "1" ]; then
 elif [ "$AUTO_UPDATE_DISABLED" = "1" ]; then
     echo "  [OK] Automatic Engine updates disabled by AUTO_UPDATE_ENABLED=false."
     node scripts/check-launcher-update.mjs
+elif [ -d ".git" ] && ! node scripts/check-fork-origin.mjs; then
+    echo "  [WARN] Skipping updates: origin is not ME-personal."
 elif [ -d ".git" ]; then
     echo "  [..] Checking for updates..."
     OLD_HEAD=$(git rev-parse HEAD 2>/dev/null)

@@ -66,7 +66,10 @@ export function validatePullRequestTriage() {
   assert.doesNotMatch(triageWorkflow, /pull_request_review|github\.event\.review/u);
 
   const ownerApprovalJob = extractJob(triageWorkflow, "owner-approval");
-  assert.match(ownerApprovalJob, /if: github\.event\.pull_request\.base\.ref == 'staging'/u);
+  assert.match(
+    ownerApprovalJob,
+    /if: github\.repository == 'Pasta-Devs\/Marinara-Engine' && github\.event\.pull_request\.base\.ref == 'staging'/u,
+  );
   assert.match(ownerApprovalJob, /statuses: write/u);
   assert.match(ownerApprovalJob, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
   assert.match(ownerApprovalJob, /PASTA_DEVS_MEMBERS_TOKEN/u);
@@ -119,7 +122,7 @@ export function validatePullRequestTriage() {
     /if: >-\n\s*!contains\(fromJSON\('\["MEMBER","OWNER","COLLABORATOR"\]'\), github\.event\.pull_request\.author_association\)/u,
   );
 
-  assert.match(codeOwners, /^\* @SpicyMarinara$/mu);
+  assert.match(codeOwners, /^\* @marittini$/mu);
   assert.match(codeqlWorkflow, /pull_request:\s*\n\s*branches:\s*\[main, staging\]/u);
 
   // A nightly scheduler may dispatch staging tests, but must never execute
