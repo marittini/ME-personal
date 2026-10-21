@@ -193,7 +193,7 @@ set "FRESH_CLONE_CREATED=0"
 if exist "%INSTALL_DIR%\.git" goto :update_repo
 if not exist "%INSTALL_DIR%\" set "FRESH_CLONE_CREATED=1"
 echo  [..] Cloning Marinara Engine to %INSTALL_DIR%...
-git clone --branch "%RELEASE_TAG%" --depth 1 https://github.com/Pasta-Devs/Marinara-Engine.git "%INSTALL_DIR%"
+git clone --branch "%RELEASE_TAG%" --depth 1 https://github.com/marittini/ME-personal.git "%INSTALL_DIR%"
 if errorlevel 1 (
     call :discard_unverified_fresh_clone
     if exist "%INSTALL_DIR%\" (
@@ -235,6 +235,11 @@ set "OLD_HEAD="
 set "TARGET_HEAD="
 set "NEW_HEAD="
 for /f "tokens=*" %%i in ('git rev-parse HEAD 2^>nul') do set "OLD_HEAD=%%i"
+git remote set-url origin https://github.com/marittini/ME-personal.git
+if errorlevel 1 (
+    set "INSTALL_ERROR=Could not select the ME-personal repository."
+    goto :fatal
+)
 git fetch --quiet --force origin "refs/tags/%RELEASE_TAG%:refs/tags/%RELEASE_TAG%"
 if errorlevel 1 (
     set "INSTALL_ERROR=Failed to fetch release %RELEASE_TAG%."

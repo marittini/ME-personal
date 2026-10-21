@@ -1,5 +1,10 @@
 # Server Configuration Reference
 
+> ME-personal fork: Engine installs and updates use `marittini/ME-personal`.
+> Docker builds from local source; run `docker compose up -d --build` after
+> updating this checkout. Upstream release instructions below are reference only.
+
+
 This guide explains how to change server-level settings for Marinara Engine using environment variables. An environment variable is a setting you write in a plain text file that the server reads. Most users never need this page. The full variable list is near the bottom.
 
 ## When would you configure Marinara?

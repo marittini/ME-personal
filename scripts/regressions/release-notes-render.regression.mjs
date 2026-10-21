@@ -25,7 +25,7 @@ assert.ok(kept > 100 && kept < 900);
 assert.match(
   long,
   new RegExp(
-    `_…and ${900 - kept} more changes\\. The complete list is in \\[CHANGELOG\\.md\\]\\(https://github\\.com/Pasta-Devs/Marinara-Engine/blob/v9\\.9\\.9/CHANGELOG\\.md\\)\\._\\n$`,
+    `_…and ${900 - kept} more changes\\. The complete list is in \\[CHANGELOG\\.md\\]\\(https://github\\.com/marittini/ME-personal/blob/v9\\.9\\.9/CHANGELOG\\.md\\)\\._\\n$`,
     "u",
   ),
 );

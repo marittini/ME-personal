@@ -32,7 +32,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const GITHUB_REPO = "Pasta-Devs/Marinara-Engine";
+const GITHUB_REPO = "marittini/ME-personal";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
 const GITHUB_API_BASE = `https://api.github.com/repos/${GITHUB_REPO}`;
 const GITHUB_TAGS_API = `${GITHUB_API_BASE}/git/matching-refs/tags/v`;
@@ -90,9 +90,10 @@ function updateStepTimeout(baseMs: number): number {
   return baseMs * UPDATE_STEP_TIMEOUT_MULTIPLIER;
 }
 const MANUAL_PNPM_COMMAND = `corepack pnpm@${DEFAULT_PNPM_DESCRIPTOR}`;
-const DOCKER_IMAGE = "ghcr.io/pasta-devs/marinara-engine";
-const MANUAL_GIT_UPDATE_COMMAND = `git fetch origin +refs/heads/main:refs/remotes/origin/main && (git merge --ff-only origin/main || git checkout --detach origin/main) && ${MANUAL_PNPM_COMMAND} --config.trustPolicy=off --config.confirmModulesPurge=false install --force --frozen-lockfile && ${MANUAL_PNPM_COMMAND} --filter @marinara-engine/shared build && ${MANUAL_PNPM_COMMAND} --filter @marinara-engine/server --filter @marinara-engine/client --parallel run build && ${MANUAL_PNPM_COMMAND} start`;
-const DOCKER_UPDATE_COMMAND = "docker compose pull && docker compose up -d";
+const DOCKER_IMAGE = "ghcr.io/marittini/me-personal";
+const MANUAL_GIT_UPDATE_COMMAND = `node scripts/check-fork-origin.mjs && git fetch origin +refs/heads/main:refs/remotes/origin/main && (git merge --ff-only origin/main || git checkout --detach origin/main) && ${MANUAL_PNPM_COMMAND} --config.trustPolicy=off --config.confirmModulesPurge=false install --force --frozen-lockfile && ${MANUAL_PNPM_COMMAND} --filter @marinara-engine/shared build && ${MANUAL_PNPM_COMMAND} --filter @marinara-engine/server --filter @marinara-engine/client --parallel run build && ${MANUAL_PNPM_COMMAND} start`;
+const DOCKER_UPDATE_COMMAND =
+  "git fetch https://github.com/marittini/ME-personal.git main && git merge --ff-only FETCH_HEAD && docker compose build --pull && docker compose up -d --no-build";
 const ANDROID_APK_NOTICE =
   "> [!IMPORTANT]\n" +
   "> **Android APK notice:** The APK is a Termux bootstrap + WebView shell, not a native Android server build. It opens an already-running local Marinara server, and on first launch it can download Termux from F-Droid, hand it to Android's installer, and start Marinara through Termux after Android permission prompts.";
@@ -246,7 +247,7 @@ export function getManualGitApplyCommand(
   const installEnv = Object.entries(install.env)
     .map(([name, value]) => `${name}=${value} `)
     .join("");
-  const applyCommand = `git fetch ${UPDATE_REMOTE} ${channel.fetchRef} && ${checkoutCommand} && ${cleanCommand} && ${installEnv}${pnpmCommand} --config.trustPolicy=off --config.confirmModulesPurge=false ${install.args.join(" ")} && ${buildCommand}`;
+  const applyCommand = `node scripts/check-fork-origin.mjs && git fetch ${UPDATE_REMOTE} ${channel.fetchRef} && ${checkoutCommand} && ${cleanCommand} && ${installEnv}${pnpmCommand} --config.trustPolicy=off --config.confirmModulesPurge=false ${install.args.join(" ")} && ${buildCommand}`;
   return repoRoot ? `${getChangeDirectoryCommand(platform, repoRoot)} && ${applyCommand}` : applyCommand;
 }
 
@@ -270,9 +271,9 @@ export function getManualUpdateHint(
 ) {
   if (installType === "docker") {
     if (channel.id === "staging") {
-      return `Set the Compose image to ${DOCKER_IMAGE}:staging, then pull it and restart the container. Use a separate data volume for staging.`;
+      return "Build the ME-personal staging checkout with Docker Compose. Use a separate checkout and data volume for staging.";
     }
-    return `Set the Compose image to the stable tag shown below (or ${DOCKER_IMAGE}:latest), then pull it and restart the container.`;
+    return "Update the ME-personal checkout, then rebuild and restart it with Docker Compose. The default Compose file builds locally.";
   }
   const windowsShellNote = (gitBashExtra = "") =>
     platform === "windows"
@@ -289,6 +290,7 @@ export function getManualUpdateHint(
 }
 
 async function fetchUpdateRef(root: string, channel = UPDATE_CHANNELS.stable) {
+  await execFileAsync(process.execPath, ["scripts/check-fork-origin.mjs"], { cwd: root, timeout: 10_000 });
   await execFileAsync("git", ["fetch", UPDATE_REMOTE, channel.fetchRef, "--quiet"], {
     cwd: root,
     timeout: 15_000,
@@ -767,7 +769,14 @@ async function resolveLatestReleaseFromGitHub(signal: AbortSignal) {
     .at(-1);
 
   if (!latestTag) {
-    throw new Error("No stable vX.Y.Z tags were found on GitHub");
+    // A new fork can publish source commits before its first tagged release.
+    // Commit-based checks still work; never fall back to upstream releases.
+    return {
+      latestVersion: APP_VERSION,
+      releaseUrl: `${GITHUB_REPO_URL}/commits/main`,
+      releaseNotes: "",
+      publishedAt: "",
+    };
   }
 
   const releaseRes = await fetch(GITHUB_RELEASE_BY_TAG_API(latestTag), {

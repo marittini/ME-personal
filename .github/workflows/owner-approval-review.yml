@@ -12,6 +12,7 @@ concurrency:
 jobs:
   evaluate:
     name: Re-evaluate staging owner approval
+    if: github.repository == 'Pasta-Devs/Marinara-Engine'
     runs-on: ubuntu-latest
     permissions:
       actions: read

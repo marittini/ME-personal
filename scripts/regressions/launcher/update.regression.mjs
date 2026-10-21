@@ -18,7 +18,7 @@ import {
 import { workspaceLockfileMatches } from "../../check-workspace-install.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const releaseUrl = "https://github.com/Pasta-Devs/Marinara-Engine/releases/tag/v2.3.4";
+const releaseUrl = "https://github.com/marittini/ME-personal/releases/tag/v2.3.4";
 const packageManifest = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
 const pinnedPnpmDescriptor = packageManifest.packageManager?.split("@")[1];
 const pinnedPnpmVersion = pinnedPnpmDescriptor?.split("+")[0];

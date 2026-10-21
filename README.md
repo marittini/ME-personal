@@ -1,3 +1,17 @@
+> **ME-personal — independent fork owned by marittini.** Based on Marinara
+> Engine v2.5.1 (`8042ef6ec`). This is not an official Pasta-Devs release.
+> Engine updates come only from this repository. Official agent downloads remain
+> available; they do not update the Engine itself.
+>
+> For Docker, clone this repository and run `docker compose up -d --build`.
+> The default Compose file builds `me-personal:local` from this checkout and never
+> downloads the upstream Engine image. Existing servers are not migrated automatically.
+> To update: `git fetch https://github.com/marittini/ME-personal.git main && git merge --ff-only FETCH_HEAD && docker compose build --pull && docker compose up -d --no-build`.
+> Keep existing data and encryption secrets backed up before migration; use a
+> separate Compose project/data volume for testing. Prebuilt installers require
+> this fork's own release artifacts. The existing Windows launcher starts the
+> local scripts; it is not a standalone installer.
+
 # 🍝 Marinara Engine
 
 <h3><b>Fun. Intuitive. Plug-And-Play.</b></h3>
@@ -126,9 +140,11 @@
 
 ## Latest Release
 
-Current stable release: **[v2.5.1](https://github.com/Pasta-Devs/Marinara-Engine/releases/tag/v2.5.1)**.
+Base version: **Marinara Engine v2.5.1**. This fork has not published its own binary release yet.
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes. Tagged releases use the `vX.Y.Z` format and are published on the [Releases](https://github.com/Pasta-Devs/Marinara-Engine/releases) page with a Windows installer, Android bootstrap APK, and named versioned source ZIP. Android APKs are Termux bootstrap + WebView shells: they can download Termux from F-Droid, launch Android's installer, start the Termux setup flow after required permission prompts, then open the local Marinara server on the same device. **[Download the latest Android APK directly](https://github.com/Pasta-Devs/Marinara-Engine/releases/latest/download/marinara-engine-android.apk).**
+Use the [ME-personal source installation guide](docs/installation/me-personal.md). The platform and release instructions below are inherited upstream reference; fork release downloads become available only after this repository publishes them.
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes. Tagged releases use the `vX.Y.Z` format and are published on the [Releases](https://github.com/marittini/ME-personal/releases) page with a Windows installer, Android bootstrap APK, and named versioned source ZIP. Android APKs are Termux bootstrap + WebView shells: they can download Termux from F-Droid, launch Android's installer, start the Termux setup flow after required permission prompts, then open the local Marinara server on the same device. **[Download the latest Android APK directly](https://github.com/marittini/ME-personal/releases/latest/download/marinara-engine-android.apk).**
 
 ---
 
@@ -139,7 +155,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes. Tagged releases use
 | 🐳 Docker / Podman       | [Container Installation Guide](docs/installation/containers.md) — recommended                |
 | 🪟 Windows               | [Windows Installation Guide](docs/installation/windows.md)                                   |
 | 🍎🐧 macOS / Linux       | [macOS / Linux Installation Guide](docs/installation/macos-linux.md)                         |
-| 🤖 Android APK Bootstrap | [Download APK](https://github.com/Pasta-Devs/Marinara-Engine/releases/latest/download/marinara-engine-android.apk) · [Guide](android/README.md) |
+| 🤖 Android APK Bootstrap | [Download APK](https://github.com/marittini/ME-personal/releases/latest/download/marinara-engine-android.apk) · [Guide](android/README.md) |
 | 🤖 Android Manual Termux | [Android (Termux) Installation Guide](docs/installation/android-termux.md) — manual fallback |
 | 📱 iOS / iPadOS          | [iOS / iPadOS PWA Guide](docs/installation/ios-pwa.md)                                       |
 
