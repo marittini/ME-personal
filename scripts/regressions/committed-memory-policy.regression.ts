@@ -99,6 +99,16 @@ assert(
     "손수건을 맡겼다",
   ),
 );
+const laterMessage = { ...message, id: "later", memoryRevision: "r3" };
+const laterBatch = {
+  ...batch,
+  id: "later-batch",
+  turn: 50,
+  sources: [{ id: laterMessage.id, fingerprint: memoryFingerprint(laterMessage) }],
+};
+const shifted = reconcileCommittedMemory({ ...state, batches: [batch, laterBatch] }, [laterMessage]);
+assert(shifted.batches[0]?.invalidated);
+assert.equal(shifted.batches[1]?.turn, 1, "deletion must preserve subsequent narrative ordering");
 console.log(
   "Committed memory policy passed: provenance, ownership, audience intersection, aging, obligations, conflicts, multilingual/semantic ranking and budget.",
 );

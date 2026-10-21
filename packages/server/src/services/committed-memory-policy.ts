@@ -74,13 +74,16 @@ export function reconcileCommittedMemory(
   messages: readonly MemorySourceMessage[],
 ): CommittedMemoryState {
   const fingerprints = new Map(messages.map((m) => [m.id, memoryFingerprint(m)]));
+  const positions = new Map(messages.map((m, index) => [m.id, index + 1]));
   return {
     ...state,
-    batches: state.batches.map((b) =>
-      b.invalidated || b.sources.every((s) => fingerprints.get(s.id) === s.fingerprint)
-        ? b
-        : { ...b, invalidated: true },
-    ),
+    batches: state.batches.map((b) => {
+      if (b.invalidated) return b;
+      if (!b.sources.every((source) => fingerprints.get(source.id) === source.fingerprint))
+        return { ...b, invalidated: true };
+      // Deletion shifts indices; reconfirming a historical range must preserve narrative ordering.
+      return { ...b, turn: Math.max(...b.sources.map((source) => positions.get(source.id) ?? 0)) };
+    }),
   };
 }
 export function pendingMemoryMessages(state: CommittedMemoryState, messages: readonly MemorySourceMessage[]) {
