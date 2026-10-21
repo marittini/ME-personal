@@ -3795,6 +3795,7 @@ export const ChatMessage = memo(function ChatMessage({
               multiSelectMode && isSelected && cn("rounded-lg", MESSAGE_SELECTION_SURFACE_CLASS),
             )}
             data-message-id={message.id}
+            data-message-number={messageIndex}
             data-card-css={message.characterId ?? undefined}
             onClick={handleMobileTap}
             onDoubleClick={handleRoleplayDoubleClick}
@@ -3896,6 +3897,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           data-message-id={message.id}
           data-message-role={message.role}
+          data-message-number={messageIndex}
           data-card-css={message.characterId ?? undefined}
           onClick={handleMobileTap}
           onDoubleClick={handleRoleplayDoubleClick}
@@ -4411,6 +4413,7 @@ export const ChatMessage = memo(function ChatMessage({
       )}
       data-message-id={message.id}
       data-message-role={message.role}
+      data-message-number={messageIndex}
       onClick={handleMobileTap}
     >
       <div

@@ -8661,7 +8661,6 @@ html[data-marinara-reduced-effects="true"] .mari-window {
 /* Library shell: the quiet public-facing home owns the full viewport. Chat chrome returns when a work opens. */
 html[data-library-shell-home="true"] [data-component="TopBar"],
 html[data-library-shell-home="true"] [data-component="ChatSidebarSlot"],
-html[data-library-shell-home="true"] [data-component="RightPanelDesktopSlot"],
 html[data-library-shell-home="true"] [class*="y2k-star"] {
   display: none !important;
 }
@@ -8673,4 +8672,61 @@ html[data-library-shell-home="true"] [data-component="AppShell"] {
 html[data-library-shell-home="true"] [data-component="AppShell"]::before,
 html[data-library-shell-home="true"] [data-component="AppShell"]::after {
   display: none !important;
+}
+
+/* Reader chrome replaces, rather than duplicates, the engine navigation.
+   Resource/settings panels remain reachable. The Tools button restores all engine chrome. */
+html[data-reader-workspace="quiet"] [data-component="TopBar"],
+html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
+  display: none !important;
+}
+[data-reader-enabled="true"] [data-chat-mode="roleplay"][data-roleplay-presentation="classic"] {
+  background: var(--background);
+  --mari-roleplay-transcript-gutter: max(16px, calc((100% - var(--reader-width)) / 2));
+}
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-reader-scene-tools] {
+  display: none;
+}
+[data-reader-enabled="true"] .mari-message-content {
+  line-height: var(--reader-line-height) !important;
+  font-family: var(--reader-font);
+  text-align: var(--reader-align);
+}
+[data-reader-enabled="true"] .mari-message-content p + p {
+  margin-block-start: var(--reader-gap);
+}
+[data-reader-enabled="true"] .mari-roleplay-message-row {
+  max-width: var(--reader-width);
+  margin-inline: auto;
+  width: 100%;
+}
+[data-reader-enabled="true"] .mari-roleplay-message-body {
+  flex: 1;
+}
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-rp-bubble {
+  background: transparent !important;
+  color: var(--foreground);
+  border-radius: 0;
+  box-shadow: none !important;
+}
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-message-avatar,
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-roleplay-avatar-spacer,
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-roleplay-avatar-panel-rail {
+  display: none;
+}
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) .mari-roleplay-message-row {
+  --mari-roleplay-avatar-space: 0px;
+}
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] > .mari-background,
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) .rpg-overlay,
+[data-reader-enabled="true"]:not([data-reader-tools="true"]) .rpg-vignette {
+  display: none;
+}
+[data-reader-focus="true"]:not([data-reader-streaming="true"]) .chat-input-container {
+  display: none;
+}
+[data-reader-focus="true"] .mari-message-avatar,
+[data-reader-focus="true"] .rpg-overlay,
+[data-reader-focus="true"] .rpg-vignette {
+  display: none;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -12,16 +12,22 @@ import {
   Search,
   Settings,
   ScrollText,
+  PencilLine,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { Chat } from "@marinara-engine/shared";
 import { useCharacterSummaries } from "../../hooks/use-characters";
-import { useChats } from "../../hooks/use-chats";
+import { useChats, useDeleteChat, useUpdateChat } from "../../hooks/use-chats";
+import { useBackDismiss } from "../../hooks/use-back-dismiss";
+import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import { useHomeFeed } from "../../hooks/use-home-feed";
 import { chatBackgroundMetadataToUrl } from "../../lib/backgrounds";
 import { cn } from "../../lib/utils";
 import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
+import { useDialogStore } from "../../stores/dialog.store";
 
 type LibrarySection = "home" | "library" | "record";
 
@@ -88,12 +94,25 @@ function WorkCover({ work, className }: { work: VirtualWork; className?: string 
 
 export function LibraryHome() {
   const { t, i18n } = useTranslation();
-  const [section, setSection] = useState<LibrarySection>("home");
-  const [query, setQuery] = useState("");
-  const [selectedWork, setSelectedWork] = useState<VirtualWork | null>(null);
+  const navigation = useUIStore((state) => state.libraryNavigation);
+  const positions = useUIStore((state) => state.readerPositions);
+  const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
+  const dialogOpen = useDialogStore((state) => !!state.dialog);
+  const { section, query } = navigation;
+  const setSection = (value: LibrarySection) =>
+    useUIStore.setState((state) => ({ libraryNavigation: { ...state.libraryNavigation, section: value } }));
+  const setQuery = (value: string) =>
+    useUIStore.setState((state) => ({ libraryNavigation: { ...state.libraryNavigation, query: value } }));
+  const setSelectedWork = (value: VirtualWork | null) =>
+    useUIStore.setState((state) => ({
+      libraryNavigation: { ...state.libraryNavigation, selectedWorkId: value?.id ?? null },
+    }));
+  const deleteChat = useDeleteChat();
+  const updateChat = useUpdateChat();
   const chats = useChats();
   const feed = useHomeFeed();
   const unreadCounts = useChatStore((state) => state.unreadCounts);
+  const generatingChats = useChatStore((state) => state.abortControllers);
   const setActiveChatId = useChatStore((state) => state.setActiveChatId);
   const characterIds = useMemo(
     () => Array.from(new Set((chats.data ?? []).flatMap((chat) => chat.characterIds))),
@@ -135,17 +154,86 @@ export function LibraryHome() {
     }).sort((a, b) => workTimestamp(b.activeChat) - workTimestamp(a.activeChat));
   }, [characters.data, chats.data, feed.data?.recentChats, t, unreadCounts]);
 
+  const selectedWork = works.find((work) => work.id === navigation.selectedWorkId) ?? null;
+  useBackDismiss(!!selectedWork && !overlayOpen && !dialogOpen, () => setSelectedWork(null));
+  const readWorks = useMemo(
+    () =>
+      works
+        .flatMap((work) => {
+          const readChats = work.chats
+            .filter((chat) => positions[chat.id])
+            .sort((a, b) => positions[b.id].updatedAt.localeCompare(positions[a.id].updatedAt));
+          return readChats.length
+            ? [{ ...work, activeChat: readChats[0], lastMessageAt: positions[readChats[0].id].updatedAt }]
+            : [];
+        })
+        .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)),
+    [works, positions],
+  );
+  const removeRecord = async (chat: Chat) => {
+    if (useChatStore.getState().abortControllers.has(chat.id)) {
+      toast.error(t("reader.stopBeforeDelete"));
+      return;
+    }
+    if (
+      !(await showConfirmDialog({
+        title: t("reader.delete"),
+        message: t("reader.deleteConfirm", { name: chat.name }),
+        confirmLabel: t("reader.delete"),
+        cancelLabel: t("reader.cancel"),
+        tone: "destructive",
+      }))
+    )
+      return;
+    if (useChatStore.getState().abortControllers.has(chat.id)) {
+      toast.error(t("reader.stopBeforeDelete"));
+      return;
+    }
+    try {
+      await deleteChat.mutateAsync({ id: chat.id, force: true });
+      useUIStore.setState((state) => {
+        const next = { ...state.readerPositions };
+        delete next[chat.id];
+        return { readerPositions: next };
+      });
+    } catch {
+      /* useDeleteChat restores the cache and reports the failure. */
+    }
+  };
+  const renameRecord = async (chat: Chat) => {
+    const name = await showPromptDialog({
+      title: t("reader.rename"),
+      message: t("reader.renamePrompt"),
+      defaultValue: chat.name,
+      confirmLabel: t("reader.save"),
+      cancelLabel: t("reader.cancel"),
+    });
+    if (!name?.trim() || name.trim() === chat.name) return;
+    try {
+      await updateChat.mutateAsync({ id: chat.id, name: name.trim() });
+    } catch {
+      toast.error(t("reader.renameError"));
+    }
+  };
+
   const filteredWorks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language);
     if (!normalized) return works;
-    return works.filter((work) => `${work.title} ${work.author}`.toLocaleLowerCase().includes(normalized));
+    return works.filter((work) =>
+      `${work.title} ${work.author} ${work.chats.map((chat) => chat.name).join(" ")}`
+        .toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language)
+        .includes(normalized),
+    );
   }, [i18n.language, i18n.resolvedLanguage, query, works]);
 
-  const openWork = (work: VirtualWork) => setActiveChatId(work.activeChat.id);
+  const openWork = (work: VirtualWork) => {
+    setSelectedWork(work);
+    setActiveChatId(work.activeChat.id);
+  };
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const loading = chats.isPending || characters.isPending;
   const failed = chats.isError || characters.isError;
-  const continueWork = works[0] ?? null;
+  const continueWork = readWorks[0] ?? works[0] ?? null;
 
   useEffect(() => {
     document.documentElement.dataset.libraryShellHome = "true";
@@ -212,30 +300,51 @@ export function LibraryHome() {
                         : t("libraryShell.work.body");
                   const unread = unreadCounts.get(chat.id) ?? 0;
                   return (
-                    <button
-                      key={chat.id}
-                      type="button"
-                      onClick={() => setActiveChatId(chat.id)}
-                      className="flex min-h-16 w-full items-center gap-4 border-b border-[var(--border)] py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-                    >
-                      <Icon size="1rem" className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold">{label}</span>
-                        <span className="mt-0.5 block truncate text-xs text-[var(--muted-foreground)]">
-                          {formatReadTime(chat.lastMessageAt ?? chat.updatedAt, locale, t("libraryShell.ready"))}
+                    <div key={chat.id} className="flex items-center gap-1 border-b border-[var(--border)]">
+                      <button
+                        key={chat.id}
+                        type="button"
+                        onClick={() => setActiveChatId(chat.id)}
+                        className="flex min-h-16 min-w-0 flex-1 items-center gap-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                      >
+                        <Icon size="1rem" className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold">{label}</span>
+                          <span className="mt-0.5 block truncate text-xs text-[var(--muted-foreground)]">
+                            {chat.name}
+                          </span>
                         </span>
-                      </span>
-                      {unread > 0 ? (
-                        <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--primary-foreground)]">
-                          {t("libraryShell.newPassages", { count: unread })}
-                        </span>
-                      ) : null}
-                      <ChevronRight
-                        size="1rem"
-                        className="shrink-0 text-[var(--muted-foreground)]"
-                        aria-hidden="true"
-                      />
-                    </button>
+                        {unread > 0 ? (
+                          <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--primary-foreground)]">
+                            {t("libraryShell.newPassages", { count: unread })}
+                          </span>
+                        ) : null}
+                        <ChevronRight
+                          size="1rem"
+                          className="shrink-0 text-[var(--muted-foreground)]"
+                          aria-hidden="true"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded hover:bg-[var(--secondary)]"
+                        disabled={updateChat.isPending || deleteChat.isPending}
+                        onClick={() => void renameRecord(chat)}
+                        aria-label={t("reader.renameNamed", { name: chat.name })}
+                      >
+                        <PencilLine size={17} />
+                      </button>
+                      <button
+                        type="button"
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded text-[var(--destructive)] hover:bg-[var(--secondary)] disabled:opacity-40"
+                        disabled={deleteChat.isPending || updateChat.isPending || generatingChats.has(chat.id)}
+                        onClick={() => void removeRecord(chat)}
+                        title={generatingChats.has(chat.id) ? t("reader.stopBeforeDelete") : undefined}
+                        aria-label={t("reader.deleteNamed", { name: chat.name })}
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -296,7 +405,10 @@ export function LibraryHome() {
               </p>
               <button
                 type="button"
-                onClick={() => void chats.refetch()}
+                onClick={() => {
+                  void chats.refetch();
+                  void characters.refetch();
+                }}
                 className="mt-5 min-h-11 border-b border-[var(--foreground)] text-sm font-semibold"
               >
                 {t("libraryShell.retry")}
@@ -421,7 +533,10 @@ export function LibraryHome() {
             </section>
           ) : (
             <section className="border-t border-[var(--border)]">
-              {works.map((work) => (
+              {readWorks.length === 0 && (
+                <p className="py-10 text-sm text-[var(--muted-foreground)]">{t("reader.noHistory")}</p>
+              )}
+              {readWorks.map((work) => (
                 <button
                   key={work.id}
                   type="button"

@@ -57,6 +57,15 @@ export type Panel =
   | "extensions";
 export type ChatModeShortcut = "conversation" | "roleplay" | "game";
 
+export type ReaderPosition = { messageId: string; messageNumber: number; offset: number; updatedAt: string };
+export type ReaderPreferences = {
+  lineHeight: number;
+  paragraphGap: number;
+  width: number;
+  font: "inherit" | "serif";
+  align: "start" | "justify";
+};
+
 /** Not saved: a Home surface the omnibar or a Command Center row asks Home to open. */
 export type HomeRequest = { kind: "faq" | "widgets" | "credits" } | { kind: "tab"; tab: string };
 export const CHARACTER_LIBRARY_SORT_OPTIONS = ["name-asc", "name-desc", "newest", "oldest", "favorites"] as const;
@@ -880,6 +889,9 @@ interface UIState {
   detailReturnRightPanel: Panel | null;
 
   // ── Settings (persisted) ──
+  readerPreferences: ReaderPreferences;
+  readerPositions: Record<string, ReaderPosition>;
+  libraryNavigation: { section: "home" | "library" | "record"; query: string; selectedWorkId: string | null };
   fontSize: FontSize;
   language: AppLanguage;
   /** Font size for chat messages (px) */
@@ -1876,6 +1888,8 @@ export function pickPersistedUIState(state: UIState) {
     fontSize: state.fontSize,
     language: state.language,
     chatFontSize: state.chatFontSize,
+    readerPreferences: state.readerPreferences,
+    readerPositions: state.readerPositions,
     fontFamily: state.fontFamily,
     chatWidgetPreset: state.chatWidgetPreset,
     chatWidgetFont: state.chatWidgetFont,
@@ -2171,6 +2185,9 @@ export const useUIStore = create<UIState>()(
         detailReturnRightPanel: null,
 
         // Settings defaults
+        readerPreferences: { lineHeight: 1.8, paragraphGap: 1, width: 720, font: "inherit", align: "start" },
+        readerPositions: {},
+        libraryNavigation: { section: "home", query: "", selectedWorkId: null },
         fontSize: 17 as FontSize,
         language: DEFAULT_APP_LANGUAGE as AppLanguage,
         chatFontSize: 16,

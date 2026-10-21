@@ -771,7 +771,9 @@ export function ConversationView({
       return;
     }
     const loadedMessageOffset = totalMessageCount - messages.length;
-    const localIndex = gotoRequest.messageNumber - 1 - loadedMessageOffset;
+    const localIndex = gotoRequest.anchorMessageId
+      ? messages.findIndex((message) => message.id === gotoRequest.anchorMessageId)
+      : gotoRequest.messageNumber - 1 - loadedMessageOffset;
     if (localIndex >= 0 && localIndex < messages.length) {
       handledTranscriptGotoRef.current = gotoRequest;
       setTranscriptWindowStart(localIndex);
@@ -810,7 +812,9 @@ export function ConversationView({
     // bottom once the request clears.
     if (gotoRequest && gotoRequest.chatId === chatId) {
       const loadedMessageOffset = totalMessageCount - (messages?.length ?? 0);
-      const localIndex = gotoRequest.messageNumber - 1 - loadedMessageOffset;
+      const localIndex = gotoRequest.anchorMessageId
+        ? (messages ?? []).findIndex((message) => message.id === gotoRequest.anchorMessageId)
+        : gotoRequest.messageNumber - 1 - loadedMessageOffset;
       if (messages && localIndex >= 0 && localIndex < messages.length) {
         openedAtBottomChatIdRef.current = chatId;
       }
