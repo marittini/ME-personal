@@ -14,6 +14,8 @@ const { createChatsStorage } = await import("../../packages/server/src/services/
 const { createConnectionsStorage } = await import("../../packages/server/src/services/storage/connections.storage.js");
 const {
   startCommittedMemory,
+  editCommittedMemory,
+  committedMemoryConnectionStatus,
   committedMemoryStatus,
   committedMemoryForPrompt,
   compactCommittedHistory,
@@ -74,6 +76,7 @@ try {
   assert(addr && typeof addr === "object");
   const conn = await createConnectionsStorage(db).create({
     name: "Fixture",
+    isDefault: true,
     provider: "custom",
     model: "fixture",
     apiKey: "fixture",
@@ -81,7 +84,41 @@ try {
     maxContext: 32768,
   });
   assert(conn);
-  const chat = await chats.create({ name: "Memory", mode: "roleplay", characterIds: [], connectionId: conn.id });
+  const connections = createConnectionsStorage(db);
+  const { resolveChatSummaryConnection } =
+    await import("../../packages/server/src/services/chat-summary/connection-resolution.js");
+  const { resolveBaseUrl } = await import("../../packages/server/src/services/generation/connection-base-url.js");
+  const resolve = (chatMetadata: Record<string, unknown>, chatConnectionId?: string) =>
+    resolveChatSummaryConnection({ chatMetadata, chatConnectionId, connections, resolveBaseUrl });
+  const fallback = await resolve({}, "deleted-connection");
+  assert(fallback.ok && fallback.connectionId === conn.id && fallback.source === "default");
+  for (const provider of ["image_generation", "video_generation", "audio", "decision"] as const) {
+    const nonText = await connections.create({
+      name: provider,
+      provider,
+      model: "fixture",
+      baseUrl: "http://127.0.0.1:1",
+      apiKey: "fixture",
+    });
+    assert(nonText);
+    const result = await resolve({ summaryConnectionId: nonText.id });
+    assert(result.ok && result.connectionId === conn.id && result.warnings.length);
+  }
+  const explicit = await resolve({ summaryConnectionId: conn.id });
+  assert(explicit.ok && explicit.source === "summary");
+  await connections.update(conn.id, { isDefault: false });
+  assert.equal((await resolve({})).ok, false, "do not pick an arbitrary saved connection");
+  await connections.update(conn.id, { isDefault: true });
+  const subscription = await connections.create({
+    name: "Subscription",
+    provider: "openai_chatgpt",
+    model: "fixture",
+    apiKey: "",
+  });
+  assert(subscription);
+  assert((await resolve({ summaryConnectionId: subscription.id })).ok);
+  // Real HTTP summary below must work with only the global default configured.
+  const chat = await chats.create({ name: "Memory", mode: "roleplay", characterIds: [] });
   assert(chat);
   await chats.patchMetadata(chat.id, {
     automaticSummaryEnabled: true,
@@ -111,6 +148,38 @@ try {
   assert.equal(isAutomaticRoleplaySummaryEnabled({ ...meta, automaticSummaryEnabled: true }), false);
   assert((await committedMemoryForPrompt(db, chat.id, "손수건"))?.text.includes("약속"));
   assert.equal((await committedMemoryForPrompt(db, chat.id, "손수건", [message.id]))?.text, "");
+  assert((await committedMemoryConnectionStatus(db, chat.id)).ok);
+  let saved = (await committedMemoryStatus(db, chat.id)).state.batches[0]!;
+  const factId = saved.facts[0]!.id;
+  const edit = { batchId: saved.id, factId, expectedRevision: saved.revision ?? saved.createdAt, excluded: true };
+  await editCommittedMemory(db, chat.id, edit);
+  assert.equal(
+    (await committedMemoryForPrompt(db, chat.id, "손수건"))?.text,
+    "",
+    "excluded fact must not leak through its narrative",
+  );
+  await assert.rejects(editCommittedMemory(db, chat.id, edit), /changed/);
+  assert.equal((await committedMemoryStatus(db, chat.id)).pending, 0, "exclusion must not cause automatic recommit");
+  saved = (await committedMemoryStatus(db, chat.id)).state.batches[0]!;
+  await editCommittedMemory(db, chat.id, { ...edit, expectedRevision: saved.revision!, excluded: false });
+  assert((await committedMemoryForPrompt(db, chat.id, "손수건"))?.text.includes("약속"));
+  saved = (await committedMemoryStatus(db, chat.id)).state.batches[0]!;
+  await editCommittedMemory(db, chat.id, {
+    ...edit,
+    expectedRevision: saved.revision!,
+    excluded: false,
+    content: "고친 약속",
+    status: "resolved",
+  });
+  assert.equal((await committedMemoryForPrompt(db, chat.id, "손수건"))?.text, "");
+  saved = (await committedMemoryStatus(db, chat.id)).state.batches[0]!;
+  assert.equal(saved.sources[0]?.id, message.id, "manual correction preserves source identity");
+  await editCommittedMemory(db, chat.id, {
+    ...edit,
+    expectedRevision: saved.revision!,
+    excluded: false,
+    status: "current",
+  });
   await chats.setActiveSwipe(message.id, 0);
   await chats.setActiveSwipe(message.id, 1);
   assert.equal(
@@ -209,6 +278,83 @@ try {
   assert.equal(splitStatus.pending, 0);
   assert(splitStatus.state.batches.length > 1, "smaller models must split a commit automatically");
   assert.equal(splitStatus.state.job?.total, splitStatus.state.job?.completed);
+  const privateChat = await chats.create({ name: "Scoped episode", mode: "roleplay", characterIds: [] });
+  assert(privateChat);
+  await chats.createMessage({
+    chatId: privateChat.id,
+    role: "assistant",
+    characterId: null,
+    content: "비밀 약속",
+    extra: { hiddenFromAICharacterIds: ["bob"] },
+  });
+  await startCommittedMemory(db, privateChat.id);
+  await finished(privateChat.id);
+  const privateBatch = (await committedMemoryStatus(db, privateChat.id)).state.batches[0]!;
+  assert(privateBatch && !privateBatch.summary && !privateBatch.core);
+  await assert.rejects(
+    editCommittedMemory(db, privateChat.id, {
+      batchId: privateBatch.id,
+      expectedRevision: privateBatch.createdAt,
+      summary: "Publish private material",
+    }),
+    /Restricted/,
+  );
+  assert.equal((await committedMemoryForPrompt(db, privateChat.id, "비밀"))?.text, "");
+  const Fastify = (await import("../../packages/server/node_modules/fastify/fastify.js")).default;
+  const { registerCommittedMemoryRoutes } = await import("../../packages/server/src/routes/committed-memory.routes.js");
+  const app = Fastify();
+  app.decorate("db", db);
+  const activeGenerations = new Map<string, unknown>();
+  app.decorate("activeGenerations", activeGenerations);
+  await registerCommittedMemoryRoutes(app);
+  try {
+    const connectionResponse = await app.inject({ method: "GET", url: `/${smallChat.id}/committed-memory/connection` });
+    assert.equal(connectionResponse.statusCode, 200);
+    const diagnostics = connectionResponse.json();
+    assert(diagnostics.ok && diagnostics.model === "fixture");
+    assert(!("apiKey" in diagnostics) && !("provider" in diagnostics));
+    const savedBatch = splitStatus.state.batches[0]!;
+    const payload = {
+      batchId: savedBatch.id,
+      expectedRevision: savedBatch.revision ?? savedBatch.createdAt,
+      excluded: true,
+    };
+    const url = `/${smallChat.id}/committed-memory/record`;
+    assert.equal((await app.inject({ method: "PATCH", url, payload })).statusCode, 200);
+    assert.equal((await app.inject({ method: "PATCH", url, payload })).statusCode, 409);
+    assert.equal(
+      (await app.inject({ method: "PATCH", url, payload: { ...payload, sourceIds: ["forged"] } })).statusCode,
+      400,
+    );
+    assert.equal(
+      (await app.inject({ method: "PATCH", url: `/${chat.id}/committed-memory/record`, payload })).statusCode,
+      404,
+    );
+    assert.equal((await app.inject({ method: "GET", url: "/missing/committed-memory/connection" })).statusCode, 404);
+    activeGenerations.set(smallChat.id, true);
+    assert.equal(
+      (await app.inject({ method: "POST", url: `/${smallChat.id}/committed-memory/commit`, payload: {} })).statusCode,
+      409,
+    );
+    activeGenerations.clear();
+    await connections.update(conn.id, { isDefault: false });
+    const unconfigured = await chats.create({ name: "No connection", mode: "roleplay", characterIds: [] });
+    assert(unconfigured);
+    await chats.createMessage({
+      chatId: unconfigured.id,
+      role: "assistant",
+      characterId: null,
+      content: "Needs summary",
+    });
+    assert.equal(
+      (await app.inject({ method: "POST", url: `/${unconfigured.id}/committed-memory/commit`, payload: {} }))
+        .statusCode,
+      422,
+    );
+    assert.equal((await committedMemoryStatus(db, unconfigured.id)).state.job, undefined);
+  } finally {
+    await app.close();
+  }
   console.log(
     "Committed memory integration passed: explicit selected-swipe confirmation, duplicate/concurrent clicks, source changes, failed output, snapshot boundary, deletion, hidden messages, history and settings restoration.",
   );

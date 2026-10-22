@@ -109,6 +109,25 @@ const laterBatch = {
 const shifted = reconcileCommittedMemory({ ...state, batches: [batch, laterBatch] }, [laterMessage]);
 assert(shifted.batches[0]?.invalidated);
 assert.equal(shifted.batches[1]?.turn, 1, "deletion must preserve subsequent narrative ordering");
+const withheld = {
+  ...older,
+  batches: [batch, { ...older.batches[1]!, excluded: true, facts: [{ ...batch.facts[0]!, id: "withheld" }] }],
+};
+assert(
+  !selectCommittedMemory(withheld, "").text.includes("약속했다"),
+  "excluding the newest fact must not revive its superseded value",
+);
+const staleNarrative = {
+  ...withheld,
+  batches: [{ ...batch, summary: "outdated promise must not leak" }, withheld.batches[1]!],
+};
+assert(!selectCommittedMemory(staleNarrative, "promise").text.includes("outdated promise"));
+const factExcluded = { ...state, batches: [{ ...batch, facts: batch.facts.map((f) => ({ ...f, excluded: true })) }] };
+assert.equal(
+  selectCommittedMemory(factExcluded, "손수건").text,
+  "",
+  "excluded facts must not leak through summary/core",
+);
 console.log(
   "Committed memory policy passed: provenance, ownership, audience intersection, aging, obligations, conflicts, multilingual/semantic ranking and budget.",
 );

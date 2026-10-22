@@ -51,3 +51,25 @@ export function useMemorySource(chatId: string, id: string, enabled: boolean) {
     staleTime: 0,
   });
 }
+export function useMemoryConnection(chatId: string) {
+  return useQuery({
+    queryKey: ["committed-memory-connection", chatId],
+    queryFn: () =>
+      api.get<import("@marinara-engine/shared").CommittedMemoryConnectionStatus>(
+        `/chats/${chatId}/committed-memory/connection`,
+      ),
+    refetchInterval: 5000,
+  });
+}
+export function useEditMemory(chatId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (edit: import("@marinara-engine/shared").CommittedMemoryEdit) =>
+      api.patch<CommittedMemoryStatus>(`/chats/${chatId}/committed-memory/record`, edit),
+    onSuccess: (data) => {
+      qc.setQueryData(["committed-memory", chatId], data);
+      void qc.invalidateQueries({ queryKey: ["committed-memory-preview", chatId] });
+      void qc.invalidateQueries({ queryKey: chatKeys.detail(chatId) });
+    },
+  });
+}

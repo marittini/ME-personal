@@ -15,3 +15,31 @@ The inspector shows stored records, source messages (current versions), and reco
 This is opt-in for existing Roleplay chats. Native automatic summaries, Advanced Memory, legacy vector writing/access, and old summary/LTM agents are paused while enabled. Prior settings are restored on disable. Existing lorebooks and external extensions are not deleted or migrated. Legacy records are not silently accepted as confirmed evidence; messages hidden by an old summary extension must be deliberately unhidden before reconfirming. Copied/imported rooms must confirm their own message identities.
 
 Storage remains file-native with optional compatible fields and no new runtime dependency.
+
+## Memory vault and one-click control
+
+The summary drawer now opens a native-themed memory vault: Overview, Promises,
+Facts & relationships, Story, Recall inspector and Settings. Search and state
+filters operate on the saved records. A wide drawer uses a list/detail split;
+a narrow drawer or phone opens details with a Back control. Sources disclose the
+current message version. Invalidated records remain visible for inspection.
+
+Corrections are optional: normal operation still requires only choosing the desired
+reply and clicking Commit memory. The movable summary bubble uses the Engine's
+existing bubble placement, keyboard movement and saved chat layout. Settings can
+hide it. Generation and an active commit disable its action; pending count,
+processing indicator and completion/error notifications show its state.
+
+Vault edits use an optimistic revision check and preserve source identity and
+knowledge scope. Exclusion preserves source coverage, preventing the next click
+from recreating an excluded record. Excluding the newest fact also suppresses its
+superseded value. A narrative containing an excluded or corrected fact is omitted
+from recall so its original wording cannot bypass the correction. Historical
+answer receipts remain a record of what was actually sent before an edit.
+
+Summary resolution preserves explicit override/agent/caller/chat precedence and
+finally discovers the global default connection. Non-text providers are skipped.
+The Settings connection indicator checks configuration, not remote authentication
+or availability; those are checked by the actual provider request. Both native
+and unified summaries use the shared resolver. A missing connection fails before
+starting a memory job and can be repaired in the vault's Settings tab.

@@ -4,6 +4,7 @@ import {
   CHAT_SUMMARY_PROMPT_SETTINGS_KEY,
   estimateChatSummaryTokens,
   type CommittedMemoryBatch,
+  type CommittedMemoryEdit,
   type CommittedMemorySelection,
 } from "@marinara-engine/shared";
 import type { DB } from "../db/connection.js";
@@ -115,6 +116,10 @@ export async function startCommittedMemory(db: DB, chatId: string, debugMode = f
       size += length;
     }
     if (batch.length) batches.push(batch);
+    if (batches.length) {
+      const connection = await committedMemoryConnectionStatus(db, chatId);
+      if (!connection.ok) throw Object.assign(new Error(connection.error), { statusCode: 422 });
+    }
     await createChatsStorage(db).patchMetadata(chatId, (m) => ({
       committedMemory: {
         ...reconcileCommittedMemory(readCommittedMemory(m, chatId), messages),
@@ -322,4 +327,68 @@ export async function compactCommittedHistory<T extends MemorySourceMessage>(
   return history.filter(
     (m) => !covered.has(m.id) || tail.has(m.id) || m.id === targetId || memoryExtra(m.extra).pinnedToContext === true,
   );
+}
+
+export async function editCommittedMemory(db: DB, chatId: string, edit: CommittedMemoryEdit) {
+  if (jobs.has(chatId)) throw Object.assign(new Error("Memory processing is still running"), { statusCode: 409 });
+  const storage = createChatsStorage(db);
+  if (!(await storage.getById(chatId))) throw Object.assign(new Error("Chat not found"), { statusCode: 404 });
+  await storage.patchMetadata(chatId, async (metadata) => {
+    if (jobs.has(chatId)) throw Object.assign(new Error("Memory processing is still running"), { statusCode: 409 });
+    const messages = await storage.listMessages(chatId);
+    const state = reconcileCommittedMemory(readCommittedMemory(metadata, chatId), messages);
+    const batch = state.batches.find((b) => b.id === edit.batchId);
+    if (!batch) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
+    if (batch.invalidated || (batch.revision ?? batch.createdAt) !== edit.expectedRevision)
+      throw Object.assign(new Error("Memory changed; refresh before editing"), { statusCode: 409 });
+    if (edit.factId) {
+      const fact = batch.facts.find((f) => f.id === edit.factId);
+      if (!fact) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
+      if (edit.content !== undefined) {
+        fact.content = edit.content;
+        fact.edited = true;
+      }
+      if (edit.status !== undefined) {
+        fact.status = edit.status;
+        fact.edited = true;
+      }
+      if (edit.excluded !== undefined) fact.excluded = edit.excluded;
+    } else {
+      const restricted = messages.some(
+        (message) =>
+          batch.sources.some((source) => source.id === message.id) &&
+          (memoryExtra(message.extra).hiddenFromAICharacterIds as unknown[] | undefined)?.length,
+      );
+      if (restricted && (edit.summary?.trim() || edit.core?.trim()))
+        throw Object.assign(
+          new Error("Restricted episodes cannot have a public narrative; edit their scoped facts instead"),
+          { statusCode: 400 },
+        );
+      if (edit.summary !== undefined) batch.summary = edit.summary;
+      if (edit.core !== undefined) batch.core = edit.core;
+      if (edit.excluded !== undefined) batch.excluded = edit.excluded;
+    }
+    batch.revision = randomUUID();
+    return { committedMemory: state };
+  });
+  return committedMemoryStatus(db, chatId);
+}
+export async function committedMemoryConnectionStatus(db: DB, chatId: string) {
+  const chat = await createChatsStorage(db).getById(chatId);
+  if (!chat) throw Object.assign(new Error("Chat not found"), { statusCode: 404 });
+  const resolved = await resolveChatSummaryConnection({
+    chatConnectionId: chat.connectionId,
+    chatMetadata: memoryExtra(chat.metadata),
+    connections: createConnectionsStorage(db),
+    resolveBaseUrl,
+  });
+  return resolved.ok
+    ? {
+        ok: true,
+        connectionId: resolved.connectionId,
+        model: resolved.model,
+        source: resolved.source,
+        warnings: resolved.warnings,
+      }
+    : { ok: false, error: resolved.error, warnings: resolved.warnings };
 }

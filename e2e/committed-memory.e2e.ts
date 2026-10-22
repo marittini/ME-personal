@@ -29,8 +29,18 @@ test("unified memory preserves the legacy summary view until enabled", async ({ 
     await expect(memory.getByRole("button", { name: "Commit memory", exact: true })).toBeDisabled();
     await memory.getByRole("checkbox", { name: "Use unified memory" }).check();
     await expect(panel.locator("[data-chat-summary]")).toHaveCount(0);
-    await memory.getByText("Stored memories and evidence", { exact: true }).click();
+    const bubble = page.locator("[data-memory-commit]");
+    await expect(bubble).toBeVisible();
+    await memory.getByRole("button", { name: "Settings", exact: true }).click();
+    const floating = memory.getByRole("checkbox", { name: "Show one-click summary button" });
+    await floating.uncheck();
+    await expect(bubble).toHaveCount(0);
+    await floating.check();
+    await expect(bubble).toBeVisible();
+    await expect(memory.getByText("Choose a text generation connection to summarize this chat.").last()).toBeVisible();
+    await memory.getByRole("button", { name: "Story", exact: true }).click();
     await expect(memory.getByText("No confirmed memories yet.", { exact: true })).toBeVisible();
+    await memory.getByRole("button", { name: "Overview", exact: true }).click();
     await memory.getByRole("checkbox", { name: "Use unified memory" }).uncheck();
     await expect(panel.locator("[data-chat-summary]")).toBeVisible();
   } finally {

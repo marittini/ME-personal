@@ -1,0 +1,254 @@
+/* Memory vault follows the current chat chrome, including custom and light themes. */
+.memory-vault {
+  container-type: inline-size;
+  color: var(--foreground);
+  background: var(--background);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  min-width: 0;
+}
+.memory-vault h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.memory-vault h4 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.memory-vault h5 {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.memory-vault button,
+.memory-vault summary {
+  cursor: pointer;
+}
+.memory-vault button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.memory-vault :is(button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.memory-vault__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+}
+.memory-vault__eyebrow,
+.memory-vault__hint {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.memory-vault__hint {
+  margin: 0.5rem 0;
+}
+.memory-vault__sync {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.memory-vault__tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-block: 1px solid var(--border);
+  padding-block: 0.375rem;
+  scrollbar-width: thin;
+}
+.memory-vault__tabs button {
+  flex-shrink: 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.memory-vault__tabs button[aria-current],
+.memory-vault__tabs button:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.memory-vault__body {
+  padding: 1rem 0;
+}
+.memory-vault__notice {
+  padding: 0.75rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.memory-vault__index {
+  border-block: 1px solid var(--border);
+}
+.memory-vault__index button {
+  display: flex;
+  width: 100%;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.875rem 0.25rem;
+  text-align: start;
+}
+.memory-vault__index button + button {
+  border-top: 1px solid var(--border);
+}
+.memory-vault__index strong {
+  margin-inline-start: auto;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+.memory-vault__latest {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  text-align: start;
+  padding-block: 0.75rem;
+  line-height: 1.7;
+}
+.memory-vault__search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.memory-vault__search input,
+.memory-vault__search select {
+  min-height: 2rem;
+  font-size: 0.75rem;
+}
+.memory-vault__split {
+  min-height: 20rem;
+}
+.memory-vault__list {
+  max-height: 32rem;
+  overflow-y: auto;
+}
+.memory-vault__row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.875rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+}
+.memory-vault__row strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.memory-vault__row:hover,
+.memory-vault__row[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.memory-vault__empty {
+  padding: 2rem 0.5rem;
+  color: var(--muted-foreground);
+  line-height: 1.7;
+}
+.memory-vault__detail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.memory-vault__back {
+  align-self: start;
+}
+.memory-vault__status {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+.memory-vault__prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+.memory-vault__core,
+.memory-vault__evidence {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.memory-vault__field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--foreground);
+}
+.memory-vault textarea {
+  resize: vertical;
+  margin-top: 0.5rem;
+}
+.memory-vault__source {
+  border-bottom: 1px solid var(--border);
+  padding-block: 0.625rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.memory-vault__source p {
+  padding-top: 0.75rem;
+  color: var(--foreground);
+  line-height: 1.7;
+}
+.memory-vault__receipt {
+  padding-block: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+.memory-vault__connection {
+  display: flex;
+  align-items: start;
+  gap: 0.5rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--border);
+}
+.memory-vault__choose {
+  display: none;
+}
+.memory-vault__split[data-selected="true"] .memory-vault__list {
+  display: none;
+}
+@container (min-width: 38rem) {
+  .memory-vault__split {
+    display: grid;
+    grid-template-columns: minmax(12rem, 2fr) minmax(0, 3fr);
+  }
+  .memory-vault__split[data-selected="true"] .memory-vault__list {
+    display: block;
+  }
+  .memory-vault__list {
+    border-inline-end: 1px solid var(--border);
+  }
+  .memory-vault__detail {
+    padding-inline-start: 1.25rem;
+  }
+  .memory-vault__back {
+    display: none;
+  }
+  .memory-vault__choose {
+    display: block;
+  }
+}

@@ -96,6 +96,8 @@ export interface WindowBubbleProps {
   tooltip?: string;
   /** Set for a button that toggles its window: whether the window is open. */
   expanded?: boolean;
+  busy?: boolean;
+  disabled?: boolean;
   /** The window's lock also keeps its button in place; opening it still works. */
   locked?: boolean;
   /** The id of text that describes the button (a status shown on it). */
@@ -123,6 +125,8 @@ export function WindowBubble({
   ariaLabel,
   tooltip,
   expanded,
+  busy,
+  disabled,
   locked = false,
   describedBy,
   zIndex,
@@ -273,8 +277,9 @@ export function WindowBubble({
       // Touch is settled here, not by the browser's click: Chromium sends no click for a tap made
       // just after a flick (it reads it as stopping a fling), and a drag must not click.
       touchHandledRef.current = true;
-      if (!drag.moved) onOpen(event.currentTarget);
-      else if (!locked) onMove(readDrop(drag, event).point);
+      if (!drag.moved) {
+        if (!disabled) onOpen(event.currentTarget);
+      } else if (!locked) onMove(readDrop(drag, event).point);
       return;
     }
     if (locked || !drag.moved) return;
@@ -302,7 +307,7 @@ export function WindowBubble({
       suppressClickRef.current = false;
       return;
     }
-    onOpen(event.currentTarget);
+    if (!disabled) onOpen(event.currentTarget);
   };
 
   // Arrow keys move the bubble (no snapping); Enter and Space open it.
@@ -341,6 +346,8 @@ export function WindowBubble({
         style={{ left: placed.x, top: placed.y, zIndex }}
         aria-label={ariaLabel ?? t("window.bubble.label", { title: label })}
         aria-expanded={expanded}
+        aria-busy={busy}
+        aria-disabled={disabled}
         aria-describedby={describedBy ?? (hasBanner ? bannerId : undefined)}
         title={
           locked
