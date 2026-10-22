@@ -167,4 +167,6 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.ttsIdle.elevenlabs": "ElevenLabs 음성 합성",
   "reader.ttsIdle.pockettts": "로컬 PocketTTS",
   "reader.ttsIdle.xai": "xAI 음성",
+  "reader.languageHelp":
+    "한국어와 영어는 기본 포함되어 있습니다. 다른 언어는 선택할 때 내려받습니다. 번역이 없는 문구는 영어로 표시됩니다.",
 };

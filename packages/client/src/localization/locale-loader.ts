@@ -15,6 +15,10 @@ const englishAsset = import.meta.env
   ? import.meta.glob<string>("./locales/en.json", { import: "default", query: "?url" })["./locales/en.json"]!
   : async () => `${new URL(/* @vite-ignore */ ".", import.meta.url).href}locales/en.json`;
 
+export function isBundledLocale(locale: string): boolean {
+  return locale === "en" || typeof bundledAssets[`./locales/${locale}.json`] === "function";
+}
+
 function getNativeLanguageName(locale: string): string {
   try {
     const name = new Intl.DisplayNames([locale], { type: "language" }).of(locale) ?? locale;

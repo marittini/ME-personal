@@ -4532,6 +4532,7 @@
   "reader.illustrateMessage": "Illustrate this message",
   "reader.illustrationError": "Could not generate the illustration. Check the image connection and agent settings.",
   "reader.increase": "Increase {{label}} by 0.1",
+  "reader.languageHelp": "Korean and English are included. Other languages can be downloaded when selected. Missing translations use English.",
   "reader.latest": "Go to latest message",
   "reader.letterSpacingLabel": "Letter spacing",
   "reader.light": "Light",

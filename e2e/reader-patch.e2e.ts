@@ -249,3 +249,21 @@ test("NAI character prompt uses two raw requests, exposes copyable outputs and p
     await request.delete(`/api/characters/${card.id}`);
   }
 });
+
+test("bundled Korean can be selected without a language-pack download", async ({ page }) => {
+  await quiet(page);
+  let downloads = 0;
+  await page.route("**/api/ui-languages/ko", (route) => {
+    if (route.request().method() === "POST") downloads++;
+    return route.fulfill({ status: 503, json: { error: "No downloadable pack in this proof" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByRole("button", { name: "언어·일반 설정", exact: true }).click();
+  const select = page.locator("#settings-control-language-select");
+  await select.selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await select.selectOption("ko");
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  expect(downloads).toBe(0);
+});
