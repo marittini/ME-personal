@@ -116,6 +116,7 @@ import {
   findTTSCharacterIdBySpeakerName,
   withTTSVoiceRequestCacheKeys,
 } from "../../lib/tts-dialogue";
+import type { TTSAudioParticipant } from "../../lib/tts-audio-tags";
 import {
   buildExtractedRoleplayTTSVoiceRequests,
   extractRoleplayTTSSpeakers,
@@ -3215,6 +3216,12 @@ const LocalChatArea = memo(function LocalChatArea({
           mode === "roleplay" &&
           (chatMeta.roleplayDisplayStyle ?? useUIStore.getState().roleplayDisplayStyle) === "visual-novel";
         const requestsFor = async (message: TTSAutoplayMessage) => {
+          const participants: TTSAudioParticipant[] = [
+            ...[...characterMap]
+              .filter(([id]) => chat?.characterIds.includes(id))
+              .map(([id, character]): TTSAudioParticipant => ({ kind: "character", id, name: character.name })),
+            ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
+          ];
           const fallbackSpeaker =
             message.role === "narrator"
               ? "Narrator"
@@ -3222,7 +3229,11 @@ const LocalChatArea = memo(function LocalChatArea({
                 ? characterMap.get(message.characterId)?.name
                 : undefined;
           let requests;
-          if (mode === "roleplay" && cfg.roleplaySpeakerExtractorEnabled) {
+          if (
+            mode === "roleplay" &&
+            cfg.roleplaySpeakerExtractorEnabled &&
+            !/<audio_(?:character|persona)\b/i.test(message.content)
+          ) {
             try {
               const extracted = await extractRoleplayTTSSpeakers({
                 message: filterTTSText(message.content, cfg),
@@ -3247,6 +3258,7 @@ const LocalChatArea = memo(function LocalChatArea({
                 fallbackSpeaker,
                 message.characterId,
                 resolveTTSCharacterId,
+                participants,
               );
             }
           } else {
@@ -3256,6 +3268,7 @@ const LocalChatArea = memo(function LocalChatArea({
               fallbackSpeaker,
               message.characterId,
               resolveTTSCharacterId,
+              participants,
             );
           }
           return visualNovel ? withRoleplayTTSParagraphs(requests, message.content, cfg) : requests;
@@ -3302,6 +3315,7 @@ const LocalChatArea = memo(function LocalChatArea({
       chat,
       chatMeta.roleplayDisplayStyle,
       personaInfo?.name,
+      personaInfo?.id,
       resolveTTSCharacterId,
       ttsLineVolume,
     ],

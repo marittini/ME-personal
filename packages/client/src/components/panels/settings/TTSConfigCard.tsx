@@ -24,7 +24,7 @@ import {
 import { cn } from "../../../lib/utils";
 import { toast } from "sonner";
 import { useTTSConfig, useUpdateTTSConfig, useTTSModels, useTTSVoices } from "../../../hooks/use-tts";
-import { useCharacters } from "../../../hooks/use-characters";
+import { useCharacters, usePersonas } from "../../../hooks/use-characters";
 import { useConnections } from "../../../hooks/use-connections";
 import { ttsService } from "../../../lib/tts-service";
 import {
@@ -1016,6 +1016,7 @@ export function TTSConfigCard() {
   const { data: savedConfig, isLoading } = useTTSConfig();
   const updateConfig = useUpdateTTSConfig();
   const { data: characters } = useCharacters();
+  const { data: personas } = usePersonas();
   const { data: connections } = useConnections();
 
   // Local draft state
@@ -1029,6 +1030,9 @@ export function TTSConfigCard() {
   const [voice, setVoice] = useState("alloy");
   const [voiceMode, setVoiceMode] = useState<TTSVoiceMode>("single");
   const [voiceAssignments, setVoiceAssignments] = useState<TTSVoiceAssignment[]>([]);
+  const [personaVoiceAssignments, setPersonaVoiceAssignments] = useState<
+    NonNullable<TTSConfig["personaVoiceAssignments"]>
+  >([]);
   const [narratorVoiceEnabled, setNarratorVoiceEnabled] = useState(false);
   const [narratorVoice, setNarratorVoice] = useState("");
   const [npcDefaultVoicesEnabled, setNpcDefaultVoicesEnabled] = useState(false);
@@ -1036,6 +1040,9 @@ export function TTSConfigCard() {
   const [npcDefaultFemaleVoices, setNpcDefaultFemaleVoices] = useState<string[]>([]);
   const [speed, setSpeed] = useState(1.0);
   const [elevenLabsStability, setElevenLabsStability] = useState(0.5);
+  const [elevenLabsSimilarityBoost, setElevenLabsSimilarityBoost] = useState(0.75);
+  const [elevenLabsStyle, setElevenLabsStyle] = useState(0);
+  const [elevenLabsSpeakerBoost, setElevenLabsSpeakerBoost] = useState(true);
   const [elevenLabsLanguageCode, setElevenLabsLanguageCode] = useState("");
   const [elevenLabsGameSoundEffects, setElevenLabsGameSoundEffects] = useState(false);
   const [elevenLabsGameMusic, setElevenLabsGameMusic] = useState(false);
@@ -1117,6 +1124,7 @@ export function TTSConfigCard() {
     setVoice(savedConfig.voice);
     setVoiceMode(savedConfig.voiceMode ?? "single");
     setVoiceAssignments(savedConfig.voiceAssignments ?? []);
+    setPersonaVoiceAssignments(savedConfig.personaVoiceAssignments ?? []);
     setNarratorVoiceEnabled(savedConfig.narratorVoiceEnabled ?? false);
     setNarratorVoice(savedConfig.narratorVoice ?? "");
     setNpcDefaultVoicesEnabled(savedConfig.npcDefaultVoicesEnabled ?? false);
@@ -1124,6 +1132,9 @@ export function TTSConfigCard() {
     setNpcDefaultFemaleVoices(savedConfig.npcDefaultFemaleVoices ?? []);
     setSpeed(savedConfig.speed);
     setElevenLabsStability(savedConfig.elevenLabsStability ?? 0.5);
+    setElevenLabsSimilarityBoost(savedConfig.elevenLabsSimilarityBoost ?? 0.75);
+    setElevenLabsStyle(savedConfig.elevenLabsStyle ?? 0);
+    setElevenLabsSpeakerBoost(savedConfig.elevenLabsSpeakerBoost ?? true);
     setElevenLabsLanguageCode(savedConfig.elevenLabsLanguageCode ?? "");
     setElevenLabsGameSoundEffects(savedConfig.elevenLabsGameSoundEffects ?? false);
     setElevenLabsGameMusic(savedConfig.elevenLabsGameMusic ?? false);
@@ -1205,6 +1216,7 @@ export function TTSConfigCard() {
     voice,
     voiceMode,
     voiceAssignments,
+    personaVoiceAssignments,
     narratorVoiceEnabled,
     narratorVoice,
     npcDefaultVoicesEnabled,
@@ -1212,6 +1224,9 @@ export function TTSConfigCard() {
     npcDefaultFemaleVoices,
     speed,
     elevenLabsStability,
+    elevenLabsSimilarityBoost,
+    elevenLabsStyle,
+    elevenLabsSpeakerBoost,
     elevenLabsLanguageCode,
     elevenLabsGameSoundEffects,
     elevenLabsGameMusic,
@@ -1313,6 +1328,7 @@ export function TTSConfigCard() {
     setVoice(nextProfile.voice);
     setVoiceMode(nextProfile.voiceMode);
     setVoiceAssignments(nextProfile.voiceAssignments);
+    setPersonaVoiceAssignments(nextProfile.personaVoiceAssignments ?? []);
     setNarratorVoiceEnabled(nextProfile.narratorVoiceEnabled);
     setNarratorVoice(nextProfile.narratorVoice);
     setNpcDefaultVoicesEnabled(nextProfile.npcDefaultVoicesEnabled);
@@ -1320,6 +1336,9 @@ export function TTSConfigCard() {
     setNpcDefaultFemaleVoices(nextProfile.npcDefaultFemaleVoices);
     setSpeed(nextProfile.speed);
     setElevenLabsStability(nextProfile.elevenLabsStability);
+    setElevenLabsSimilarityBoost(nextProfile.elevenLabsSimilarityBoost ?? 0.75);
+    setElevenLabsStyle(nextProfile.elevenLabsStyle ?? 0);
+    setElevenLabsSpeakerBoost(nextProfile.elevenLabsSpeakerBoost ?? true);
     setElevenLabsLanguageCode(nextProfile.elevenLabsLanguageCode);
     if (!nextConnection) {
       setElevenLabsGameSoundEffects(nextProfile.elevenLabsGameSoundEffects ?? false);
@@ -2051,6 +2070,44 @@ export function TTSConfigCard() {
           )}
 
           {voiceMode === "per-character" && (
+            <FieldRow label={localizeUi("tts.personaVoices")}>
+              <div className="space-y-3">
+                {personas?.map((persona) => (
+                  <label key={persona.id} className="block space-y-1 text-xs">
+                    <span>{persona.name}</span>
+                    <VoiceSelect
+                      value={personaVoiceAssignments.find((row) => row.personaId === persona.id)?.voice ?? ""}
+                      options={voiceOptions}
+                      placeholder={localizeUi("ui.panels.ttsconfigcard.selectVoice")}
+                      ariaLabel={persona.name}
+                      disabled={fetchingVoices || voiceOptions.length === 0}
+                      onChange={(voice) => {
+                        const next = personaVoiceAssignments.filter((row) => row.personaId !== persona.id);
+                        if (voice) next.push({ personaId: persona.id, personaName: persona.name, voice });
+                        setPersonaVoiceAssignments(next);
+                        mark({ personaVoiceAssignments: next });
+                      }}
+                    />
+                    {personaVoiceAssignments.some((row) => row.personaId === persona.id) && (
+                      <button
+                        type="button"
+                        className="min-h-11 text-xs"
+                        onClick={() => {
+                          const next = personaVoiceAssignments.filter((row) => row.personaId !== persona.id);
+                          setPersonaVoiceAssignments(next);
+                          mark({ personaVoiceAssignments: next });
+                        }}
+                      >
+                        {localizeUi("tts.useDefaultVoice")}
+                      </button>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </FieldRow>
+          )}
+
+          {voiceMode === "per-character" && (
             <FieldRow
               label={localizeUi("ui.panels.ttsconfigcard.characterVoices")}
               help={localizeUi("ui.panels.ttsconfigcard.assignVoicesToSpecificCharactersFromYourCharactersTab")}
@@ -2352,26 +2409,44 @@ export function TTSConfigCard() {
             </FieldRow>
           )}
 
-          {source === "elevenlabs" && !connectionId && (
+          {source === "elevenlabs" && (
             <div className="space-y-1">
-              <span className="text-xs font-medium">{localizeUi("ui.panels.ttsconfigcard.gameAudioGeneration")}</span>
-              <p className="text-[0.625rem] text-[var(--muted-foreground)]">
-                {localizeUi("ui.panels.ttsconfigcard.gameAudioGenerationHelp")}
-              </p>
+              <FieldRow label={localizeUi("tts.similarity", { value: Math.round(elevenLabsSimilarityBoost * 100) })}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={elevenLabsSimilarityBoost}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setElevenLabsSimilarityBoost(value);
+                    mark({ elevenLabsSimilarityBoost: value });
+                  }}
+                  className="min-h-11 w-full accent-[var(--primary)]"
+                />
+              </FieldRow>
+              <FieldRow label={localizeUi("tts.style", { value: Math.round(elevenLabsStyle * 100) })}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={elevenLabsStyle}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setElevenLabsStyle(value);
+                    mark({ elevenLabsStyle: value });
+                  }}
+                  className="min-h-11 w-full accent-[var(--primary)]"
+                />
+              </FieldRow>
               <ToggleRow
-                label={localizeUi("ui.panels.ttsconfigcard.generateGameSoundEffects")}
-                checked={elevenLabsGameSoundEffects}
+                label={localizeUi("tts.speakerBoost")}
+                checked={elevenLabsSpeakerBoost}
                 onChange={(value) => {
-                  setElevenLabsGameSoundEffects(value);
-                  mark({ elevenLabsGameSoundEffects: value });
-                }}
-              />
-              <ToggleRow
-                label={localizeUi("ui.panels.ttsconfigcard.generateGameMusic")}
-                checked={elevenLabsGameMusic}
-                onChange={(value) => {
-                  setElevenLabsGameMusic(value);
-                  mark({ elevenLabsGameMusic: value });
+                  setElevenLabsSpeakerBoost(value);
+                  mark({ elevenLabsSpeakerBoost: value });
                 }}
               />
             </div>
@@ -2459,14 +2534,6 @@ export function TTSConfigCard() {
               onChange={(v) => {
                 setAutoplayConvo(v);
                 mark({ autoplayConvo: v });
-              }}
-            />
-            <ToggleRow
-              label={localizeUi("ui.panels.ttsconfigcard.gameNarration")}
-              checked={autoplayGame}
-              onChange={(v) => {
-                setAutoplayGame(v);
-                mark({ autoplayGame: v });
               }}
             />
             <ToggleRow

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ArrowLeft, BookOpen, ChevronDown, PencilLine, Settings2, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useChat } from "../../hooks/use-chats";
+import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
 import { useReaderPosition } from "../../hooks/use-reader-position";
 import { useChatStore } from "../../stores/chat.store";
@@ -9,9 +9,15 @@ import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
 import { requestChatScrollToBottom } from "../../lib/chat-scroll-events";
 import { Modal } from "../ui/Modal";
+import { libraryChatGroupKey } from "../../lib/library-chat-group";
+import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
+import { toast } from "sonner";
 
 export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNode; surfaceActive: boolean }) {
   const { t } = useTranslation();
+  const { data: ttsConfig } = useTTSConfig();
+  const setTTSEnabled = useSetTTSEnabled();
+  const updateMetadata = useUpdateChatMetadata({ serialize: true });
   const chatId = useChatStore((state) => state.activeChatId);
   const { data: chat } = useChat(chatId);
   const streaming = useChatStore((state) => state.isStreaming && state.streamingChatId === chatId);
@@ -27,7 +33,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const enabled = !!chatId && chat?.mode !== "game";
   const back = () => {
     if (chat) {
-      const workId = chat.connectedChatId ? [chat.id, chat.connectedChatId].sort().join(":") : chat.id;
+      const workId = libraryChatGroupKey(chat);
       useUIStore.setState((state) => ({ libraryNavigation: { ...state.libraryNavigation, selectedWorkId: workId } }));
     }
     useChatStore.getState().setActiveChatId(null);
@@ -127,6 +133,54 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       {children}
       <Modal open={settings} onClose={() => setSettings(false)} title={t("reader.settings")}>
         <div className="space-y-6 p-5">
+          <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+            {t("reader.speech")}
+            <input
+              type="checkbox"
+              checked={ttsConfig?.enabled ?? false}
+              disabled={!ttsConfig || setTTSEnabled.isPending}
+              onChange={(event) =>
+                setTTSEnabled.mutate(event.target.checked, {
+                  onError: () => toast.error(t("reader.speechSaveFailed")),
+                })
+              }
+            />
+          </label>
+          <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+            {t("reader.speechInstructions")}
+            <input
+              type="checkbox"
+              checked={chat?.metadata.ttsInstructionsEnabled === true}
+              disabled={!chat || updateMetadata.isPending}
+              onChange={(event) =>
+                chat &&
+                updateMetadata.mutate(
+                  { id: chat.id, ttsInstructionsEnabled: event.target.checked },
+                  {
+                    onError: () => toast.error(t("reader.speechSaveFailed")),
+                  },
+                )
+              }
+            />
+          </label>
+          {chat?.mode === "roleplay" && chat.metadata.ttsInstructionsEnabled === true && (
+            <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+              {t("reader.speechTagged")}
+              <input
+                type="checkbox"
+                checked={chat.metadata.ttsTaggedDialogue === true}
+                disabled={updateMetadata.isPending}
+                onChange={(event) =>
+                  updateMetadata.mutate(
+                    { id: chat.id, ttsTaggedDialogue: event.target.checked },
+                    {
+                      onError: () => toast.error(t("reader.speechSaveFailed")),
+                    },
+                  )
+                }
+              />
+            </label>
+          )}
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.theme")}
             <select

@@ -1,10 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
   ChevronRight,
   Clock3,
-  Gamepad2,
   Home,
   LibraryBig,
   MessageCircle,
@@ -17,14 +16,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import type { Chat } from "@marinara-engine/shared";
+import { BACKGROUND_THUMBNAIL_WIDTH, normalizeAvatarCrop, type AvatarCrop, type Chat } from "@marinara-engine/shared";
 import { useCharacterSummaries } from "../../hooks/use-characters";
-import { useChats, useDeleteChat, useUpdateChat } from "../../hooks/use-chats";
+import { useChats, useCreateChat, useDeleteChat, useUpdateChat } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
-import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
+import { showChoiceDialog, showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
+import { imagePreviewUrl } from "../../lib/image-preview-url";
 import { useHomeFeed } from "../../hooks/use-home-feed";
 import { chatBackgroundMetadataToUrl } from "../../lib/backgrounds";
-import { cn } from "../../lib/utils";
+import { cn, getAvatarCropStyle } from "../../lib/utils";
+import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
@@ -36,17 +37,13 @@ type VirtualWork = {
   title: string;
   author: string;
   coverUrl: string | null;
+  coverCrop: AvatarCrop | null;
   chats: Chat[];
   activeChat: Chat;
   lastMessageAt: string | null;
   unreadCount: number;
   preview: string | null;
 };
-
-function workGroupKey(chat: Chat): string {
-  if (!chat.connectedChatId) return chat.id;
-  return [chat.id, chat.connectedChatId].sort().join(":");
-}
 
 function workTimestamp(chat: Chat): number {
   return Date.parse(chat.lastMessageAt ?? chat.updatedAt ?? chat.createdAt) || 0;
@@ -67,6 +64,7 @@ function formatReadTime(value: string | null, locale: string, fallback: string):
 }
 
 function WorkCover({ work, className }: { work: VirtualWork; className?: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   return (
     <span
       className={cn(
@@ -75,8 +73,18 @@ function WorkCover({ work, className }: { work: VirtualWork; className?: string 
       )}
       aria-hidden="true"
     >
-      {work.coverUrl ? (
-        <img src={work.coverUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+      {work.coverUrl && failedUrl !== work.coverUrl ? (
+        <span className={work.coverCrop ? "absolute left-1/2 top-0 aspect-square h-full -translate-x-1/2" : "contents"}>
+          <img
+            src={work.coverUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+            style={getAvatarCropStyle(work.coverCrop)}
+            onError={() => setFailedUrl(work.coverUrl)}
+          />
+        </span>
       ) : (
         <span className="flex h-full flex-col justify-between p-3">
           <span className="h-px w-8 bg-[var(--primary)]" />
@@ -108,6 +116,7 @@ export function LibraryHome() {
       libraryNavigation: { ...state.libraryNavigation, selectedWorkId: value?.id ?? null },
     }));
   const deleteChat = useDeleteChat();
+  const createChat = useCreateChat();
   const updateChat = useUpdateChat();
   const chats = useChats();
   const feed = useHomeFeed();
@@ -127,8 +136,10 @@ export function LibraryHome() {
     );
     const groups = new Map<string, Chat[]>();
     for (const chat of chats.data ?? []) {
-      const key = workGroupKey(chat);
-      groups.set(key, [...(groups.get(key) ?? []), chat]);
+      const key = libraryChatGroupKey(chat);
+      const group = groups.get(key);
+      if (group) group.push(chat);
+      else groups.set(key, [chat]);
     }
 
     return Array.from(groups, ([id, groupedChats]): VirtualWork => {
@@ -138,13 +149,18 @@ export function LibraryHome() {
         .map((characterId) => characterById.get(characterId))
         .find(Boolean);
       const background = ordered
-        .map((chat) => chatBackgroundMetadataToUrl(chat.metadata?.background, 420))
+        .map((chat) => chatBackgroundMetadataToUrl(chat.metadata?.background, BACKGROUND_THUMBNAIL_WIDTH))
         .find((url): url is string => Boolean(url));
       return {
         id,
-        title: activeChat.name,
+        title:
+          activeChat.characterIds
+            .map((characterId) => characterById.get(characterId)?.name)
+            .filter(Boolean)
+            .join(" · ") || activeChat.name,
         author: primaryCharacter?.name ?? t("libraryShell.unknownAuthor"),
-        coverUrl: background ?? primaryCharacter?.avatarUrl ?? null,
+        coverUrl: primaryCharacter?.avatarUrl ? imagePreviewUrl(primaryCharacter.avatarUrl) : (background ?? null),
+        coverCrop: normalizeAvatarCrop(primaryCharacter?.avatarCrop),
         chats: ordered,
         activeChat,
         lastMessageAt: activeChat.lastMessageAt ?? activeChat.updatedAt,
@@ -228,7 +244,36 @@ export function LibraryHome() {
 
   const openWork = (work: VirtualWork) => {
     setSelectedWork(work);
-    setActiveChatId(work.activeChat.id);
+    const lastRead = work.chats
+      .filter((chat) => positions[chat.id])
+      .sort((a, b) => positions[b.id].updatedAt.localeCompare(positions[a.id].updatedAt))[0];
+    setActiveChatId(lastRead?.id ?? work.activeChat.id);
+  };
+  const createRecord = async (work: VirtualWork) => {
+    const mode = await showChoiceDialog({
+      title: t("libraryShell.newRecord"),
+      message: work.title,
+      cancelLabel: t("reader.cancel"),
+      choices: [
+        { key: "roleplay", label: t("libraryShell.work.body") },
+        { key: "conversation", label: t("libraryShell.work.letters") },
+      ],
+    });
+    if (mode !== "roleplay" && mode !== "conversation") return;
+    const source = work.chats.find((chat) => chat.mode === mode) ?? work.activeChat;
+    try {
+      const chat = await createChat.mutateAsync({
+        name: t("libraryShell.newRecordName", { name: work.title }),
+        mode,
+        characterIds: source.characterIds,
+        connectionId: source.connectionId,
+        personaId: source.personaId,
+        promptPresetId: mode === source.mode ? source.promptPresetId : null,
+      });
+      setActiveChatId(chat.id);
+    } catch {
+      /* The existing create mutation reports failures. */
+    }
   };
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const loading = chats.isPending || characters.isPending;
@@ -272,7 +317,6 @@ export function LibraryHome() {
                 <h1 className="font-serif text-2xl font-semibold tracking-[-0.03em] md:text-4xl">
                   {selectedWork.title}
                 </h1>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)]">{selectedWork.author}</p>
                 <p className="mt-5 text-xs text-[var(--muted-foreground)]">
                   {formatReadTime(selectedWork.lastMessageAt, locale, t("libraryShell.ready"))}
                 </p>
@@ -287,20 +331,29 @@ export function LibraryHome() {
             </section>
 
             <section className="pt-8">
-              <h2 className="font-serif text-lg font-semibold">{t("libraryShell.work.records")}</h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="font-serif text-lg font-semibold">{t("libraryShell.work.records")}</h2>
+                <button
+                  type="button"
+                  disabled={createChat.isPending}
+                  onClick={() => void createRecord(selectedWork)}
+                  className="min-h-11 text-sm font-medium disabled:opacity-40"
+                >
+                  {t("libraryShell.newRecord")}
+                </button>
+              </div>
               <div className="mt-3 border-t border-[var(--border)]">
                 {selectedWork.chats.map((chat) => {
-                  const Icon =
-                    chat.mode === "conversation" ? MessageCircle : chat.mode === "game" ? Gamepad2 : ScrollText;
+                  const Icon = chat.mode === "conversation" ? MessageCircle : ScrollText;
                   const label =
-                    chat.mode === "conversation"
-                      ? t("libraryShell.work.letters")
-                      : chat.mode === "game"
-                        ? t("libraryShell.work.adventure")
-                        : t("libraryShell.work.body");
+                    chat.mode === "conversation" ? t("libraryShell.work.letters") : t("libraryShell.work.body");
                   const unread = unreadCounts.get(chat.id) ?? 0;
                   return (
-                    <div key={chat.id} className="flex items-center gap-1 border-b border-[var(--border)]">
+                    <div
+                      key={chat.id}
+                      className="flex items-center gap-1 border-b border-[var(--border)]"
+                      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 72px" }}
+                    >
                       <button
                         key={chat.id}
                         type="button"
@@ -309,9 +362,10 @@ export function LibraryHome() {
                       >
                         <Icon size="1rem" className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold">{label}</span>
+                          <span className="block truncate text-sm font-semibold">{chat.name}</span>
                           <span className="mt-0.5 block truncate text-xs text-[var(--muted-foreground)]">
-                            {chat.name}
+                            {label} ·{" "}
+                            {formatReadTime(chat.lastMessageAt ?? chat.updatedAt, locale, t("libraryShell.ready"))}
                           </span>
                         </span>
                         {unread > 0 ? (
@@ -515,6 +569,7 @@ export function LibraryHome() {
                 {filteredWorks.map((work) => (
                   <button
                     key={work.id}
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "auto 280px" }}
                     type="button"
                     onClick={() => setSelectedWork(work)}
                     className="min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"

@@ -25,7 +25,12 @@ export function chatBackgroundMetadataToUrl(value: unknown, width?: number): str
   const background = value.trim();
   if (!background) return null;
 
-  const sized = (url: string) => (width ? `${url}?w=${width}` : url);
+  const sized = (url: string) => {
+    if (!width) return url;
+    const parsed = new URL(url, "http://localhost");
+    parsed.searchParams.set("w", String(width));
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  };
 
   if (background.startsWith(USER_BACKGROUND_URL_PREFIX)) return sized(background);
   if (background.startsWith(GAME_ASSET_FILE_URL_PREFIX)) return background;

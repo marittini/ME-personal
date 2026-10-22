@@ -52,6 +52,7 @@ const putVoiceMode = (body: unknown) =>
   app.inject({ method: "PUT", url: "/api/tts/config/voice-mode", payload: body as object });
 
 try {
+  assert.equal((await app.inject({ method: "POST", url: "/api/tts/game-audio", payload: {} })).statusCode, 410);
   // Saved the way the Text to Speech card saves: a whole config with a plain key, encrypted on the server.
   const seeded = await putConfig({
     enabled: true,
@@ -68,6 +69,24 @@ try {
     sourceProfiles: { elevenlabs: { apiKey: "eleven-secret", voice: "rachel" } },
   });
   assert.equal(seeded.statusCode, 204);
+
+  const beforeToggle = await stored();
+  assert.equal(
+    (await app.inject({ method: "PUT", url: "/api/tts/config/enabled", payload: { enabled: false } })).statusCode,
+    204,
+  );
+  assert.deepEqual(
+    await stored(),
+    { ...beforeToggle, enabled: false },
+    "quick toggle only changes playback, preserving encrypted keys and source profiles",
+  );
+  for (const payload of [{ enabled: "false" }, { enabled: true, speed: 4 }, {}]) {
+    assert.equal((await app.inject({ method: "PUT", url: "/api/tts/config/enabled", payload })).statusCode, 400);
+  }
+  assert.equal(
+    (await app.inject({ method: "PUT", url: "/api/tts/config/enabled", payload: { enabled: true } })).statusCode,
+    204,
+  );
 
   // The editor page reads the config; then another tab saves a new speed the page has not seen.
   const pageView = await readConfig();

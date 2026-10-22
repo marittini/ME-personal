@@ -102,7 +102,7 @@ export type SettingsSearchResult =
   | { type: "section"; section: SettingsSectionMeta }
   | { type: "control"; control: SettingsSearchableControlMeta; section: SettingsSectionMeta };
 
-export const SETTINGS_SEARCHABLE_CONTROLS: readonly SettingsSearchableControlMeta[] = [
+const ALL_SETTINGS_SEARCHABLE_CONTROLS: readonly SettingsSearchableControlMeta[] = [
   {
     id: "hide-chat-help-button",
     sectionId: "application",
@@ -1653,6 +1653,11 @@ export const SETTINGS_SEARCHABLE_CONTROLS: readonly SettingsSearchableControlMet
     kind: "Button group",
   },
 ] as const;
+
+export const SETTINGS_SEARCHABLE_CONTROLS = ALL_SETTINGS_SEARCHABLE_CONTROLS.filter(
+  (control) =>
+    SETTINGS_SECTION_BY_ID.has(control.sectionId) && !["visual-theme", "disable-seasonal-themes"].includes(control.id),
+);
 
 export function searchSettings(
   query: string,

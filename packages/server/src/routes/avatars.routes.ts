@@ -19,6 +19,7 @@ import {
 } from "../services/image/tracker-portrait.js";
 import { createAgentsStorage } from "../services/storage/agents.storage.js";
 import { createChatsStorage } from "../services/storage/chats.storage.js";
+import { parseThumbnailWidth, resolveThumbPath } from "../services/image/image-thumbnail.js";
 
 const trackerPortraitRequestSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -58,6 +59,19 @@ export async function avatarsRoutes(app: FastifyInstance) {
 
     const image = await validateImageAssetFile(filePath, filename);
     if (!image) return reply.status(404).send({ error: "Not found" });
+    const width = parseThumbnailWidth((req.query as { w?: string }).w);
+    const thumb = width ? await resolveThumbPath(filePath, width) : null;
+    if (thumb) {
+      const preview = await validateImageAssetFile(thumb);
+      if (preview) {
+        await image.handle.close();
+        return sendValidatedMediaFile(reply, preview, {
+          method: req.method,
+          rangeHeader: req.headers.range,
+          cacheControl: "public, max-age=31536000, immutable",
+        });
+      }
+    }
     return sendValidatedMediaFile(reply, image, {
       method: req.method,
       rangeHeader: req.headers.range,

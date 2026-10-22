@@ -370,7 +370,7 @@ import { createGalleryStorage } from "../services/storage/gallery.storage.js";
 import { resolveGalleryImagePath } from "../services/image/gallery-image-path.js";
 import { isSentSelfieAttachment } from "../services/generation/prompt-attachments.js";
 import { createAppSettingsStorage } from "../services/storage/app-settings.storage.js";
-import { gameTtsEmotionIndicatorsEnabled } from "../services/tts-emotion-guidance.js";
+import { gameTtsEmotionIndicatorsEnabled, roomTtsInstructions } from "../services/tts-emotion-guidance.js";
 import { getCustomAgentImportPolicy } from "../services/agents/custom-agent-import-policy.service.js";
 import { buildLorebookSemanticEmbeddingsById, warmLorebookEntryEmbeddings } from "../services/lorebook/embeddings.js";
 import { applyRegexScriptsToPromptMessages } from "../services/regex/regex-application.js";
@@ -11120,7 +11120,21 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
         // (firstSavedMsg/lastSavedMsg/collectedCommands/collectedOocMessages
         // are declared above the follow-up loop so they survive iterations.)
 
-        const generationGuideInstruction = buildGenerationGuideInstruction(input.generationGuide, promptMacroContext);
+        const generationGuideInstruction = [
+          buildGenerationGuideInstruction(input.generationGuide, promptMacroContext),
+          regenerateUserSourceMessage
+            ? null
+            : roomTtsInstructions(chatMode, chatMeta.ttsInstructionsEnabled, chatMeta.ttsTaggedDialogue === true, [
+                ...charInfo.map((character) => ({
+                  kind: "character" as const,
+                  id: character.id,
+                  name: character.name,
+                })),
+                ...(chat.personaId ? [{ kind: "persona" as const, id: chat.personaId, name: personaName }] : []),
+              ]),
+        ]
+          .filter(Boolean)
+          .join("\n\n");
         const buildRoleplayCharacterInstruction = (charName: string) =>
           groupTurnPromptEnabled && chatMode === "roleplay" ? `Respond ONLY as ${charName}.` : null;
 
