@@ -16,6 +16,7 @@ export interface CommittedMemoryFact {
   edited?: boolean;
   sourceIds: string[];
   progress?: "pending" | "in_progress" | "completed" | "cancelled";
+  keywords?: string[];
   dependencies?: CommittedMemorySource[];
   invalidated?: boolean;
   /** Up to three evidence-checked prior values, used only for earlier generation points. */
@@ -30,6 +31,10 @@ export interface CommittedMemoryBatch {
   core: string;
   summaryKo?: string;
   coreKo?: string;
+  /** Optional deepest compression, generated alongside the first summary. */
+  gist?: string;
+  gistKo?: string;
+  keywords?: string[];
   facts: CommittedMemoryFact[];
   invalidated?: boolean;
   excluded?: boolean;
@@ -42,19 +47,31 @@ export interface CommittedMemoryState {
   ownerChatId: string;
   enabled: boolean;
   batches: CommittedMemoryBatch[];
+  /** Changes on reset; asynchronous writers must check it before saving. */
+  epoch?: string;
+  indexEpoch?: string;
+  resetAt?: string;
+  recall?: CommittedMemoryRecallConfig;
   previousSettings?: {
     automaticSummaryEnabled?: boolean;
     enableMemoryRecall?: boolean;
     advancedMemoryEnabled?: boolean;
     memoryAgentIds: string[];
   };
-  job?: { id: string; status: "running" | "complete" | "failed"; completed: number; total: number; error?: string };
+  job?: {
+    id: string;
+    status: "running" | "complete" | "failed" | "cancelled";
+    completed: number;
+    total: number;
+    error?: string;
+  };
 }
 export interface CommittedMemorySelection {
   id: string;
   content: string;
   /** Cached display text only; never serialized into the prompt. */
   displayKo?: string;
+  stage?: "short" | "long" | "core";
   reason: "recent" | "relevant" | "current";
   sourceIds: string[];
 }
@@ -93,4 +110,13 @@ export interface CommittedMemoryCommitOptions {
   contextSize?: number;
   rangeStartIndex?: number;
   rangeEndIndex?: number;
+}
+
+/** Missing fields preserve legacy retrieval behavior. Token counts use the native Unicode estimator. */
+export interface CommittedMemoryRecallConfig {
+  tokenBudget?: number;
+  recentMessages?: number;
+  longTermMessages?: number;
+  topK?: number;
+  semanticEnabled?: boolean;
 }

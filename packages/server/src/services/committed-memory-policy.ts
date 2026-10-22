@@ -1,3 +1,4 @@
+import { estimateTextTokens } from "@marinara-engine/shared";
 import { createHash } from "node:crypto";
 import type {
   CommittedMemoryBatch,
@@ -72,7 +73,21 @@ export function readCommittedMemory(metadata: Record<string, unknown>, chatId: s
     )
   )
     return emptyCommittedMemory(chatId);
-  return s;
+  // Ignore malformed optional derived data without discarding compatible canonical memories.
+  const keywords = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((word): word is string => typeof word === "string" && word.length <= 100).slice(0, 24)
+      : undefined;
+  return {
+    ...s,
+    batches: s.batches.map((b) => ({
+      ...b,
+      gist: typeof b.gist === "string" ? b.gist : undefined,
+      gistKo: typeof b.gistKo === "string" ? b.gistKo : undefined,
+      keywords: keywords(b.keywords),
+      facts: b.facts.map((f) => ({ ...f, keywords: keywords(f.keywords) })),
+    })),
+  };
 }
 export function memoryFactIdentity(f: Pick<CommittedMemoryFact, "kind" | "key" | "audience">): string {
   return JSON.stringify([
@@ -175,7 +190,7 @@ export function pendingMemoryMessages(state: CommittedMemoryState, messages: rea
       memoryExtra(m.extra).hiddenFromAI !== true,
   );
 }
-function terms(text: string) {
+export function memoryTerms(text: string) {
   return new Set(
     (
       text
@@ -189,7 +204,7 @@ function terms(text: string) {
   );
 }
 function relevance(text: string, query: Set<string>) {
-  const tokens = terms(text);
+  const tokens = memoryTerms(text);
   return [...query].filter((t) => tokens.has(t)).length / Math.max(1, Math.sqrt(tokens.size * query.size));
 }
 export function selectCommittedMemory(
@@ -200,10 +215,13 @@ export function selectCommittedMemory(
   audienceIds: readonly string[] = [],
   semanticScores: ReadonlyMap<string, number> = new Map(),
 ) {
+  const config = state.recall ?? {};
+  const recentWindow = config.recentMessages ?? 30;
+  const longWindow = Math.max(recentWindow, config.longTermMessages ?? 300);
   const excluded = new Set(excludedIds);
   const valid = state.batches.filter((b) => !b.invalidated && !b.sources.some((s) => excluded.has(s.id)));
   const newest = Math.max(0, ...valid.map((b) => b.turn));
-  const query = terms(queryText);
+  const query = memoryTerms(queryText);
   const candidates: Array<CommittedMemorySelection & { score: number }> = [];
   const current = new Map<string, CommittedMemoryBatch["facts"][number]>();
   for (const batch of [...state.batches].filter((b) => !b.invalidated).sort((a, b) => a.turn - b.turn))
@@ -246,7 +264,8 @@ export function selectCommittedMemory(
         sourceIds: f.sourceIds,
         score:
           (f.kind === "promise" ? 4 : 2) +
-          relevance([f.content, f.contentKo, f.keyKo].filter(Boolean).join(" "), query),
+          relevance([f.key, f.content, f.contentKo, f.keyKo, ...(f.keywords ?? [])].filter(Boolean).join(" "), query) +
+          Math.max(0, semanticScores.get(f.id) ?? 0),
       });
   const correctedKeys = new Set(
     [...current.values()].filter((f) => f.excluded || f.edited || f.invalidated).map(memoryFactIdentity),
@@ -255,17 +274,22 @@ export function selectCommittedMemory(
     // A corrected/withheld fact may still be repeated by the original narrative.
     if (b.excluded || [...(b.factKeys ?? []), ...b.facts.map(memoryFactIdentity)].some((key) => correctedKeys.has(key)))
       continue;
-    const recent = newest - b.turn < 30;
-    const content = recent ? b.summary : b.core;
+    const age = newest - b.turn;
+    const recent = age < recentWindow;
+    const stage = recent ? "short" : age < longWindow ? "long" : "core";
+    const useGist = stage === "core" && b.gist && estimateTextTokens(b.gist) < estimateTextTokens(b.core);
+    const content = recent ? b.summary : useGist ? b.gist! : b.core;
+    const displayKo = recent ? b.summaryKo : useGist ? b.gistKo : b.coreKo;
     if (!content) continue;
     const score =
-      relevance([content, recent ? b.summaryKo : b.coreKo].filter(Boolean).join(" "), query) +
+      relevance([content, displayKo, ...(b.keywords ?? [])].filter(Boolean).join(" "), query) +
       Math.max(0, semanticScores.get(b.id) ?? 0);
     if (recent || score > 0)
       candidates.push({
         id: b.id,
         content: `[Earlier episode ${b.turn}] ${content}`,
-        displayKo: recent ? b.summaryKo : b.coreKo,
+        displayKo,
+        stage,
         reason: recent ? "recent" : "relevant",
         sourceIds: b.sources.map((s) => s.id),
         score: (recent ? 1 : 0) + score,
@@ -273,14 +297,20 @@ export function selectCommittedMemory(
   }
   let selected: CommittedMemorySelection[] = [];
   const seen = new Set<string>();
-  let usedBytes = 0;
   for (const item of candidates.sort((a, b) => b.score - a.score)) {
     const key = item.content.normalize("NFKC").trim();
-    const bytes = Buffer.byteLength(item.content, "utf8") + 32;
-    if (seen.has(key) || usedBytes + bytes + 160 > budget) continue;
-    seen.add(key);
-    usedBytes += bytes;
+    if (seen.has(key)) continue;
+    if (item.reason !== "current" && selected.filter((i) => i.reason !== "current").length >= (config.topK ?? 20))
+      continue;
     const { score: _score, ...selection } = item;
+    const text = renderCommittedMemory([...selected, selection]);
+    if (
+      config.tokenBudget !== undefined
+        ? estimateTextTokens(text) > config.tokenBudget
+        : Buffer.byteLength(text, "utf8") > budget
+    )
+      continue;
+    seen.add(key);
     selected.push(selection);
   }
   // Retrieval priority decides inclusion; episode chronology decides presentation.
@@ -289,9 +319,21 @@ export function selectCommittedMemory(
     ...selected.filter((i) => i.reason === "current"),
     ...selected.filter((i) => i.reason !== "current").sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)),
   ];
+  const text = renderCommittedMemory(selected);
+  return {
+    selected,
+    text,
+    usedBytes: Buffer.byteLength(text, "utf8"),
+    budgetBytes: budget,
+    usedTokens: estimateTextTokens(text),
+    budgetTokens: config.tokenBudget ?? null,
+    tokenCountMethod: "unicode-estimate" as const,
+  };
+}
+function renderCommittedMemory(selected: CommittedMemorySelection[]) {
   const facts = selected.filter((i) => i.reason === "current");
   const episodes = selected.filter((i) => i.reason !== "current");
-  const text = [
+  return [
     facts.length
       ? `<current_facts_and_obligations>\n${facts.map((i) => i.content).join("\n")}\n</current_facts_and_obligations>`
       : "",
@@ -299,5 +341,4 @@ export function selectCommittedMemory(
   ]
     .filter(Boolean)
     .join("\n\n");
-  return { selected, text, usedBytes: text ? Buffer.byteLength(text, "utf8") : 0, budgetBytes: budget };
 }
