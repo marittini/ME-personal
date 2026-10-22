@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import type { CommittedMemoryBatch, CommittedMemoryState, CommittedMemorySelection } from "@marinara-engine/shared";
+import type {
+  CommittedMemoryBatch,
+  CommittedMemoryState,
+  CommittedMemorySelection,
+  CommittedMemoryFact,
+} from "@marinara-engine/shared";
 export interface MemorySourceMessage {
   id: string;
   content: string;
@@ -69,25 +74,77 @@ export function readCommittedMemory(metadata: Record<string, unknown>, chatId: s
     return emptyCommittedMemory(chatId);
   return s;
 }
+export function memoryFactIdentity(f: Pick<CommittedMemoryFact, "kind" | "key" | "audience">): string {
+  return JSON.stringify([
+    f.kind,
+    f.key.normalize("NFKC").trim().toLowerCase(),
+    f.audience === "shared" ? "shared" : [...new Set(f.audience)].sort(),
+  ]);
+}
+/** Legacy batches are upgraded without discarding episode summaries or source coverage. */
+export function consolidateCommittedMemory(state: CommittedMemoryState): CommittedMemoryState {
+  const next = structuredClone(state);
+  const current = new Map<string, { batch: CommittedMemoryBatch; fact: CommittedMemoryFact }>();
+  for (const batch of [...next.batches].sort((a, b) => a.turn - b.turn)) {
+    if (batch.invalidated) continue;
+    batch.factKeys = [...new Set([...(batch.factKeys ?? []), ...batch.facts.map(memoryFactIdentity)])];
+    for (const fact of [...batch.facts]) {
+      const identity = memoryFactIdentity(fact);
+      fact.dependencies ??= batch.sources.filter((s) => fact.sourceIds.includes(s.id));
+      const previous = current.get(identity);
+      if (previous) {
+        fact.id = previous.fact.id;
+        fact.excluded = previous.fact.excluded || fact.excluded;
+        fact.edited = previous.fact.edited || fact.edited;
+        // Retain evidence versions so a later edit cannot silently legitimize stale knowledge.
+        fact.dependencies = [
+          ...new Map(
+            [...(previous.fact.invalidated ? [] : (previous.fact.dependencies ?? [])), ...fact.dependencies].map(
+              (s) => [s.id, s],
+            ),
+          ).values(),
+        ];
+        previous.batch.facts = previous.batch.facts.filter((f) => f !== previous.fact);
+      }
+      fact.progress ??= fact.status === "resolved" ? "completed" : "pending";
+      current.set(identity, { batch, fact });
+    }
+  }
+  return next;
+}
 export function reconcileCommittedMemory(
   state: CommittedMemoryState,
   messages: readonly MemorySourceMessage[],
 ): CommittedMemoryState {
   const fingerprints = new Map(messages.map((m) => [m.id, memoryFingerprint(m)]));
   const positions = new Map(messages.map((m, index) => [m.id, index + 1]));
-  return {
+  const checked = {
     ...state,
-    batches: state.batches.map((b) => {
-      if (b.invalidated) return b;
-      if (!b.sources.every((source) => fingerprints.get(source.id) === source.fingerprint))
-        return { ...b, invalidated: true };
-      // Deletion shifts indices; reconfirming a historical range must preserve narrative ordering.
-      return { ...b, turn: Math.max(...b.sources.map((source) => positions.get(source.id) ?? 0)) };
+    batches: state.batches.map((batch) => {
+      if (batch.invalidated) return batch;
+      if (!batch.sources.every((source) => fingerprints.get(source.id) === source.fingerprint))
+        return { ...batch, invalidated: true };
+      return {
+        ...batch,
+        facts: batch.facts.map((fact) => ({
+          ...fact,
+          invalidated:
+            fact.invalidated ||
+            (fact.dependencies ?? []).some((source) => fingerprints.get(source.id) !== source.fingerprint),
+        })),
+        // Re-floor positions before choosing which fact is newest after deletions.
+        turn: Math.max(...batch.sources.map((source) => positions.get(source.id) ?? 0)),
+      };
     }),
   };
+  return consolidateCommittedMemory(checked);
 }
 export function pendingMemoryMessages(state: CommittedMemoryState, messages: readonly MemorySourceMessage[]) {
-  const covered = new Set(state.batches.filter((b) => !b.invalidated).flatMap((b) => b.sources.map((s) => s.id)));
+  const covered = new Set(
+    state.batches
+      .filter((b) => !b.invalidated && !b.facts.some((f) => f.invalidated))
+      .flatMap((b) => b.sources.map((s) => s.id)),
+  );
   return messages.filter(
     (m) =>
       !covered.has(m.id) &&
@@ -131,50 +188,77 @@ export function selectCommittedMemory(
     for (const f of batch.facts) {
       if (f.audience !== "shared" && (!audienceIds.length || !audienceIds.every((id) => f.audience.includes(id))))
         continue;
-      current.set(`${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`, batch.excluded ? { ...f, excluded: true } : f);
+      current.set(memoryFactIdentity(f), batch.excluded ? { ...f, excluded: true } : f);
     }
   for (const f of current.values())
-    if (f.status === "current" && !f.excluded)
+    if (
+      f.status === "current" &&
+      f.progress !== "completed" &&
+      f.progress !== "cancelled" &&
+      !f.excluded &&
+      !f.invalidated &&
+      !(f.dependencies ?? []).some((s) => excluded.has(s.id))
+    )
       candidates.push({
         id: f.id,
-        content: `[${f.kind}] ${f.content}`,
+        content: `[${f.kind}${f.kind === "promise" ? `:${f.progress ?? "pending"}` : ""}] ${f.content}`,
+        displayKo: f.contentKo,
         reason: "current",
         sourceIds: f.sourceIds,
-        score: (f.kind === "promise" ? 4 : 2) + relevance(f.content, query),
+        score:
+          (f.kind === "promise" ? 4 : 2) +
+          relevance([f.content, f.contentKo, f.keyKo].filter(Boolean).join(" "), query),
       });
   const correctedKeys = new Set(
-    [...current.values()]
-      .filter((f) => f.excluded || f.edited)
-      .map((f) => `${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`),
+    [...current.values()].filter((f) => f.excluded || f.edited || f.invalidated).map(memoryFactIdentity),
   );
   for (const b of valid) {
     // A corrected/withheld fact may still be repeated by the original narrative.
-    if (b.excluded || b.facts.some((f) => correctedKeys.has(`${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`)))
+    if (b.excluded || [...(b.factKeys ?? []), ...b.facts.map(memoryFactIdentity)].some((key) => correctedKeys.has(key)))
       continue;
     const recent = newest - b.turn < 30;
     const content = recent ? b.summary : b.core;
     if (!content) continue;
-    const score = relevance(content, query) + Math.max(0, semanticScores.get(b.id) ?? 0);
+    const score =
+      relevance([content, recent ? b.summaryKo : b.coreKo].filter(Boolean).join(" "), query) +
+      Math.max(0, semanticScores.get(b.id) ?? 0);
     if (recent || score > 0)
       candidates.push({
         id: b.id,
         content: `[Earlier episode ${b.turn}] ${content}`,
+        displayKo: recent ? b.summaryKo : b.coreKo,
         reason: recent ? "recent" : "relevant",
         sourceIds: b.sources.map((s) => s.id),
         score: (recent ? 1 : 0) + score,
       });
   }
-  const selected: CommittedMemorySelection[] = [];
+  let selected: CommittedMemorySelection[] = [];
   const seen = new Set<string>();
   let usedBytes = 0;
   for (const item of candidates.sort((a, b) => b.score - a.score)) {
     const key = item.content.normalize("NFKC").trim();
     const bytes = Buffer.byteLength(item.content, "utf8") + 32;
-    if (seen.has(key) || usedBytes + bytes > budget) continue;
+    if (seen.has(key) || usedBytes + bytes + 160 > budget) continue;
     seen.add(key);
     usedBytes += bytes;
     const { score: _score, ...selection } = item;
     selected.push(selection);
   }
-  return { selected, text: selected.map((i) => i.content).join("\n\n"), usedBytes, budgetBytes: budget };
+  // Retrieval priority decides inclusion; episode chronology decides presentation.
+  const order = new Map(valid.map((b) => [b.id, b.turn]));
+  selected = [
+    ...selected.filter((i) => i.reason === "current"),
+    ...selected.filter((i) => i.reason !== "current").sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)),
+  ];
+  const facts = selected.filter((i) => i.reason === "current");
+  const episodes = selected.filter((i) => i.reason !== "current");
+  const text = [
+    facts.length
+      ? `<current_facts_and_obligations>\n${facts.map((i) => i.content).join("\n")}\n</current_facts_and_obligations>`
+      : "",
+    episodes.length ? `<story_chronology>\n${episodes.map((i) => i.content).join("\n\n")}\n</story_chronology>` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  return { selected, text, usedBytes: text ? Buffer.byteLength(text, "utf8") : 0, budgetBytes: budget };
 }

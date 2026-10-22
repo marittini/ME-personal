@@ -870,6 +870,8 @@ export async function summaryHidingPatch(
   current: Record<string, unknown>,
   next: Record<string, unknown>,
 ): Promise<{ summaryEntries?: ChatSummaryEntry[]; summary?: string | null }> {
+  // Unified memory projects the native hide selection at prompt time, so invalidation restores raw history.
+  if ((next.committedMemory as { enabled?: boolean } | undefined)?.enabled) return {};
   const hide = next.hideSummarisedMessages === true;
   if ((current.hideSummarisedMessages === true) === hide) return {};
 

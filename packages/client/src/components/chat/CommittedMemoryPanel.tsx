@@ -48,7 +48,17 @@ type Entry = { batch: CommittedMemoryBatch; fact?: CommittedMemoryFact };
 const TABS: Tab[] = ["overview", "promise", "facts", "story", "receipt", "settings"];
 const field = "memory-vault__field";
 
-function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry; onBack: () => void }) {
+function MemoryDetail({
+  chatId,
+  entry,
+  onBack,
+  korean,
+}: {
+  chatId: string;
+  entry: Entry;
+  onBack: () => void;
+  korean: boolean;
+}) {
   const { t } = useTranslation();
   const { batch, fact } = entry;
   const edit = useEditMemory(chatId);
@@ -64,6 +74,7 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
     expectedRevision: editing ? revision : (batch.revision ?? batch.createdAt),
   };
   const excluded = batch.excluded || fact?.excluded;
+  const display = (original: string, ko?: string) => (korean && ko?.trim() ? ko : original);
   return (
     <article className="memory-vault__detail">
       <button className={`${SETTINGS_BUTTON_CLASS} memory-vault__back`} onClick={onBack}>
@@ -76,14 +87,16 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
           {new Date(batch.createdAt).toLocaleDateString()}
         </span>
         <span className="memory-vault__status">
-          {batch.invalidated
+          {batch.invalidated || fact?.invalidated
             ? t("chat.committedMemory.invalidated")
             : excluded
               ? t("chat.committedMemory.vault.excluded")
               : t("chat.committedMemory.confirmed")}
         </span>
       </div>
-      <h4>{fact?.key || t("chat.committedMemory.vault.episode", { turn: batch.turn })}</h4>
+      <h4>
+        {(fact ? display(fact.key, fact.keyKo) : "") || t("chat.committedMemory.vault.episode", { turn: batch.turn })}
+      </h4>
       {editing ? (
         <form
           className="space-y-3"
@@ -93,7 +106,7 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
           }}
         >
           <label className="block">
-            {t("chat.committedMemory.vault.content")}
+            {t("chat.committedMemory.vault.originalContent")}
             <textarea
               className={field}
               rows={7}
@@ -129,12 +142,13 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
       ) : (
         <>
           <p className="memory-vault__prose">
-            {(fact?.content ?? batch.summary) || t("chat.committedMemory.vault.privateSummary")}
+            {(fact ? display(fact.content, fact.contentKo) : display(batch.summary, batch.summaryKo)) ||
+              t("chat.committedMemory.vault.privateSummary")}
           </p>
           {!fact && batch.core && (
             <div className="memory-vault__core">
               <h5>{t("chat.committedMemory.core")}</h5>
-              <p className="memory-vault__prose">{batch.core}</p>
+              <p className="memory-vault__prose">{display(batch.core, batch.coreKo)}</p>
             </div>
           )}
         </>
@@ -146,7 +160,7 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
             : t("chat.committedMemory.restrictedAudience", { audience: fact.audience.join(", ") })}
         </p>
       )}
-      {!batch.invalidated && !editing && (
+      {!batch.invalidated && !fact?.invalidated && !editing && (
         <div className="flex flex-wrap gap-2">
           <button
             className={SETTINGS_BUTTON_CLASS}
@@ -167,6 +181,26 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
           >
             {t(excluded ? "chat.committedMemory.vault.restore" : "chat.committedMemory.vault.exclude")}
           </button>
+          {fact?.kind === "promise" && (
+            <label className="w-full text-xs">
+              {t("chat.committedMemory.vault.progressLabel")}
+              <select
+                className={field}
+                aria-label={t("chat.committedMemory.vault.progressLabel")}
+                disabled={edit.isPending}
+                value={fact.progress ?? (fact.status === "resolved" ? "completed" : "pending")}
+                onChange={(e) =>
+                  patch({ ...identity, progress: e.target.value as NonNullable<CommittedMemoryFact["progress"]> })
+                }
+              >
+                {(["pending", "in_progress", "completed", "cancelled"] as const).map((value) => (
+                  <option key={value} value={value}>
+                    {t(`chat.committedMemory.vault.progress.${value}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {fact && (
             <select
               className={field}
@@ -218,9 +252,21 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const [recallQuery, setRecallQuery] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [progressFilter, setProgressFilter] = useState("all");
   const preview = useMemoryPreview(chatId, search, tab === "receipt");
   const data = status.data;
   const metadata = chat?.metadata as Record<string, unknown> | undefined;
+  const korean = metadata?.committedMemoryDisplayKorean !== false;
+  const display = (original: string, ko?: string) => (korean && ko?.trim() ? ko : original);
+  const saveSettings = (settings: Record<string, unknown>) =>
+    update.mutate(
+      { id: chatId, ...settings },
+      {
+        onSuccess: () => {
+          void status.refetch();
+        },
+      },
+    );
   const busy = commit.isPending || toggle.isPending || data?.state.job?.status === "running";
   const error = status.error || commit.error || toggle.error || update.error;
   const batches = [...(data?.state.batches ?? [])].reverse();
@@ -233,10 +279,14 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             .map((fact) => ({ batch, fact })),
         );
   const visible = entries.filter(({ batch, fact }) => {
-    const state = batch.invalidated ? "invalidated" : batch.excluded || fact?.excluded ? "excluded" : "active";
+    const state =
+      batch.invalidated || fact?.invalidated ? "invalidated" : batch.excluded || fact?.excluded ? "excluded" : "active";
     return (
       (filter === "all" || state === filter) &&
-      `${fact?.key ?? ""} ${fact?.content ?? batch.summary} ${fact ? "" : batch.core}`
+      (tab !== "promise" ||
+        progressFilter === "all" ||
+        (fact?.progress ?? (fact?.status === "resolved" ? "completed" : "pending")) === progressFilter) &&
+      `${fact?.key ?? ""} ${fact?.keyKo ?? ""} ${fact?.contentKo ?? batch.summaryKo ?? ""} ${fact?.content ?? batch.summary} ${fact ? "" : batch.core + " " + (batch.coreKo ?? "")}`
         .normalize("NFKC")
         .toLocaleLowerCase()
         .includes(query.normalize("NFKC").toLocaleLowerCase())
@@ -249,11 +299,24 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
     setSelected(null);
     setQuery("");
     setFilter("all");
+    setProgressFilter("all");
   };
   const textConnections = (connections ?? []).filter(
     (c): c is APIConnection =>
       !!c && typeof c === "object" && "id" in c && "provider" in c && isChatProvider(c.provider),
   );
+  const displaySelection = (item: import("@marinara-engine/shared").CommittedMemorySelection) => {
+    if (!korean) return item.content;
+    if (item.displayKo?.trim()) return item.displayKo;
+    const original = item.content.replace(/^\[[^\]]+\]\s*/u, "");
+    for (const batch of batches) {
+      const fact = batch.facts.find((f) => f.id === item.id);
+      if (fact && original === fact.content) return display(fact.content, fact.contentKo);
+      if (batch.id === item.id && (original === batch.summary || original === batch.core))
+        return item.reason === "recent" ? display(batch.summary, batch.summaryKo) : display(batch.core, batch.coreKo);
+    }
+    return item.content;
+  };
   return (
     <section className={`memory-vault ${NEUTRAL_SURFACE_VARIABLES}`} data-committed-memory>
       <header className="memory-vault__header">
@@ -266,7 +329,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
         </div>
         <button
           className={SETTINGS_PRIMARY_BUTTON_CLASS}
-          disabled={busy || streaming || !data?.pending || !connection.data?.ok}
+          disabled={
+            busy || update.isPending || streaming || !(data?.selectedPending ?? data?.pending) || !connection.data?.ok
+          }
           onClick={() => commit.mutate()}
         >
           {busy ? <Loader2 size={15} className="motion-safe:animate-spin" /> : <BookOpen size={15} />}
@@ -274,7 +339,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
         </button>
       </header>
       <div className="memory-vault__sync" role="status">
-        <span>{t("chat.committedMemory.pending", { count: data?.pending ?? 0 })}</span>
+        <span>{t("chat.committedMemory.pending", { count: data?.selectedPending ?? data?.pending ?? 0 })}</span>
         <span>
           {data?.state.job
             ? t("chat.committedMemory.vault.progress", {
@@ -374,6 +439,23 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
       )}
       {data && ["promise", "facts", "story"].includes(tab) && (
         <>
+          {tab === "promise" && (
+            <nav className="memory-vault__tabs" aria-label={t("chat.committedMemory.vault.progressLabel")}>
+              {["all", "pending", "in_progress", "completed", "cancelled"].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-current={progressFilter === value ? "page" : undefined}
+                  onClick={() => {
+                    setProgressFilter(value);
+                    setSelected(null);
+                  }}
+                >
+                  {t(`chat.committedMemory.vault.progress.${value}`)}
+                </button>
+              ))}
+            </nav>
+          )}
           <div className="memory-vault__search">
             <Search size={16} />
             <input
@@ -414,13 +496,23 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                   >
                     <span className="memory-vault__eyebrow">
                       {fact
-                        ? t(`chat.committedMemory.factStatus.${fact.status}`)
+                        ? t(
+                            fact.kind === "promise"
+                              ? `chat.committedMemory.vault.progress.${fact.progress ?? (fact.status === "resolved" ? "completed" : "pending")}`
+                              : `chat.committedMemory.factStatus.${fact.status}`,
+                          )
                         : t("chat.committedMemory.vault.episode", { turn: batch.turn })}
                       {(batch.excluded || fact?.excluded) && ` · ${t("chat.committedMemory.vault.excluded")}`}
                       {batch.invalidated && ` · ${t("chat.committedMemory.invalidated")}`}
                     </span>
-                    <strong>{fact?.key || new Date(batch.createdAt).toLocaleDateString()}</strong>
-                    <span className="line-clamp-2">{fact?.content || batch.summary || batch.core}</span>
+                    <strong>
+                      {(fact ? display(fact.key, fact.keyKo) : "") || new Date(batch.createdAt).toLocaleDateString()}
+                    </strong>
+                    <span className="line-clamp-2">
+                      {fact
+                        ? display(fact.content, fact.contentKo)
+                        : display(batch.summary, batch.summaryKo) || display(batch.core, batch.coreKo)}
+                    </span>
                   </button>
                 );
               })}
@@ -429,6 +521,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
               <MemoryDetail
                 key={current.fact?.id ?? current.batch.id}
                 chatId={chatId}
+                korean={korean}
                 entry={current}
                 onBack={() => setSelected(null)}
               />
@@ -449,7 +542,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             {data.lastReceipt?.items.map((item) => (
               <article key={item.id} className="memory-vault__receipt">
                 <span className="memory-vault__eyebrow">{t(`chat.committedMemory.reason.${item.reason}`)}</span>
-                <p className="memory-vault__prose">{item.content}</p>
+                <p className="memory-vault__prose">{displaySelection(item)}</p>
                 {item.sourceIds.map((id) => (
                   <Source key={id} chatId={chatId} id={id} />
                 ))}
@@ -489,7 +582,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                 />
                 {preview.data.selected.map((item) => (
                   <p key={item.id} className="memory-vault__receipt whitespace-pre-wrap">
-                    {item.content}
+                    {displaySelection(item)}
                   </p>
                 ))}
               </>
@@ -506,6 +599,106 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             disabled={busy || streaming}
             onChange={(enabled) => toggle.mutate(enabled)}
           />
+          <ToggleSetting
+            label={t("chat.committedMemory.vault.koreanDisplay")}
+            help={t("chat.committedMemory.vault.koreanDisplayHelp")}
+            checked={korean}
+            disabled={update.isPending}
+            onChange={(checked) => saveSettings({ committedMemoryDisplayKorean: checked })}
+          />
+          <label className="block text-sm">
+            {t("chat.committedMemory.vault.sourceMode")}
+            <select
+              className={`${field} mt-2`}
+              disabled={busy || update.isPending}
+              value={String(metadata?.committedMemorySourceMode ?? "pending")}
+              onChange={(e) =>
+                saveSettings({
+                  committedMemorySourceMode: e.target.value,
+                  ...(e.target.value === "range"
+                    ? {
+                        committedMemoryRangeStart: Number(metadata?.committedMemoryRangeStart ?? 1),
+                        committedMemoryRangeEnd: Number(metadata?.committedMemoryRangeEnd ?? data.totalMessages ?? 1),
+                      }
+                    : {}),
+                })
+              }
+            >
+              {["pending", "last", "range"].map((value) => (
+                <option key={value} value={value}>
+                  {t(`chat.committedMemory.vault.sourceMode.${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            {t("chat.committedMemory.vault.contextSize")}
+            <input
+              type="number"
+              className={`${field} mt-2`}
+              min={5}
+              max={500}
+              defaultValue={Number(metadata?.summaryContextSize ?? 50)}
+              key={`context:${metadata?.summaryContextSize}`}
+              disabled={busy || update.isPending}
+              onBlur={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isInteger(n) && n >= 5 && n <= 500) saveSettings({ summaryContextSize: n });
+              }}
+            />
+          </label>
+          {metadata?.committedMemorySourceMode === "range" && (
+            <div className="grid grid-cols-2 gap-3">
+              {(["Start", "End"] as const).map((edge) => (
+                <label key={edge} className="text-sm">
+                  {t(`chat.committedMemory.vault.range${edge}`)}
+                  <input
+                    className={`${field} mt-2`}
+                    type="number"
+                    min={1}
+                    max={data.totalMessages ?? 1}
+                    key={`${edge}:${metadata?.[`committedMemoryRange${edge}`]}`}
+                    defaultValue={Number(
+                      metadata?.[`committedMemoryRange${edge}`] ?? (edge === "Start" ? 1 : (data.totalMessages ?? 1)),
+                    )}
+                    disabled={busy || update.isPending}
+                    onBlur={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isInteger(n) && n >= 1) saveSettings({ [`committedMemoryRange${edge}`]: n });
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+          <p className="memory-vault__hint">{t("chat.committedMemory.vault.rangeHelp")}</p>
+          {data.selectionError && (
+            <p role="alert" className="text-[var(--destructive)]">
+              {t("chat.committedMemory.vault.rangeInvalid")}
+            </p>
+          )}
+          <ToggleSetting
+            label={t("chat.committedMemory.vault.hideSummarised")}
+            help={t("chat.committedMemory.vault.hideHelp")}
+            checked={metadata?.hideSummarisedMessages === true}
+            disabled={busy || update.isPending}
+            onChange={(checked) => saveSettings({ hideSummarisedMessages: checked })}
+          />
+          <label className="block text-sm">
+            {t("chat.committedMemory.vault.tail")}
+            <input
+              className={`${field} mt-2`}
+              type="number"
+              min={0}
+              defaultValue={Number(metadata?.summaryTailMessages ?? 10)}
+              key={`tail:${metadata?.summaryTailMessages}`}
+              disabled={busy || update.isPending}
+              onBlur={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isInteger(n) && n >= 0) saveSettings({ summaryTailMessages: n });
+              }}
+            />
+          </label>
           <ToggleSetting
             label={t("chat.committedMemory.vault.floating")}
             help={t("chat.committedMemory.vault.floatingHelp")}

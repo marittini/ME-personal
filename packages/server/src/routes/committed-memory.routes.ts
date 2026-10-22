@@ -16,11 +16,20 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
     return committedMemoryStatus(app.db, req.params.id);
   });
   app.post<{ Params: { id: string } }>("/:id/committed-memory/commit", async (req, reply) => {
-    const body = z.object({ debugMode: z.boolean().optional() }).safeParse(req.body ?? {});
+    const body = z
+      .object({
+        debugMode: z.boolean().optional(),
+        sourceMode: z.enum(["pending", "last", "range"]).optional(),
+        contextSize: z.number().int().min(5).max(500).optional(),
+        rangeStartIndex: z.number().int().min(1).optional(),
+        rangeEndIndex: z.number().int().min(1).optional(),
+      })
+      .strict()
+      .safeParse(req.body ?? {});
     if (!body.success) return reply.status(400).send({ error: "Invalid request" });
     if ((app as unknown as { activeGenerations?: Map<string, unknown> }).activeGenerations?.has(req.params.id))
       return reply.status(409).send({ error: "Wait for the reply to finish before committing memory" });
-    return startCommittedMemory(app.db, req.params.id, body.data.debugMode);
+    return startCommittedMemory(app.db, req.params.id, body.data.debugMode, body.data);
   });
   app.patch<{ Params: { id: string } }>("/:id/committed-memory", async (req, reply) => {
     const body = z.object({ enabled: z.boolean() }).safeParse(req.body);
@@ -60,6 +69,7 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
         core: z.string().trim().max(2500).optional(),
         excluded: z.boolean().optional(),
         status: z.enum(["current", "resolved", "uncertain"]).optional(),
+        progress: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
       })
       .strict()
       .safeParse(req.body);

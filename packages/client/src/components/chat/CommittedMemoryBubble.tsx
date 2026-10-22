@@ -35,6 +35,7 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
   const saved = useFloatingWindowStore((s) => (phone ? s.phoneBubbles : s.bubbles)[ID]);
   const [size, setSize] = useState(PHONE_BUBBLE_SIZE_PX);
   const metadata = chat?.metadata as Record<string, unknown> | undefined;
+  const pending = data?.selectedPending ?? data?.pending ?? 0;
   const busy = commit.isPending || data?.state.job?.status === "running";
   const lastJob = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -66,7 +67,7 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
       busy={busy}
       disabled={busy || streaming}
       label={label}
-      ariaLabel={`${label} · ${t("chat.committedMemory.pending", { count: data.pending })}`}
+      ariaLabel={`${label} · ${t("chat.committedMemory.pending", { count: pending })}`}
       tooltip={streaming ? t("chat.committedMemory.waitForReply") : label}
       zIndex={phone ? PHONE_BUBBLE_Z_INDEX : FLOATING_WINDOW_Z_BASE}
       attributes={{ "data-memory-commit": true, "data-busy": busy }}
@@ -77,7 +78,7 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
       }}
       onOpen={() => {
         if (busy || streaming) return;
-        if (!data.pending) {
+        if (!pending) {
           toast.info(t("chat.committedMemory.upToDate"));
           return;
         }
@@ -87,12 +88,12 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
         });
       }}
     >
-      {data.pending > 0 && !busy && (
+      {pending > 0 && !busy && (
         <span
           className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-[var(--primary)] px-1 text-[10px] leading-4 text-[var(--primary-foreground)]"
           aria-hidden="true"
         >
-          {data.pending > 99 ? "99+" : data.pending}
+          {pending > 99 ? "99+" : pending}
         </span>
       )}
     </WindowBubble>

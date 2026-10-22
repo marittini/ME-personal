@@ -41,7 +41,7 @@ export const committedMemoryKoreanMessages: Record<string, string> = {
   "chat.committedMemory.factStatus.uncertain": "불확실",
   "chat.committedMemory.receipt": "최근 답변에 포함된 기억",
   "chat.committedMemory.receiptHelp":
-    "최종 프롬프트에 그대로 포함된 기억입니다. 매크로로 변환된 내용까지 포함한 전체 내용은 프롬프트 보기에서 확인하세요.",
+    "실제로 주입된 기억의 기록입니다. 한국어 표시는 읽기용이며 실제 컨텍스트에는 원문만 들어갑니다. 원문과 매크로 변환 결과는 프롬프트 보기에서 확인하세요.",
   "chat.committedMemory.noReceipt": "최근 답변에 기록된 기억이 없습니다.",
   "chat.committedMemory.upToDate": "새로 정리할 메시지가 없습니다.",
   "chat.committedMemory.vault.title": "기억보관함",
@@ -84,4 +84,28 @@ export const committedMemoryKoreanMessages: Record<string, string> = {
     "순정 요약과 동일한 연결 규칙을 사용합니다. 여기에 표시되는 것은 설정 확인 결과이며, API 인증과 응답 가능 여부는 요약 실행 시 확인합니다.",
   "chat.committedMemory.vault.outputTokens": "요약 최대 출력 토큰",
   "chat.committedMemory.vault.progress": "{{state}} {{completed}}/{{total}}",
+  "chat.committedMemory.vault.originalContent": "기억 원문 (AI에 주입되는 내용)",
+  "chat.committedMemory.vault.progressLabel": "약속 진행 상태",
+  "chat.committedMemory.vault.progress.all": "전체",
+  "chat.committedMemory.vault.progress.pending": "미완료",
+  "chat.committedMemory.vault.progress.in_progress": "진행 중",
+  "chat.committedMemory.vault.progress.completed": "완료",
+  "chat.committedMemory.vault.progress.cancelled": "취소",
+  "chat.committedMemory.vault.koreanDisplay": "기억보관함 한국어 표시",
+  "chat.committedMemory.vault.koreanDisplayHelp":
+    "기억 생성 응답에서 원문과 한국어 표시본을 함께 받습니다. AI 컨텍스트에는 원문만 들어갑니다. 한국어 표시본이 없는 기존 기록은 원문을 표시합니다.",
+  "chat.committedMemory.vault.sourceMode": "요약 대상 범위",
+  "chat.committedMemory.vault.sourceMode.pending": "모든 미확정 메시지",
+  "chat.committedMemory.vault.sourceMode.last": "최근 N개 메시지",
+  "chat.committedMemory.vault.sourceMode.range": "메시지 구간 직접 지정",
+  "chat.committedMemory.vault.contextSize": "최근 메시지 개수 (5–500)",
+  "chat.committedMemory.vault.rangeStart": "시작 메시지 번호",
+  "chat.committedMemory.vault.rangeEnd": "끝 메시지 번호",
+  "chat.committedMemory.vault.rangeHelp":
+    "순정 요약의 구간 선택 방식을 사용합니다. 숨긴 메시지와 이미 확정한 버전은 건너뛰며, 범위를 바꿔도 기존 기억을 지우지 않습니다.",
+  "chat.committedMemory.vault.rangeInvalid": "이 대화에 있는 유효한 구간을 지정하세요 (최대 500개 메시지).",
+  "chat.committedMemory.vault.hideSummarised": "요약된 메시지를 AI 컨텍스트에서 숨기기",
+  "chat.committedMemory.vault.hideHelp":
+    "순정의 숨김·최근 대화 보존 규칙을 컨텍스트 구성 시 적용합니다. 원문은 유지되며 요약이 무효화되면 다시 포함됩니다.",
+  "chat.committedMemory.vault.tail": "원문으로 남길 최근 메시지 수 (0 이상)",
 };
