@@ -41,3 +41,15 @@ embedding delay: cold/warm times are fixture measurements, not production latenc
 Repeated document embedding count drops from two cold documents to zero with the
 persisted index. Existing memory and native summary regressions remain required.
 
+
+## Output and grouping follow-up
+
+- Model lifecycle aliases in fact status must normalize only when unambiguous;
+  certainty and knowledge-scope/source validation remain authoritative.
+- Malformed JSON/schema output gets one same-transcript regeneration attempt,
+  without repairing or saving incomplete content. Repeated failure leaves coverage pending.
+- Summary range and messages-per-summary are separate controls. Vault and floating
+  action share persisted grouping; explicit request grouping wins, followed by the
+  unified setting, existing native summaryContextSize, then the legacy 20 default.
+- Requests may use 1–500 messages per group. Token/context/output limits still
+  split oversized groups. Source-reference validation supports the larger group.
