@@ -6826,15 +6826,21 @@ strong {
 
 @media (max-width: 767px) {
   .mari-message-actions {
-    flex-wrap: nowrap;
-    column-gap: 0;
+    flex-wrap: wrap;
+    gap: 0.25rem;
     padding-inline: 0;
   }
 
   .mari-message-actions > button,
   .mari-message-actions > div {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 44px;
+  }
+
+  .mari-message-actions > button,
+  .mari-message-actions > div > button {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .mari-message-actions > div > button {
@@ -8728,4 +8734,13 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 [data-reader-focus="true"] .rpg-overlay,
 [data-reader-focus="true"] .rpg-vignette {
   display: none;
+}
+
+/* Touch message actions expand on the existing tap/focus state without reserving empty rows. */
+@media (hover: none) and (pointer: coarse) and (max-width: 767px) {
+  .mari-message-actions:not(.opacity-100):not(:focus-within) {
+    max-height: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
 }
