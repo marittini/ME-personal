@@ -27,6 +27,8 @@ const { migrateStoredPngs } = await import("../../packages/server/src/services/i
 const { safeFetch } = await import("../../packages/server/src/utils/security.js");
 const db = await getDB();
 const app = Fastify();
+const { default: multipart } = await import("../../packages/server/node_modules/@fastify/multipart/index.js");
+await app.register(multipart);
 app.decorate("db", db);
 await app.register(charactersRoutes, { prefix: "/api/characters" });
 await app.register(avatarsRoutes, { prefix: "/api/avatars" });
@@ -51,6 +53,31 @@ try {
     assert.match(String(file.headers["content-type"]), /image\/webp/);
     assert.equal(file.rawPayload.toString("ascii", 8, 12), "WEBP");
   }
+  const beforeCover = await storage.getById(character.id);
+  const boundary = "library-cover-fixture";
+  const coverUpload = await app.inject({
+    method: "POST",
+    url: "/api/avatars/library-cover",
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+    payload: Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="cover.png"\r\nContent-Type: image/png\r\n\r\n`,
+      ),
+      png,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]),
+  });
+  assert.equal(coverUpload.statusCode, 200, coverUpload.body);
+  const coverUrl = coverUpload.json().url;
+  assert.match(coverUrl, /^\/api\/avatars\/file\/library-cover-.*\.webp$/);
+  const savedCover = await app.inject({ method: "GET", url: `${coverUrl}?w=320` });
+  assert.equal(savedCover.statusCode, 200, savedCover.body);
+  assert.match(String(savedCover.headers["content-type"]), /image\/webp/);
+  assert.deepEqual(
+    (await storage.getById(character.id))?.data,
+    beforeCover?.data,
+    "cover upload leaves the character unchanged",
+  );
   writeFileSync(join(directory, "avatars", "legacy.png"), png);
   await migrateStoredPngs(directory);
   const legacy = await app.inject({ method: "GET", url: "/api/avatars/file/legacy.png" });

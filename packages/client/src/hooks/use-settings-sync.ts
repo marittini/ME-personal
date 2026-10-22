@@ -19,6 +19,7 @@ import {
   MAX_APP_SETTINGS_VALUE_LENGTH,
   normalizeImageStyleProfileSettings,
   normalizeQuoteFormat,
+  normalizeLibraryCovers,
   type AppSettingsResponse,
 } from "@marinara-engine/shared";
 import { api } from "../lib/api-client";
@@ -69,6 +70,7 @@ const LOCAL_ONLY_SETTING_KEYS = [
 
 export function omitLocalOnlySettings(settings: ParsedSettings): ParsedSettings {
   const sanitized = { ...settings };
+  if ("libraryCovers" in sanitized) sanitized.libraryCovers = normalizeLibraryCovers(sanitized.libraryCovers);
   for (const key of LOCAL_ONLY_SETTING_KEYS) {
     delete sanitized[key];
   }

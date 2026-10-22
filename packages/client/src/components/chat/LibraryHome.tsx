@@ -16,14 +16,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { BACKGROUND_THUMBNAIL_WIDTH, normalizeAvatarCrop, type AvatarCrop, type Chat } from "@marinara-engine/shared";
+import { type AvatarCrop, type Chat } from "@marinara-engine/shared";
 import { useCharacterSummaries } from "../../hooks/use-characters";
 import { useChats, useCreateChat, useDeleteChat, useUpdateChat } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
 import { showChoiceDialog, showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import { imagePreviewUrl } from "../../lib/image-preview-url";
 import { useHomeFeed } from "../../hooks/use-home-feed";
-import { chatBackgroundMetadataToUrl } from "../../lib/backgrounds";
 import { cn, getAvatarCropStyle } from "../../lib/utils";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useChatStore } from "../../stores/chat.store";
@@ -32,6 +31,9 @@ import { useDialogStore } from "../../stores/dialog.store";
 
 const LibrarySettingsHome = lazy(() =>
   import("./LibrarySettingsHome").then((module) => ({ default: module.LibrarySettingsHome })),
+);
+const LibraryCoverEditor = lazy(() =>
+  import("./LibraryCoverEditor").then((module) => ({ default: module.LibraryCoverEditor })),
 );
 
 type LibrarySection = "home" | "library" | "record" | "settings";
@@ -78,7 +80,7 @@ function WorkCover({ work, className }: { work: VirtualWork; className?: string 
       aria-hidden="true"
     >
       {work.coverUrl && failedUrl !== work.coverUrl ? (
-        <span className={work.coverCrop ? "absolute left-1/2 top-0 aspect-square h-full -translate-x-1/2" : "contents"}>
+        <span className="absolute inset-0">
           <img
             src={work.coverUrl}
             alt=""
@@ -106,6 +108,8 @@ export function LibraryHome() {
   const { t, i18n } = useTranslation();
   const navigation = useUIStore((state) => state.libraryNavigation);
   const positions = useUIStore((state) => state.readerPositions);
+  const covers = useUIStore((state) => state.libraryCovers);
+  const [editingCover, setEditingCover] = useState<string | null>(null);
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
   const { section, query } = navigation;
@@ -150,9 +154,6 @@ export function LibraryHome() {
       const primaryCharacter = activeChat.characterIds
         .map((characterId) => characterById.get(characterId))
         .find(Boolean);
-      const background = ordered
-        .map((chat) => chatBackgroundMetadataToUrl(chat.metadata?.background, BACKGROUND_THUMBNAIL_WIDTH))
-        .find((url): url is string => Boolean(url));
       return {
         id,
         title:
@@ -161,8 +162,8 @@ export function LibraryHome() {
             .filter(Boolean)
             .join(" · ") || activeChat.name,
         author: primaryCharacter?.name ?? t("libraryShell.unknownAuthor"),
-        coverUrl: primaryCharacter?.avatarUrl ? imagePreviewUrl(primaryCharacter.avatarUrl) : (background ?? null),
-        coverCrop: normalizeAvatarCrop(primaryCharacter?.avatarCrop),
+        coverUrl: covers[id]?.url ? imagePreviewUrl(covers[id].url) : null,
+        coverCrop: covers[id]?.crop ?? null,
         chats: ordered,
         activeChat,
         lastMessageAt: activeChat.lastMessageAt ?? activeChat.updatedAt,
@@ -170,7 +171,7 @@ export function LibraryHome() {
         preview: ordered.map((chat) => previewByChat.get(chat.id)).find(Boolean) ?? null,
       };
     }).sort((a, b) => workTimestamp(b.activeChat) - workTimestamp(a.activeChat));
-  }, [characters.data, chats.data, feed.data?.recentChats, t, unreadCounts]);
+  }, [characters.data, chats.data, feed.data?.recentChats, t, unreadCounts, covers]);
 
   const selectedWork = works.find((work) => work.id === navigation.selectedWorkId) ?? null;
   useBackDismiss(!!selectedWork && !overlayOpen && !dialogOpen, () => setSelectedWork(null));
@@ -314,7 +315,17 @@ export function LibraryHome() {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(2rem,env(safe-area-inset-bottom))] md:px-10">
           <div className="mx-auto max-w-3xl">
             <section className="grid grid-cols-[7.2rem_minmax(0,1fr)] gap-6 border-b border-[var(--border)] pb-8 pt-5 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-10 md:pb-10">
-              <WorkCover work={selectedWork} className="aspect-[2/3] w-full" />
+              <div className="min-w-0">
+                <WorkCover work={selectedWork} className="aspect-[2/3] w-full" />
+                <button
+                  type="button"
+                  className="mt-2 min-h-11 w-full rounded-md border border-[var(--border)] px-2 text-sm"
+                  aria-expanded={editingCover === selectedWork.id}
+                  onClick={() => setEditingCover(editingCover === selectedWork.id ? null : selectedWork.id)}
+                >
+                  {t("libraryCover.edit")}
+                </button>
+              </div>
               <div className="flex min-w-0 flex-col justify-end">
                 <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-4xl">{selectedWork.title}</h1>
                 <p className="mt-5 text-xs text-[var(--muted-foreground)]">
@@ -329,6 +340,15 @@ export function LibraryHome() {
                 </button>
               </div>
             </section>
+            {editingCover === selectedWork.id && (
+              <Suspense fallback={<p role="status">{t("libraryCover.loading")}</p>}>
+                <LibraryCoverEditor
+                  key={selectedWork.id}
+                  workId={selectedWork.id}
+                  onClose={() => setEditingCover(null)}
+                />
+              </Suspense>
+            )}
 
             <section className="pt-8">
               <div className="flex items-center justify-between gap-4">

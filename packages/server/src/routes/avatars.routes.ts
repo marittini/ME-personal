@@ -6,6 +6,8 @@ import type { FastifyInstance } from "fastify";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 import { parseAgentSettingsRecord } from "@marinara-engine/shared";
 import { logger } from "../lib/logger.js";
 import { DATA_DIR } from "../utils/data-dir.js";
@@ -43,6 +45,19 @@ function isValidFilename(name: string): boolean {
 }
 
 export async function avatarsRoutes(app: FastifyInstance) {
+  /** Independent library art: never changes a character's profile or source image. */
+  app.post("/library-cover", async (req, reply) => {
+    const file = await req.file({ limits: { fileSize: 20 * 1024 * 1024 } });
+    if (!file) return reply.status(400).send({ error: "No image uploaded" });
+    const bytes = await file.toBuffer();
+    if (!isAllowedImageBuffer(bytes)) return reply.status(400).send({ error: "Unsupported image" });
+    const converted = await toStoredWebp(bytes);
+    const filename = `library-cover-${randomUUID()}.${converted.ext}`;
+    ensureDir();
+    await writeFile(join(AVATAR_DIR, filename), converted.buffer, { flag: "wx" });
+    return { url: `/api/avatars/file/${filename}`, crop: null };
+  });
+
   /** Serve an avatar image file. */
   app.get("/file/:filename", async (req, reply) => {
     ensureDir();

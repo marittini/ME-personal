@@ -291,6 +291,8 @@ export type GameStoryboardViewerDisplayMode = "floating" | "background";
 
 /** Extra metadata stored on a chat. */
 export interface ChatMetadata {
+  /** Convo has its own viewer; legacy explicitly follows the engine display preference. */
+  conversationViewerStyle?: "bubble" | "classic" | "legacy";
   /** Speech delivery guidance is room-local and independent of paid audio playback. */
   ttsInstructionsEnabled?: boolean;
   ttsTaggedDialogue?: boolean;

@@ -15,6 +15,8 @@ import {
   LOCAL_SIDECAR_CONNECTION_ID,
   normalizeImageStyleProfileSettings,
   normalizeQuoteFormat,
+  normalizeLibraryCovers,
+  type LibraryCover,
   type ImageStyleProfileSettings,
   type GenerateSpatialMapDraftResponse,
   type LorebookCategory,
@@ -892,6 +894,7 @@ interface UIState {
   // ── Settings (persisted) ──
   readerPreferences: ReaderPreferences;
   readerPositions: Record<string, ReaderPosition>;
+  libraryCovers: Record<string, LibraryCover>;
   libraryNavigation: {
     section: "home" | "library" | "record" | "settings";
     query: string;
@@ -1608,6 +1611,7 @@ export function shownMariAppearancePack(state: UIState, playHours: number | null
  */
 export function pickSyncedSettings(state: UIState) {
   return {
+    libraryCovers: state.libraryCovers,
     libraryManualOrders: state.libraryManualOrders,
     showHomeBrowserAddressBar: state.showHomeBrowserAddressBar,
     showHomeBrowserDesktopBookmarksOnOtherTabs: state.showHomeBrowserDesktopBookmarksOnOtherTabs,
@@ -1895,6 +1899,7 @@ export function pickPersistedUIState(state: UIState) {
     chatFontSize: state.chatFontSize,
     readerPreferences: state.readerPreferences,
     readerPositions: state.readerPositions,
+    libraryCovers: state.libraryCovers,
     fontFamily: state.fontFamily,
     chatWidgetPreset: state.chatWidgetPreset,
     chatWidgetFont: state.chatWidgetFont,
@@ -2199,6 +2204,7 @@ export const useUIStore = create<UIState>()(
           align: "start",
         },
         readerPositions: {},
+        libraryCovers: {},
         libraryNavigation: { section: "home", query: "", selectedWorkId: null },
         fontSize: 17 as FontSize,
         language: "ko" as AppLanguage,
@@ -4170,6 +4176,7 @@ export const useUIStore = create<UIState>()(
         return {
           ...currentState,
           ...persisted,
+          libraryCovers: normalizeLibraryCovers(persisted.libraryCovers),
           readerPreferences: {
             ...currentState.readerPreferences,
             ...(persisted.readerPreferences && typeof persisted.readerPreferences === "object"

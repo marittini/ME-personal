@@ -453,7 +453,13 @@ export function ConversationView({
   const streamingCharacterId = useChatStore((s) => s.streamingCharacterId);
   const typingCharacterName = useChatStore((s) => s.typingCharacterName);
   const delayedCharacterInfo = useChatStore((s) => s.delayedCharacterInfo);
-  const conversationMessageStyle = useUIStore((s) => s.conversationMessageStyle);
+  const engineMessageStyle = useUIStore((s) => s.conversationMessageStyle);
+  const conversationMessageStyle =
+    chatMeta.conversationViewerStyle === "legacy"
+      ? engineMessageStyle
+      : chatMeta.conversationViewerStyle === "classic"
+        ? "classic"
+        : "bubble";
   const hasDraftInput = useChatStore((s) => s.hasCurrentInput);
   const isGroupConversation = chatCharIds.length > 1;
   const liveTypingName = useMemo(() => {

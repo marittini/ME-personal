@@ -66,6 +66,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
       data-component="ReaderWorkspace"
       data-reader-enabled={enabled || undefined}
+      data-reader-mode={enabled ? chat?.mode : undefined}
       data-reader-focus={(enabled && focus) || undefined}
       data-reader-streaming={streaming || undefined}
       data-reader-tools={tools || undefined}
@@ -135,6 +136,26 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       {children}
       <Modal open={settings} onClose={() => setSettings(false)} title={t("reader.settings")}>
         <div className="space-y-6 p-5">
+          {chat?.mode === "conversation" && (
+            <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+              {t("reader.conversationViewer")}
+              <select
+                className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
+                value={chat.metadata.conversationViewerStyle ?? "bubble"}
+                disabled={updateMetadata.isPending}
+                onChange={(event) =>
+                  updateMetadata.mutate(
+                    { id: chat.id, conversationViewerStyle: event.target.value as "bubble" | "classic" | "legacy" },
+                    { onError: () => toast.error(t("reader.viewerSaveFailed")) },
+                  )
+                }
+              >
+                <option value="bubble">{t("reader.viewerBubble")}</option>
+                <option value="classic">{t("reader.viewerClassic")}</option>
+                <option value="legacy">{t("reader.viewerLegacy")}</option>
+              </select>
+            </label>
+          )}
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.speech")}
             <input

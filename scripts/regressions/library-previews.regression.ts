@@ -6,6 +6,16 @@ import { createRequire } from "node:module";
 import { imagePreviewUrl } from "../../packages/client/src/lib/image-preview-url.js";
 import { libraryChatGroupKey } from "../../packages/client/src/lib/library-chat-group.js";
 import { chatBackgroundMetadataToUrl } from "../../packages/client/src/lib/backgrounds.js";
+import { normalizeLibraryCovers } from "../../packages/shared/src/schemas/library-cover.schema.js";
+
+const cover = { url: "/api/avatars/file/library-cover-00000000-0000-4000-8000-000000000001.webp", crop: null };
+assert.deepEqual(normalizeLibraryCovers({ work: cover }), { work: cover });
+assert.deepEqual(normalizeLibraryCovers({ work: { ...cover, url: "https://example.com/track.webp" } }), {});
+assert.deepEqual(
+  normalizeLibraryCovers({ work: { ...cover, crop: { srcX: 0.9, srcY: 0, srcWidth: 1, srcHeight: 1 } } }),
+  {},
+);
+assert.deepEqual(normalizeLibraryCovers(null), {});
 
 assert.equal(
   imagePreviewUrl("/api/avatars/file/profile.webp?v=2#crop"),
