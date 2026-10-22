@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
 import { ArrowLeft, BookOpen, ChevronDown, PencilLine, Settings2, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
@@ -8,9 +8,20 @@ import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
 import { requestChatScrollToBottom } from "../../lib/chat-scroll-events";
+import {
+  readerExcerptsSchema,
+  readerExcerptSchema,
+  type ReaderExcerpt,
+  type ReaderExcerptAnchor,
+} from "@marinara-engine/shared";
+import { captureExcerptAnchors } from "../../lib/reader-excerpt-anchors";
+import { useReaderHighlights } from "../../hooks/use-reader-highlights";
+import { showConfirmDialog } from "../../lib/app-dialogs";
 import { Modal } from "../ui/Modal";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
+import { useReaderFonts } from "../../hooks/use-reader-fonts";
+import { getChatWidgetFontFamily } from "../../lib/font-family";
 import { toast } from "sonner";
 import { TTSRoomMenu } from "./TTSRoomMenu";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
@@ -25,6 +36,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const { data: chat } = useChat(chatId);
   const streaming = useChatStore((state) => state.isStreaming && state.streamingChatId === chatId);
   const preferences = useUIStore((state) => state.readerPreferences);
+  const { data: customFonts } = useReaderFonts();
   const fontSize = useUIStore((state) => state.chatFontSize);
   const theme = useUIStore((state) => state.theme);
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
@@ -33,9 +45,16 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const [tools, setTools] = useState(false);
   const [settings, setSettings] = useState(false);
   const [excerptSelection, setExcerptSelection] = useState("");
-  const [excerpt, setExcerpt] = useState<string | null>(null);
+  const [excerpt, setExcerpt] = useState<ReaderExcerpt | null>(null);
+  const [excerptList, setExcerptList] = useState(false);
+  const selectionAnchors = useRef<ReaderExcerptAnchor[]>([]);
+  const excerpts = useMemo(() => {
+    const parsed = readerExcerptsSchema.safeParse(chat?.metadata.readerExcerpts ?? []);
+    return parsed.success ? parsed.data : [];
+  }, [chat?.metadata.readerExcerpts]);
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
+  useReaderHighlights(root, excerpts, enabled && surfaceActive);
   const back = () => {
     if (chat) {
       const workId = libraryChatGroupKey(chat);
@@ -60,6 +79,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     setSettings(false);
     setExcerpt(null);
     setExcerptSelection("");
+    setExcerptList(false);
+    selectionAnchors.current = [];
   }, [chatId]);
   useEffect(() => {
     if (!enabled || !surfaceActive) return;
@@ -67,6 +88,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       const selection = window.getSelection();
       const node = selection?.anchorNode?.parentElement;
       const end = selection?.focusNode?.parentElement;
+      if (selection && root.current && selection.toString().trim())
+        selectionAnchors.current = captureExcerptAnchors(root.current, selection);
       setExcerptSelection(
         node?.closest(".mari-message-content") && root.current?.contains(node) && end && root.current.contains(end)
           ? (selection?.toString() ?? "")
@@ -97,7 +120,9 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           "--reader-letter-spacing": `${preferences.letterSpacing}px`,
           "--reader-gap": `${preferences.paragraphGap}em`,
           "--reader-width": `${preferences.width}px`,
-          "--reader-font": "inherit",
+          "--reader-font":
+            getChatWidgetFontFamily(preferences.font === "serif" ? "@serif" : preferences.font) ?? "inherit",
+          "--reader-indent": `${Number.isFinite(preferences.indent) ? Math.max(0, Math.min(4, preferences.indent)) : 0}em`,
           "--reader-align": preferences.align,
         } as CSSProperties
       }
@@ -105,12 +130,21 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       {enabled && (
         <header
           className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--background)] px-2 pt-[env(safe-area-inset-top)] text-[var(--foreground)]"
+          data-chat-window-top-obstacle=""
           aria-label={t("reader.navigation")}
         >
           <button className={control} onClick={back} aria-label={t("reader.back")}>
             <ArrowLeft size={20} />
           </button>
           <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
+          <button
+            className={control}
+            onClick={() => setExcerptList(true)}
+            aria-label={t("reader.excerpts")}
+            title={t("reader.excerpts")}
+          >
+            <PencilLine size={18} />
+          </button>
           <button
             className={control}
             onClick={() => setFocus(!focus)}
@@ -163,7 +197,14 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => {
             if (excerptSelection.length > 20000) toast.error(t("integrations.excerptLimit"));
-            else setExcerpt(excerptSelection);
+            else
+              setExcerpt({
+                id: crypto.randomUUID(),
+                text: excerptSelection,
+                marks: [],
+                anchors: selectionAnchors.current,
+                updatedAt: new Date().toISOString(),
+              });
           }}
         >
           {t("integrations.excerpt")}
@@ -178,10 +219,98 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
         {excerpt !== null && (
           <div className="p-4">
             <Suspense fallback={<p role="status">{t("integrations.loading")}</p>}>
-              <ExcerptStudio initialText={excerpt} />
+              <ExcerptStudio
+                key={excerpt.id}
+                initialText={excerpt.text}
+                initialMarks={excerpt.marks}
+                saving={updateMetadata.isPending}
+                onSave={(text, marks) => {
+                  if (!chatId) return;
+                  const result = readerExcerptSchema.safeParse({
+                    ...excerpt,
+                    text,
+                    marks,
+                    updatedAt: new Date().toISOString(),
+                  });
+                  if (!result.success || (excerpts.length >= 200 && !excerpts.some((row) => row.id === excerpt.id))) {
+                    toast.error(t("reader.excerptLimit"));
+                    return;
+                  }
+                  updateMetadata.mutate(
+                    { id: chatId, readerExcerpts: [...excerpts.filter((row) => row.id !== excerpt.id), result.data] },
+                    {
+                      onSuccess: () => {
+                        setExcerpt(result.data);
+                        toast.success(t("integrations.saved"));
+                      },
+                      onError: () => toast.error(t("integrations.saveError")),
+                    },
+                  );
+                }}
+              />
             </Suspense>
           </div>
         )}
+      </Modal>
+      <Modal open={excerptList} onClose={() => setExcerptList(false)} title={t("reader.excerpts")}>
+        <div className="space-y-3 p-4">
+          {!excerpts.length && (
+            <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">{t("reader.noExcerpts")}</p>
+          )}
+          {[...excerpts].reverse().map((entry) => (
+            <article key={entry.id} className="space-y-3 rounded-lg border border-[var(--border)] p-3">
+              <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm">{entry.text}</p>
+              <div className="flex flex-wrap gap-2 text-sm">
+                <button
+                  className={control}
+                  onClick={() => {
+                    setExcerptList(false);
+                    setExcerpt(entry);
+                  }}
+                >
+                  {t("reader.editExcerpt")}
+                </button>
+                <button
+                  className={control}
+                  disabled={!entry.anchors.length}
+                  onClick={() => {
+                    const anchor = entry.anchors[0];
+                    if (chatId && anchor) {
+                      setExcerptList(false);
+                      useChatStore
+                        .getState()
+                        .requestGotoMessage(chatId, anchor.messageNumber, undefined, anchor.messageId);
+                    }
+                  }}
+                >
+                  {t("reader.excerptSource")}
+                </button>
+                <button
+                  className={control}
+                  disabled={updateMetadata.isPending}
+                  onClick={async () => {
+                    if (
+                      !chatId ||
+                      !(await showConfirmDialog({
+                        title: t("reader.deleteExcerpt"),
+                        message: t("reader.deleteExcerptConfirm"),
+                        confirmLabel: t("reader.deleteExcerpt"),
+                        cancelLabel: t("reader.cancel"),
+                      }))
+                    )
+                      return;
+                    updateMetadata.mutate(
+                      { id: chatId, readerExcerpts: excerpts.filter((row) => row.id !== entry.id) },
+                      { onError: () => toast.error(t("integrations.saveError")) },
+                    );
+                  }}
+                >
+                  {t("reader.deleteExcerpt")}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
       </Modal>
       <Modal open={settings} onClose={() => setSettings(false)} title={t("reader.settings")}>
         <div className="space-y-6 p-5">
@@ -290,6 +419,34 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               onChange={(event) => useUIStore.getState().setChatFontSize(Number(event.target.value))}
             />
           </label>
+          <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+            {t("reader.font")}
+            <select
+              aria-label={t("reader.font")}
+              className="min-h-11 max-w-[65%] rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
+              value={preferences.font}
+              onChange={(event) => patch({ font: event.target.value })}
+            >
+              <option value="inherit">{t("reader.fontDefault")}</option>
+              <option value="@sans">{t("reader.fontSans")}</option>
+              <option value="@serif">{t("reader.fontSerif")}</option>
+              <option value="@mono">{t("reader.fontMono")}</option>
+              {preferences.font === "serif" && <option value="serif">{t("reader.fontSerif")}</option>}
+              {[...new Set((customFonts ?? []).map((font) => font.family))].map((family) => (
+                <option key={family} value={`custom:${family}`}>
+                  {family}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ReaderNumberSetting
+            label={t("reader.indent")}
+            unit="em"
+            value={preferences.indent ?? 0}
+            min={0}
+            max={4}
+            onChange={(indent) => patch({ indent })}
+          />
           <ReaderNumberSetting
             label={t("reader.letterSpacingLabel")}
             unit="px"

@@ -1,3 +1,4 @@
+import type { ReaderExcerpt } from "../schemas/reader-excerpt.schema.js";
 import type { CommittedMemoryState } from "./committed-memory.js";
 // ──────────────────────────────────────────────
 // Chat & Message Types
@@ -296,6 +297,8 @@ export interface ChatMetadata {
   /** Speech delivery guidance is room-local and independent of paid audio playback. */
   ttsInstructionsEnabled?: boolean;
   ttsTaggedDialogue?: boolean;
+  /** Display-only reading annotations, never prompt content. */
+  readerExcerpts?: ReaderExcerpt[];
   ttsDialogueButtonsEnabled?: boolean;
   ttsMenuPosition?: { x: number; y: number };
   /** Fresh, explicitly reviewed setup for an optional shared session. */

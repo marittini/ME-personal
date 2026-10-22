@@ -7,11 +7,23 @@ import { useUploadLibraryCover } from "../../hooks/use-library-cover";
 import { useUIStore } from "../../stores/ui.store";
 
 /** A 2:3 crop preview uses the same source rectangle as every rendered cover. */
-export function LibraryCoverEditor({ workId, onClose }: { workId: string; onClose: () => void }) {
+export function LibraryCoverEditor({
+  workId,
+  onClose,
+  onDirtyChange,
+}: {
+  workId: string;
+  onClose: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const { t } = useTranslation();
   const saved = useUIStore((state) => state.libraryCovers[workId]);
   const [draft, setDraft] = useState<LibraryCover | null>(saved ?? null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const [zoom, setZoom] = useState(1);
   const [x, setX] = useState(0.5);
   const [y, setY] = useState(0.5);
@@ -44,6 +56,8 @@ export function LibraryCoverEditor({ workId, onClose }: { workId: string; onClos
   const save = () => {
     if (!draft || !crop) return;
     useUIStore.setState((state) => ({ libraryCovers: { ...state.libraryCovers, [workId]: { ...draft, crop } } }));
+    setDirty(false);
+    onDirtyChange?.(false);
     onClose();
   };
   const button = "min-h-11 rounded-md border border-[var(--border)] px-4 text-sm disabled:opacity-40";
@@ -60,6 +74,7 @@ export function LibraryCoverEditor({ workId, onClose }: { workId: string; onClos
           const file = event.target.files?.[0];
           event.target.value = "";
           if (!file) return;
+          setDirty(true);
           try {
             const result = await upload.mutateAsync(file);
             if (!mounted.current) return;
@@ -109,7 +124,10 @@ export function LibraryCoverEditor({ workId, onClose }: { workId: string; onClos
                 step={0.01}
                 value={value}
                 disabled={!size || upload.isPending}
-                onChange={(event) => setter(Number(event.target.value))}
+                onChange={(event) => {
+                  setDirty(true);
+                  setter(Number(event.target.value));
+                }}
               />
             </label>
           ))}
@@ -133,6 +151,8 @@ export function LibraryCoverEditor({ workId, onClose }: { workId: string; onClos
                 delete covers[workId];
                 return { libraryCovers: covers };
               });
+              setDirty(false);
+              onDirtyChange?.(false);
               onClose();
             }}
           >

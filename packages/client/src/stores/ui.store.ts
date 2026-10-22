@@ -1,3 +1,4 @@
+import { normalizeReaderPreferences, type ReaderPreferences } from "../lib/reader-preferences";
 // ──────────────────────────────────────────────
 // Zustand Store: UI Slice
 // ──────────────────────────────────────────────
@@ -16,6 +17,8 @@ import {
   normalizeImageStyleProfileSettings,
   normalizeQuoteFormat,
   normalizeLibraryCovers,
+  normalizeLibraryCustomizations,
+  type LibraryCustomization,
   type LibraryCover,
   type ImageStyleProfileSettings,
   type GenerateSpatialMapDraftResponse,
@@ -60,14 +63,6 @@ export type Panel =
 export type ChatModeShortcut = "conversation" | "roleplay" | "game";
 
 export type ReaderPosition = { messageId: string; messageNumber: number; offset: number; updatedAt: string };
-export type ReaderPreferences = {
-  letterSpacing: number;
-  lineHeight: number;
-  paragraphGap: number;
-  width: number;
-  font: "inherit" | "serif";
-  align: "start" | "justify";
-};
 
 /** Not saved: a Home surface the omnibar or a Command Center row asks Home to open. */
 export type HomeRequest = { kind: "faq" | "widgets" | "credits" } | { kind: "tab"; tab: string };
@@ -895,6 +890,7 @@ interface UIState {
   readerPreferences: ReaderPreferences;
   readerPositions: Record<string, ReaderPosition>;
   libraryCovers: Record<string, LibraryCover>;
+  libraryCustomizations: Record<string, LibraryCustomization>;
   libraryNavigation: {
     section: "home" | "library" | "record" | "settings";
     query: string;
@@ -1612,6 +1608,7 @@ export function shownMariAppearancePack(state: UIState, playHours: number | null
 export function pickSyncedSettings(state: UIState) {
   return {
     libraryCovers: state.libraryCovers,
+    libraryCustomizations: state.libraryCustomizations,
     libraryManualOrders: state.libraryManualOrders,
     showHomeBrowserAddressBar: state.showHomeBrowserAddressBar,
     showHomeBrowserDesktopBookmarksOnOtherTabs: state.showHomeBrowserDesktopBookmarksOnOtherTabs,
@@ -1900,6 +1897,7 @@ export function pickPersistedUIState(state: UIState) {
     readerPreferences: state.readerPreferences,
     readerPositions: state.readerPositions,
     libraryCovers: state.libraryCovers,
+    libraryCustomizations: state.libraryCustomizations,
     fontFamily: state.fontFamily,
     chatWidgetPreset: state.chatWidgetPreset,
     chatWidgetFont: state.chatWidgetFont,
@@ -2201,10 +2199,12 @@ export const useUIStore = create<UIState>()(
           paragraphGap: 1,
           width: 720,
           font: "inherit",
+          indent: 0,
           align: "start",
         },
         readerPositions: {},
         libraryCovers: {},
+        libraryCustomizations: {},
         libraryNavigation: { section: "home", query: "", selectedWorkId: null },
         fontSize: 17 as FontSize,
         language: "ko" as AppLanguage,
@@ -4177,12 +4177,8 @@ export const useUIStore = create<UIState>()(
           ...currentState,
           ...persisted,
           libraryCovers: normalizeLibraryCovers(persisted.libraryCovers),
-          readerPreferences: {
-            ...currentState.readerPreferences,
-            ...(persisted.readerPreferences && typeof persisted.readerPreferences === "object"
-              ? persisted.readerPreferences
-              : {}),
-          },
+          libraryCustomizations: normalizeLibraryCustomizations(persisted.libraryCustomizations),
+          readerPreferences: normalizeReaderPreferences(persisted.readerPreferences),
           mariWindowHeightRem: normalizeMariWindowHeightRem(persisted.mariWindowHeightRem),
           mariWindowWidthRem: normalizeMariWindowWidthRem(persisted.mariWindowWidthRem),
           omnibarWindowWidthRem: normalizeOmnibarWindowWidthRem(persisted.omnibarWindowWidthRem),

@@ -1196,6 +1196,7 @@ export const ConversationMessage = memo(function ConversationMessage({
         className={cn("min-w-0", !noHoverGroup && "group")}
         tabIndex={0}
         data-message-id={message.id}
+        data-message-number={messageIndex}
         data-message-role={message.role}
         onClick={handleMobileTap}
       >

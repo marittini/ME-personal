@@ -1,4 +1,14 @@
 export const readerKoreanMessages: Record<string, string> = {
+  "libraryCustomization.switchWork": "작품 전환",
+  "libraryCustomization.discardDraft": "저장하지 않은 표지 변경을 취소하고 다른 작품으로 이동할까요?",
+
+  "libraryCustomization.title": "서재 꾸미기",
+  "libraryCustomization.help":
+    "이곳에서 서재 표지를 따로 올리고 자를 수 있습니다. 그룹 작품은 아래에서 선택해 공용 표지를 편집하세요. 캐릭터 아바타·카드 원본과는 별도로 저장합니다.",
+  "libraryCustomization.work": "꾸밀 작품",
+  "libraryCustomization.solo": "{{name}} · 단독 작품",
+  "libraryCustomization.loadError": "관련 작품을 불러오지 못했습니다.",
+
   "integrations.unnamedEntry": "이름 없는 항목",
   "integrations.translationLore": "로어북 참고 ({{count}}개 선택)",
   "integrations.lorebook": "로어북",

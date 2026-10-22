@@ -1,3 +1,5 @@
+import { normalizeReaderPreferences } from "../lib/reader-preferences";
+import { normalizeLibraryCustomizations } from "@marinara-engine/shared";
 // ──────────────────────────────────────────────
 // Hook: Cross-device UI settings sync
 // ──────────────────────────────────────────────
@@ -70,6 +72,10 @@ const LOCAL_ONLY_SETTING_KEYS = [
 
 export function omitLocalOnlySettings(settings: ParsedSettings): ParsedSettings {
   const sanitized = { ...settings };
+  if ("readerPreferences" in sanitized)
+    sanitized.readerPreferences = normalizeReaderPreferences(sanitized.readerPreferences);
+  if ("libraryCustomizations" in sanitized)
+    sanitized.libraryCustomizations = normalizeLibraryCustomizations(sanitized.libraryCustomizations);
   if ("libraryCovers" in sanitized) sanitized.libraryCovers = normalizeLibraryCovers(sanitized.libraryCovers);
   for (const key of LOCAL_ONLY_SETTING_KEYS) {
     delete sanitized[key];

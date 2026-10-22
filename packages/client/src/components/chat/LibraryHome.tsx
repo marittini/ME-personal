@@ -32,9 +32,6 @@ import { useDialogStore } from "../../stores/dialog.store";
 const LibrarySettingsHome = lazy(() =>
   import("./LibrarySettingsHome").then((module) => ({ default: module.LibrarySettingsHome })),
 );
-const LibraryCoverEditor = lazy(() =>
-  import("./LibraryCoverEditor").then((module) => ({ default: module.LibraryCoverEditor })),
-);
 
 type LibrarySection = "home" | "library" | "record" | "settings";
 
@@ -49,6 +46,7 @@ type VirtualWork = {
   lastMessageAt: string | null;
   unreadCount: number;
   preview: string | null;
+  description: string;
 };
 
 function workTimestamp(chat: Chat): number {
@@ -109,7 +107,7 @@ export function LibraryHome() {
   const navigation = useUIStore((state) => state.libraryNavigation);
   const positions = useUIStore((state) => state.readerPositions);
   const covers = useUIStore((state) => state.libraryCovers);
-  const [editingCover, setEditingCover] = useState<string | null>(null);
+  const customizations = useUIStore((state) => state.libraryCustomizations);
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
   const { section, query } = navigation;
@@ -157,11 +155,14 @@ export function LibraryHome() {
       return {
         id,
         title:
+          customizations[id]?.title.trim() ||
           activeChat.characterIds
             .map((characterId) => characterById.get(characterId)?.name)
             .filter(Boolean)
-            .join(" · ") || activeChat.name,
-        author: primaryCharacter?.name ?? t("libraryShell.unknownAuthor"),
+            .join(" · ") ||
+          activeChat.name,
+        author: customizations[id]?.displayName.trim() || primaryCharacter?.name || t("libraryShell.unknownAuthor"),
+        description: customizations[id]?.description ?? "",
         coverUrl: covers[id]?.url ? imagePreviewUrl(covers[id].url) : null,
         coverCrop: covers[id]?.crop ?? null,
         chats: ordered,
@@ -171,7 +172,7 @@ export function LibraryHome() {
         preview: ordered.map((chat) => previewByChat.get(chat.id)).find(Boolean) ?? null,
       };
     }).sort((a, b) => workTimestamp(b.activeChat) - workTimestamp(a.activeChat));
-  }, [characters.data, chats.data, feed.data?.recentChats, t, unreadCounts, covers]);
+  }, [characters.data, chats.data, feed.data?.recentChats, t, unreadCounts, covers, customizations]);
 
   const selectedWork = works.find((work) => work.id === navigation.selectedWorkId) ?? null;
   useBackDismiss(!!selectedWork && !overlayOpen && !dialogOpen, () => setSelectedWork(null));
@@ -317,17 +318,17 @@ export function LibraryHome() {
             <section className="grid grid-cols-[7.2rem_minmax(0,1fr)] gap-6 border-b border-[var(--border)] pb-8 pt-5 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-10 md:pb-10">
               <div className="min-w-0">
                 <WorkCover work={selectedWork} className="aspect-[2/3] w-full" />
-                <button
-                  type="button"
-                  className="mt-2 min-h-11 w-full rounded-md border border-[var(--border)] px-2 text-sm"
-                  aria-expanded={editingCover === selectedWork.id}
-                  onClick={() => setEditingCover(editingCover === selectedWork.id ? null : selectedWork.id)}
-                >
-                  {t("libraryCover.edit")}
-                </button>
               </div>
               <div className="flex min-w-0 flex-col justify-end">
-                <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-4xl">{selectedWork.title}</h1>
+                <h1 className="break-words text-2xl font-semibold leading-snug tracking-[-0.03em] md:text-4xl">
+                  {selectedWork.title}
+                </h1>
+                <p className="mt-2 break-words text-sm text-[var(--muted-foreground)]">{selectedWork.author}</p>
+                {selectedWork.description && (
+                  <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                    {selectedWork.description}
+                  </p>
+                )}
                 <p className="mt-5 text-xs text-[var(--muted-foreground)]">
                   {formatReadTime(selectedWork.lastMessageAt, locale, t("libraryShell.ready"))}
                 </p>
@@ -340,15 +341,6 @@ export function LibraryHome() {
                 </button>
               </div>
             </section>
-            {editingCover === selectedWork.id && (
-              <Suspense fallback={<p role="status">{t("libraryCover.loading")}</p>}>
-                <LibraryCoverEditor
-                  key={selectedWork.id}
-                  workId={selectedWork.id}
-                  onClose={() => setEditingCover(null)}
-                />
-              </Suspense>
-            )}
 
             <section className="pt-8">
               <div className="flex items-center justify-between gap-4">
@@ -382,7 +374,7 @@ export function LibraryHome() {
                       >
                         <Icon size="1rem" className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{chat.name}</span>
+                          <span className="block break-words text-sm font-semibold leading-snug">{chat.name}</span>
                           <span className="mt-0.5 block truncate text-xs text-[var(--muted-foreground)]">
                             {label} ·{" "}
                             {formatReadTime(chat.lastMessageAt ?? chat.updatedAt, locale, t("libraryShell.ready"))}
@@ -613,20 +605,28 @@ export function LibraryHome() {
               </div>
             </section>
           ) : (
-            <section className="border-t border-[var(--border)]">
+            <section className="border-t border-[var(--border)]" aria-label={t("reader.historyContents")}>
+              <h2 className="border-b border-[var(--border)] py-5 text-lg font-semibold">
+                {t("reader.historyContents")}
+              </h2>
               {readWorks.length === 0 && (
                 <p className="py-10 text-sm text-[var(--muted-foreground)]">{t("reader.noHistory")}</p>
               )}
-              {readWorks.map((work) => (
+              {readWorks.map((work, index) => (
                 <button
                   key={work.id}
                   type="button"
                   onClick={() => setSelectedWork(work)}
                   className="flex min-h-20 w-full items-center gap-4 border-b border-[var(--border)] py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 >
-                  <WorkCover work={work} className="h-14 w-10 shrink-0" />
+                  <span
+                    className="w-10 shrink-0 self-start pt-0.5 text-right text-sm tabular-nums text-[var(--muted-foreground)]"
+                    aria-hidden="true"
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{work.title}</span>
+                    <span className="block break-words text-sm font-semibold leading-snug">{work.title}</span>
                     <span className="mt-1 block text-xs text-[var(--muted-foreground)]">
                       {formatReadTime(work.lastMessageAt, locale, t("libraryShell.ready"))}
                     </span>

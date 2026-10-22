@@ -91,7 +91,13 @@ function LocationPicker({
   );
 }
 
-export function NativeIntegrationSettings({ kind }: { kind: "weather" | "translation" | "globalPreset" }) {
+export function NativeIntegrationSettings({
+  kind,
+  initialChatId = "",
+}: {
+  kind: "weather" | "translation" | "globalPreset";
+  initialChatId?: string;
+}) {
   const { t } = useTranslation();
   const query = useNativeIntegrations();
   const save = useSaveNativeIntegrations();
@@ -101,7 +107,7 @@ export function NativeIntegrationSettings({ kind }: { kind: "weather" | "transla
   const apply = useApplyGlobalPreset();
   const [draft, setDraft] = useState<NativeIntegrations | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [chatId, setChatId] = useState("");
+  const [chatId, setChatId] = useState(initialChatId);
   const extract = useExtractTranslationGlossary();
   const [sample, setSample] = useState("");
   useEffect(() => {

@@ -8,14 +8,24 @@ import { drawExcerpt, remapExcerptMarks, type ExcerptMark } from "../../lib/exce
 import { saveExportFile } from "../../lib/file-download";
 import { INTEGRATION_BUTTON as button, INTEGRATION_INPUT as field } from "./IntegrationControls";
 
-export function ExcerptStudio({ initialText = "" }: { initialText?: string }) {
+export function ExcerptStudio({
+  initialText = "",
+  initialMarks = [],
+  onSave,
+  saving = false,
+}: {
+  initialText?: string;
+  initialMarks?: ExcerptMark[];
+  onSave?: (text: string, marks: ExcerptMark[]) => void;
+  saving?: boolean;
+}) {
   const { t } = useTranslation();
   const saved = useNativeIntegrations();
   const save = useSaveNativeIntegrations();
   const upload = useUploadLibraryCover();
   const [settings, setSettings] = useState(() => nativeIntegrationsSchema.parse({}).excerpt);
   const [text, setText] = useState(initialText);
-  const [marks, setMarks] = useState<ExcerptMark[]>([]);
+  const [marks, setMarks] = useState<ExcerptMark[]>(initialMarks);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [replacement, setReplacement] = useState("");
   const [error, setError] = useState(false);
@@ -199,6 +209,16 @@ export function ExcerptStudio({ initialText = "" }: { initialText?: string }) {
       )}
       <canvas ref={canvas} className="mx-auto block h-auto max-w-full" aria-label={t("integrations.excerptPreview")} />
       <div className="flex flex-wrap gap-2">
+        {onSave && (
+          <button
+            className={button}
+            type="button"
+            disabled={saving || !text.trim()}
+            onClick={() => onSave(text, marks)}
+          >
+            {t("reader.saveExcerpt")}
+          </button>
+        )}
         <button
           className={button}
           type="button"

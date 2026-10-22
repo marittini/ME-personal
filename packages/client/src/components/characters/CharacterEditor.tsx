@@ -1,3 +1,4 @@
+import { CharacterLibraryCustomization } from "./CharacterLibraryCustomization";
 // ──────────────────────────────────────────────
 // Character Editor — Full-page detail view
 // Replaces the chat area when editing a character.
@@ -431,6 +432,7 @@ export function CharacterEditor() {
   const formatQuotes = useQuoteFormatter();
   const dirtyRef = useRef(false);
   const editRevisionRef = useRef(0);
+  const [libraryDirty, setLibraryDirty] = useState(false);
   const setEditorDirty = useUIStore((s) => s.setEditorDirty);
   // Report the focused field to the omnibar so "make this warmer" knows the target.
   const setActiveEditorField = useUIStore((s) => s.setActiveEditorField);
@@ -461,8 +463,8 @@ export function CharacterEditor() {
   }, [setDirtyState]);
   useEffect(() => {
     dirtyRef.current = dirty;
-    setEditorDirty(dirty);
-  }, [dirty, setEditorDirty]);
+    setEditorDirty(dirty || libraryDirty);
+  }, [dirty, libraryDirty, setEditorDirty]);
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -701,8 +703,20 @@ export function CharacterEditor() {
 
   useEditorLeaveSave(
     `characterDetailId:${characterId}`,
-    dirty,
-    handleSave,
+    dirty || libraryDirty,
+    async () => {
+      if (
+        libraryDirty &&
+        !(await showConfirmDialog({
+          title: localizeUi("reader.cancel"),
+          message: localizeUi("libraryCustomization.discardDraft"),
+          confirmLabel: localizeUi("reader.cancel"),
+          cancelLabel: localizeUi("libraryCustomization.keepEditing"),
+        }))
+      )
+        return false;
+      return dirty ? handleSave() : true;
+    },
     saving || avatarUploading || lorebookEmbedding,
   );
 
@@ -1177,7 +1191,7 @@ export function CharacterEditor() {
   );
 
   return (
-    <div className="mari-editor-shell mari-editor-legacy-bridge flex flex-1 flex-col overflow-hidden">
+    <div className="mari-editor-shell mari-editor-legacy-bridge flex min-h-0 flex-1 flex-col overflow-hidden">
       <ExportFormatDialog
         open={exportDialogOpen}
         title={localizeUi("ui.characters.charactereditor.exportCharacter_cdcda78")}
@@ -1383,6 +1397,14 @@ export function CharacterEditor() {
                 removingAvatar={removeAvatar.isPending}
                 hasUnsavedChanges={dirty}
               />
+              {characterId && (
+                <CharacterLibraryCustomization
+                  onDirtyChange={setLibraryDirty}
+                  key={characterId}
+                  characterId={characterId}
+                  characterName={formData.name}
+                />
+              )}
             </section>
             <section data-editor-section="card">
               <CharacterCardTab

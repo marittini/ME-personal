@@ -7,7 +7,7 @@ import {
   withTTSVoiceRequestCacheKeys,
   type CachedTTSVoiceRequest,
 } from "./tts-dialogue";
-import { parseTTSAudioLines, type TTSAudioParticipant } from "./tts-audio-tags";
+import { normalizeTTSAudioMarkup, parseTTSAudioLines, type TTSAudioParticipant } from "./tts-audio-tags";
 export type DialogueSpeechGroup = { requests: CachedTTSVoiceRequest[]; persona?: TTSAudioParticipant };
 /** One control per original utterance, even if synthesis needs several chunks. No text aliases across rooms/swipes. */
 export function buildDialogueSpeechGroups(
@@ -24,6 +24,7 @@ export function buildDialogueSpeechGroups(
     participants: TTSAudioParticipant[];
   },
 ): DialogueSpeechGroup[] {
+  text = normalizeTTSAudioMarkup(text);
   const { participants, characterId, speaker } = identity;
   let groups: Array<{ requests: ReturnType<typeof buildTTSVoiceRequests>; persona?: TTSAudioParticipant }>;
   if (identity.tagged && /<audio_(?:character|persona)\b|<[A-Za-z0-9_-]{1,200}>/i.test(text)) {

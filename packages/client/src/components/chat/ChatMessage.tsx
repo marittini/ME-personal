@@ -1,3 +1,4 @@
+import { markFormattedDialogue, markHtmlDialogue } from "../../lib/dialogue-render";
 import { MessageIntegrationTools } from "./MessageIntegrationTools";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
 // ──────────────────────────────────────────────
@@ -1268,7 +1269,7 @@ function highlightDialogue(
 
   // No dialogue quotes found — just apply markdown and return.
   if (quotePairs.length === 0) {
-    return applyInlineMarkdown(text, "m");
+    return markFormattedDialogue(applyInlineMarkdown(text, "m")) as ReactNode[];
   }
 
   // Step 3: Split text into quoted / non-quoted segments and render.
@@ -1311,7 +1312,7 @@ function highlightDialogue(
     result.push(...applyInlineMarkdown(text.slice(lastIndex), `mt${key}`));
   }
 
-  return result;
+  return markFormattedDialogue(result) as ReactNode[];
 }
 
 const MD_IMAGE_HTML_RE = /!\[([^\]]*)\]\(((?:https?:\/\/[^)\s]+|card:\/\/[^)\s]+|\/api\/[^)\s]+))\)/g;
@@ -1777,7 +1778,7 @@ function renderContent(
         const speakerQuoteRe = new RegExp(`(?<![=\\w])(?:${HTML_SAFE_DIALOGUE_QUOTE_PATTERN_SOURCE})`, "g");
         return content.replace(speakerQuoteRe, (match: string, offset: number) => {
           if (insideTag(content, offset)) return match;
-          return `<${dialogueTag} class="${CHARACTER_COLOR_CLASS}" style="color:${validColor}">${match}</${dialogueTag}>`;
+          return `<${dialogueTag} data-tts-dialogue="" class="${CHARACTER_COLOR_CLASS}" style="color:${validColor}">${match}</${dialogueTag}>`;
         });
       },
     );
@@ -1795,13 +1796,13 @@ function renderContent(
       }
       const highlightColor = safeColor(dialogueColor ?? "white");
       const colorClass = ownDialogueColor ? CHARACTER_COLOR_CLASS : FALLBACK_DIALOGUE_CLASS;
-      return `<${dialogueTag} class="${colorClass}" style="color:${highlightColor}">${match}</${dialogueTag}>`;
+      return `<${dialogueTag} data-tts-dialogue="" class="${colorClass}" style="color:${highlightColor}">${match}</${dialogueTag}>`;
     });
   })();
 
   // Apply markdown-style bold/italic in HTML path
   const withMarkdown = applyInlineMarkdownHTML(withDialogue);
-  const finalHtml = sanitizeChatHtml(withMarkdown, { allowStyle: true, remoteImages });
+  const finalHtml = markHtmlDialogue(sanitizeChatHtml(withMarkdown, { allowStyle: true, remoteImages }));
   const scopedCss = scopeChatMessageCss(rawStyleBlocks, `.${htmlScopeClass}`, { remoteUrls: remoteImages.loadAll });
   const html = scopedCss ? `<style>${scopedCss}</style>${finalHtml}` : finalHtml;
 
@@ -3027,6 +3028,11 @@ export const ChatMessage = memo(function ChatMessage({
 
   // Render content with dialogue highlighting (or HTML rendering)
   const fullText = typeof displayContent === "string" ? displayContent : message.content;
+  useEffect(() => {
+    document
+      .querySelector(`[data-message-id="${CSS.escape(message.id)}"]`)
+      ?.dispatchEvent(new Event("reader-content-rendered", { bubbles: true }));
+  }, [message.id, fullText, translatedText]);
   const vnParagraphs = useMemo(
     () => (visualNovel ? splitRoleplayParagraphs(fullText, isStreaming) : []),
     [fullText, isStreaming, visualNovel],
