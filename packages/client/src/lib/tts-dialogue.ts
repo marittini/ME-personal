@@ -114,6 +114,7 @@ function hashTTSCacheKey(value: string): string {
 
 function buildTTSConfigCacheSignature(config: TTSConfig): string {
   return [
+    config.connectionId,
     config.source,
     config.baseUrl,
     config.model,
@@ -476,9 +477,52 @@ export function buildTTSVoiceRequests(
   fallbackCharacterId?: string | null,
   resolveCharacterIdForSpeaker?: (speaker?: string | null) => string | null | undefined,
   participants: readonly TTSAudioParticipant[] = [],
+  roomSpeakerMode?: "tagged" | "native",
 ): TTSVoiceRequest[] {
-  if (/<audio_(?:character|persona)\b/i.test(text)) {
-    return parseTTSAudioLines(text, participants).flatMap((line) => {
+  if (roomSpeakerMode === "native") {
+    const clean = text
+      .replace(/<\/?audio_(?:character|persona)\b[^>]*>/gi, "")
+      .replace(/<\/?([A-Za-z0-9_-]{1,200})\s*>/g, (tag, id: string) =>
+        participants.filter((p) => p.id === id).length === 1 ? "" : tag,
+      );
+    return buildTTSVoiceRequests(
+      clean,
+      {
+        ...config,
+        voiceMode: "single",
+        voice: resolveTTSVoiceForSpeaker(config, fallbackSpeaker, fallbackCharacterId),
+      },
+      fallbackSpeaker,
+      fallbackCharacterId,
+      resolveCharacterIdForSpeaker,
+      participants,
+    );
+  }
+  if (
+    /<audio_(?:character|persona)\b/i.test(text) ||
+    (roomSpeakerMode === "tagged" && parseTTSAudioLines(text, participants).length)
+  ) {
+    const taggedLines = parseTTSAudioLines(text, participants);
+    if (
+      roomSpeakerMode === "tagged" &&
+      [...text.replace(/(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|`[^`\n]*`/g, "").matchAll(/<audio_(?:character|persona)\b/gi)]
+        .length > taggedLines.length
+    )
+      throw new Error("Unknown TTS participant");
+    return taggedLines.flatMap((line) => {
+      if (roomSpeakerMode === "tagged") {
+        const assigned =
+          line.kind === "persona"
+            ? config.personaVoiceAssignments?.find((row) => row.personaId === line.id)?.voice
+            : config.voiceAssignments.find((row) => row.characterId === line.id)?.voice;
+        if (!assigned?.trim()) throw new Error("Missing participant voice");
+        return splitTTSChunks(line.text, config).map((chunk) => ({
+          text: chunk,
+          speaker: line.name,
+          voice: assigned,
+          ...(line.kind === "character" ? { characterId: line.id } : {}),
+        }));
+      }
       const voice =
         line.kind === "persona"
           ? config.voiceMode === "per-character"
@@ -553,6 +597,7 @@ export function extractDialogueUtterances(
   text: string,
   fallbackSpeaker?: string | null,
   options: TTSReadOptions = {},
+  preserveRepeated = false,
 ): TTSUtterance[] {
   // Remove ordinary HTML before looking for quoted dialogue. Otherwise quote
   // marks inside style/class attributes are mistaken for spoken lines.
@@ -593,7 +638,7 @@ export function extractDialogueUtterances(
     }
   }
 
-  return dedupeUtterances(utterances);
+  return preserveRepeated ? utterances : dedupeUtterances(utterances);
 }
 
 function extractSpeakerTaggedUtterances(

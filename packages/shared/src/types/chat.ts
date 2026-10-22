@@ -296,6 +296,8 @@ export interface ChatMetadata {
   /** Speech delivery guidance is room-local and independent of paid audio playback. */
   ttsInstructionsEnabled?: boolean;
   ttsTaggedDialogue?: boolean;
+  ttsDialogueButtonsEnabled?: boolean;
+  ttsMenuPosition?: { x: number; y: number };
   /** Fresh, explicitly reviewed setup for an optional shared session. */
   multiplayerSetup?: boolean;
   multiplayerSetupComplete?: boolean;

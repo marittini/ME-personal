@@ -10,6 +10,7 @@ export async function translateText(text: string, direction: TranslationDirectio
   const result = await api.post<{ translatedText: string }>("/translate", {
     chatId: store.config.chatId,
     text,
+    direction,
     provider: store.config.provider,
     targetLanguage: isInput ? store.config.inputTargetLanguage : store.config.outputTargetLanguage,
     connectionId: store.config.connectionId,

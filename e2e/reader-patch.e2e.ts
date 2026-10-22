@@ -79,10 +79,11 @@ for (const mode of ["roleplay", "conversation"] as const) {
       expect(
         await page.locator("html").evaluate((el) => getComputedStyle(el).getPropertyValue("--primary").trim()),
       ).not.toBe("#ff00ff");
-      const speech = workspace.locator('[data-component="DialogueSpeechControls"]').first();
-      await speech.locator("summary").click();
-      await expect(speech.locator("li")).toHaveCount(2);
-      await speech.getByRole("button", { name: "1번 대사 재생", exact: true }).click();
+      const speech = workspace.locator(`[data-message-id="${message.id}"]`);
+      await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
+      if (mode === "roleplay")
+        await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+      await speech.getByRole("button", { name: "1번 대사 음성 생성", exact: true }).click();
       await expect.poll(() => calls.length).toBe(1);
       expect(calls[0]).toContain("First line.");
       expect(calls[0]).not.toContain("Second line.");
@@ -98,7 +99,7 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await page.getByRole("button", { name: "음성 재생성", exact: true }).click();
       await expect.poll(() => calls.length).toBe(2);
       await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
-      await speech.getByRole("button", { name: "2번 대사 재생", exact: true }).click();
+      await speech.getByRole("button", { name: "2번 대사 음성 생성", exact: true }).click();
       await expect.poll(() => calls.length).toBe(3);
       expect(calls[2]).toContain("Second line.");
       await speech.getByRole("button", { name: "2번 대사 멈춤", exact: true }).click();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
 import { ArrowLeft, BookOpen, ChevronDown, PencilLine, Settings2, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
@@ -12,7 +12,9 @@ import { Modal } from "../ui/Modal";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
 import { toast } from "sonner";
+import { TTSRoomMenu } from "./TTSRoomMenu";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
+const ExcerptStudio = lazy(() => import("./ExcerptStudio").then((module) => ({ default: module.ExcerptStudio })));
 
 export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNode; surfaceActive: boolean }) {
   const { t } = useTranslation();
@@ -30,6 +32,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const [focus, setFocus] = useState(false);
   const [tools, setTools] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [excerptSelection, setExcerptSelection] = useState("");
+  const [excerpt, setExcerpt] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
   const back = () => {
@@ -54,7 +58,24 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     setFocus(false);
     setTools(false);
     setSettings(false);
+    setExcerpt(null);
+    setExcerptSelection("");
   }, [chatId]);
+  useEffect(() => {
+    if (!enabled || !surfaceActive) return;
+    const selected = () => {
+      const selection = window.getSelection();
+      const node = selection?.anchorNode?.parentElement;
+      const end = selection?.focusNode?.parentElement;
+      setExcerptSelection(
+        node?.closest(".mari-message-content") && root.current?.contains(node) && end && root.current.contains(end)
+          ? (selection?.toString() ?? "")
+          : "",
+      );
+    };
+    document.addEventListener("selectionchange", selected);
+    return () => document.removeEventListener("selectionchange", selected);
+  }, [chatId, enabled, surfaceActive]);
 
   const patch = (value: Partial<typeof preferences>) =>
     useUIStore.setState((state) => ({ readerPreferences: { ...state.readerPreferences, ...value } }));
@@ -63,7 +84,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   return (
     <div
       ref={root}
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       data-component="ReaderWorkspace"
       data-reader-enabled={enabled || undefined}
       data-reader-mode={enabled ? chat?.mode : undefined}
@@ -134,6 +155,34 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
         </header>
       )}
       {children}
+      {enabled && surfaceActive && chat?.mode === "roleplay" && <TTSRoomMenu key={chat.id} chat={chat} />}
+      {excerptSelection.trim() && !excerpt && (
+        <button
+          type="button"
+          className="absolute bottom-24 right-4 z-30 min-h-11 rounded-md border border-[var(--border)] bg-[var(--popover)] px-4 text-sm text-[var(--popover-foreground)] shadow-sm"
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => {
+            if (excerptSelection.length > 20000) toast.error(t("integrations.excerptLimit"));
+            else setExcerpt(excerptSelection);
+          }}
+        >
+          {t("integrations.excerpt")}
+        </button>
+      )}
+      <Modal
+        open={excerpt !== null}
+        onClose={() => setExcerpt(null)}
+        title={t("integrations.excerpt")}
+        width="max-w-3xl"
+      >
+        {excerpt !== null && (
+          <div className="p-4">
+            <Suspense fallback={<p role="status">{t("integrations.loading")}</p>}>
+              <ExcerptStudio initialText={excerpt} />
+            </Suspense>
+          </div>
+        )}
+      </Modal>
       <Modal open={settings} onClose={() => setSettings(false)} title={t("reader.settings")}>
         <div className="space-y-6 p-5">
           {chat?.mode === "conversation" && (
@@ -186,7 +235,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               }
             />
           </label>
-          {chat?.mode === "roleplay" && chat.metadata.ttsInstructionsEnabled === true && (
+          {chat?.mode === "roleplay" && (
             <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
               {t("reader.speechTagged")}
               <input
@@ -204,6 +253,21 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               />
             </label>
           )}
+          <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+            {t("reader.dialogueButtons")}
+            <input
+              type="checkbox"
+              checked={chat?.metadata.ttsDialogueButtonsEnabled !== false}
+              disabled={!chat || updateMetadata.isPending}
+              onChange={(event) =>
+                chat &&
+                updateMetadata.mutate(
+                  { id: chat.id, ttsDialogueButtonsEnabled: event.target.checked },
+                  { onError: () => toast.error(t("reader.speechSaveFailed")) },
+                )
+              }
+            />
+          </label>
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.theme")}
             <select

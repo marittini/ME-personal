@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, Play, RefreshCw, Square } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Loader2, MoreVertical, Play, Plus, RefreshCw, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useTTSConfig } from "../../hooks/use-tts";
+import { useTTSConfig, useUpdateTTSPersonaVoice } from "../../hooks/use-tts";
+import { useChat } from "../../hooks/use-chats";
 import { useUIStore } from "../../stores/ui.store";
 import { ttsService } from "../../lib/tts-service";
-import {
-  buildTTSVoiceRequests,
-  findTTSCharacterIdBySpeakerName,
-  withTTSVoiceRequestCacheKeys,
-} from "../../lib/tts-dialogue";
-import { hideTTSAudioCues, type TTSAudioParticipant } from "../../lib/tts-audio-tags";
-import { showConfirmDialog } from "../../lib/app-dialogs";
+import { getCachedTTSAudioBlob } from "../../lib/tts-audio-cache";
+import { buildDialogueSpeechGroups } from "../../lib/tts-dialogue-groups";
+import type { TTSAudioParticipant } from "../../lib/tts-audio-tags";
+import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import type { CharacterMap, PersonaInfo } from "./chat-area.types";
 
 export function DialogueSpeechControls({
@@ -22,6 +21,8 @@ export function DialogueSpeechControls({
   characterMap,
   personaInfo,
   chatCharacterIds,
+  swipeIndex = 0,
+  translation,
 }: {
   messageId: string;
   chatId: string;
@@ -30,61 +31,145 @@ export function DialogueSpeechControls({
   characterMap?: CharacterMap;
   personaInfo?: PersonaInfo | null;
   chatCharacterIds?: string[];
+  swipeIndex?: number;
+  translation?: string;
 }) {
   const { t } = useTranslation();
   const { data: config } = useTTSConfig();
+  const { data: chat } = useChat(chatId);
+  const assignPersona = useUpdateTTSPersonaVoice();
   const volume = useUIStore((s) => s.ttsLineVolume);
+  const sentinel = useRef<HTMLSpanElement>(null);
+  const operation = useRef(false);
+  const epoch = useRef(0);
+  const [targets, setTargets] = useState<HTMLElement[]>([]);
+  const [cached, setCached] = useState<boolean[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
   const [playback, setPlayback] = useState(() => ({ state: ttsService.getState(), id: ttsService.getActiveId() }));
-  const [regenerating, setRegenerating] = useState<number | null>(null);
+  const prefix = `${chatId}:${messageId}:${swipeIndex}:dialogue:`;
+  const enabled = !!config?.enabled && chat?.metadata.ttsDialogueButtonsEnabled !== false;
+  const result = useMemo(() => {
+    if (!enabled || !config) return { groups: [] };
+    const participants: TTSAudioParticipant[] = [...(characterMap ?? [])]
+      .filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id))
+      .map(([id, c]) => ({ kind: "character", id, name: c.name }));
+    if (personaInfo?.id) participants.push({ kind: "persona", id: personaInfo.id, name: personaInfo.name });
+    try {
+      return {
+        groups: buildDialogueSpeechGroups(text, config, {
+          chatId,
+          messageId,
+          swipeIndex,
+          characterId,
+          speaker: characterId ? characterMap?.get(characterId)?.name : undefined,
+          tagged: chat?.metadata.ttsTaggedDialogue === true,
+          conversation: chat?.mode === "conversation",
+          participants,
+        }),
+      };
+    } catch (error) {
+      return { groups: [], error: error instanceof Error ? error.message : "unknownSpeaker" };
+    }
+  }, [
+    enabled,
+    config,
+    text,
+    chatId,
+    messageId,
+    swipeIndex,
+    characterId,
+    characterMap,
+    chatCharacterIds,
+    personaInfo,
+    chat?.metadata.ttsTaggedDialogue,
+    chat?.mode,
+  ]);
+  const groups = result.groups;
   useEffect(
     () =>
       ttsService.subscribe((state, id) =>
-        setPlayback((previous) => {
-          const prefix = `${messageId}:dialogue:`;
-          return previous.id?.startsWith(prefix) || id?.startsWith(prefix) ? { state, id } : previous;
-        }),
+        setPlayback((old) => (old.id?.startsWith(prefix) || id?.startsWith(prefix) ? { state, id } : old)),
       ),
-    [messageId],
+    [prefix],
   );
   useEffect(() => {
-    if (playback.id?.startsWith(`${messageId}:dialogue:`)) ttsService.setCurrentPlaybackVolume(volume / 100);
-  }, [messageId, playback.id, volume]);
-  const requests = useMemo(() => {
-    if (!config?.enabled) return [];
-    const characters = [...(characterMap ?? [])].filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id));
-    const participants: TTSAudioParticipant[] = characters.map(([id, character]) => ({
-      kind: "character",
-      id,
-      name: character.name,
-    }));
-    if (personaInfo?.id) participants.push({ kind: "persona", id: personaInfo.id, name: personaInfo.name });
-    const speaker = characterId ? characterMap?.get(characterId)?.name : undefined;
-    const resolve = (name?: string | null) => findTTSCharacterIdBySpeakerName(name, characters);
-    const dialogue = buildTTSVoiceRequests(
-      text,
-      { ...config, dialogueOnly: true },
-      speaker,
-      characterId,
-      resolve,
-      participants,
+    const version = ++epoch.current;
+    operation.current = false;
+    setBusy(null);
+    void Promise.all(
+      groups.map(async (group) =>
+        (await Promise.all(group.requests.map((request) => getCachedTTSAudioBlob(request.cacheKey)))).every(Boolean),
+      ),
+    ).then((values) => {
+      if (epoch.current === version) setCached(values);
+    });
+    return () => {
+      epoch.current++;
+      if (ttsService.getActiveId()?.startsWith(prefix)) ttsService.stop();
+    };
+  }, [groups, prefix]);
+  useEffect(() => {
+    if (playback.id?.startsWith(prefix)) ttsService.setCurrentPlaybackVolume(volume / 100);
+  }, [prefix, playback.id, volume]);
+  useLayoutEffect(() => {
+    if (!enabled || !groups.length) {
+      setTargets([]);
+      return;
+    }
+    const owner = document.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`);
+    const quotes = owner
+      ? [...owner.querySelectorAll<HTMLElement>("[data-tts-dialogue]")].filter((node) => !!node.getClientRects().length)
+      : [];
+    const bubbles = owner
+      ? [...owner.querySelectorAll<HTMLElement>("[data-tts-conversation-content]")].filter(
+          (node) => !!node.getClientRects().length,
+        )
+      : [];
+    // Count/order must agree. A compact control row is safer than guessing a translated speaker.
+    const anchors =
+      quotes.length === groups.length
+        ? quotes
+        : chat?.mode === "conversation" && bubbles.length === groups.length
+          ? bubbles
+          : [];
+    const hosts = anchors.map((node) => {
+      const host = document.createElement("span");
+      host.dataset.ttsControlHost = "";
+      host.className = "not-italic font-normal";
+      node.append(host);
+      return host;
+    });
+    setTargets(hosts);
+    return () => {
+      hosts.forEach((host) => host.remove());
+    };
+  }, [enabled, groups, messageId, translation, chat?.mode]);
+  const personaSettings = async () => {
+    if (!personaInfo?.id) return;
+    const value = await showPromptDialog({
+      title: t("reader.personaVoice"),
+      message: personaInfo.name,
+      defaultValue: config?.personaVoiceAssignments?.find((row) => row.personaId === personaInfo.id)?.voice ?? "",
+    });
+    if (value === null) return;
+    assignPersona.mutate(
+      { personaId: personaInfo.id, personaName: personaInfo.name, voice: value },
+      { onError: () => toast.error(t("reader.speechSaveFailed")) },
     );
-    // Conversation messages often have no quotation marks: retain their original speech as one entry.
-    const lines = dialogue.length
-      ? dialogue
-      : buildTTSVoiceRequests(text, config, speaker, characterId, resolve, participants);
-    return withTTSVoiceRequestCacheKeys(lines, config, messageId);
-  }, [config, text, characterId, characterMap, chatCharacterIds, personaInfo, messageId]);
-  if (!requests.length) return null;
+  };
   const play = async (index: number, regenerate = false) => {
-    const request = requests[index];
-    const id = `${messageId}:dialogue:${index}`;
-    if (!request) return;
-    if (!regenerate && ttsService.getActiveId() === id && ttsService.getState() !== "idle") {
+    const group = groups[index];
+    if (!group || !config || operation.current) return;
+    const id = `${prefix}${index}`;
+    if (!regenerate && ttsService.getActiveId() === id && !["idle", "error"].includes(ttsService.getState())) {
       ttsService.stop();
       return;
     }
-    if (regenerate) {
+    operation.current = true;
+    const version = epoch.current;
+    try {
       if (
+        regenerate &&
         !(await showConfirmDialog({
           title: t("reader.dialogueRegenerate"),
           message: t("reader.dialogueRegenerateConfirm"),
@@ -93,60 +178,102 @@ export function DialogueSpeechControls({
         }))
       )
         return;
-      setRegenerating(index);
-    }
-    try {
+      if (version !== epoch.current) return;
+      setBusy(index);
       ttsService.stop();
-      if (regenerate) await ttsService.clearCachedAudio([request]);
-      await ttsService.speakSequence([request], id, { chatId, volume: volume / 100, throwOnError: true });
+      if (regenerate) await ttsService.clearCachedAudio(group.requests);
+      if (version !== epoch.current) return;
+      await ttsService.speakSequence(
+        group.requests.map((request) => ({ ...request, audioConnectionId: config.connectionId })),
+        id,
+        { chatId, volume: volume / 100, throwOnError: true },
+      );
     } catch {
-      toast.error(t("reader.dialogueSpeechError"));
+      if (version === epoch.current) toast.error(t("reader.dialogueSpeechError"));
     } finally {
-      if (regenerate) setRegenerating(null);
+      if (version === epoch.current) {
+        operation.current = false;
+        setBusy(null);
+        const hits = await Promise.all(group.requests.map((request) => getCachedTTSAudioBlob(request.cacheKey)));
+        if (version === epoch.current)
+          setCached((values) => values.map((value, i) => (i === index ? hits.every(Boolean) : value)));
+      }
     }
   };
+  const controls = (index: number) => {
+    const active = playback.id === `${prefix}${index}` && !["idle", "error"].includes(playback.state);
+    const loading = active && playback.state === "loading";
+    const style =
+      "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md align-middle text-current hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:opacity-40";
+    return (
+      <span className="inline-flex align-middle" data-dialogue-controls={index} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className={style}
+          disabled={busy !== null && busy !== index}
+          aria-label={t(
+            active ? "reader.dialogueStop" : cached[index] ? "reader.dialoguePlay" : "reader.dialogueGenerate",
+            { number: index + 1 },
+          )}
+          onClick={() => {
+            if (active) ttsService.stop();
+            else void play(index);
+          }}
+        >
+          {loading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : active ? (
+            <Square size={14} />
+          ) : cached[index] ? (
+            <Play size={14} />
+          ) : (
+            <Plus size={14} />
+          )}
+        </button>
+        {cached[index] && (
+          <button
+            type="button"
+            className={style}
+            disabled={busy !== null}
+            aria-label={t("reader.dialogueRegenerateNumber", { number: index + 1 })}
+            onClick={() => void play(index, true)}
+          >
+            <RefreshCw size={14} />
+          </button>
+        )}
+        {groups[index]?.persona && (
+          <button
+            type="button"
+            className={style}
+            aria-label={t("reader.personaVoice")}
+            onClick={() => void personaSettings()}
+          >
+            <MoreVertical size={14} />
+          </button>
+        )}
+      </span>
+    );
+  };
   return (
-    <details
-      className="my-2 min-w-0 max-w-full border-t border-[var(--border)] text-[var(--foreground)]"
-      data-component="DialogueSpeechControls"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <summary className="min-h-11 cursor-pointer py-3 text-xs text-[var(--muted-foreground)]">
-        {t("reader.dialogueSpeech", { count: requests.length })}
-      </summary>
-      <ol className="divide-y divide-[var(--border)]">
-        {requests.map((request, index) => {
-          const active =
-            playback.id === `${messageId}:dialogue:${index}` && !["idle", "error"].includes(playback.state);
-          const busy = regenerating !== null;
-          const excerpt = hideTTSAudioCues(request.text);
-          return (
-            <li key={request.cacheKey} className="flex min-w-0 items-center gap-1 py-1">
-              <span className="min-w-0 flex-1 truncate text-xs" title={excerpt}>
-                {index + 1}. {excerpt}
-              </span>
-              <button
-                type="button"
-                disabled={busy && regenerating !== index}
-                onClick={() => void play(index)}
-                aria-label={t(active ? "reader.dialogueStop" : "reader.dialoguePlay", { number: index + 1 })}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-[var(--secondary)] disabled:opacity-40"
-              >
-                {active ? <Square size={16} /> : <Play size={16} />}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void play(index, true)}
-                aria-label={t("reader.dialogueRegenerateNumber", { number: index + 1 })}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-[var(--secondary)] disabled:opacity-40"
-              >
-                {regenerating === index ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </details>
+    <span ref={sentinel} data-component="DialogueSpeechControls" onClick={(e) => e.stopPropagation()}>
+      {result.error && (
+        <span role="alert" className="block text-xs text-[var(--muted-foreground)]">
+          {t(`reader.${result.error}`)}
+          {personaInfo?.id && (
+            <button type="button" className="min-h-11 px-2 underline" onClick={() => void personaSettings()}>
+              {t("reader.personaVoice")}
+            </button>
+          )}
+        </span>
+      )}
+      {targets.length === groups.length
+        ? targets.map((target, index) => createPortal(controls(index), target, `${prefix}${index}`))
+        : groups.map((_group, index) => (
+            <span key={index} className="inline-flex items-center text-xs">
+              <span className="sr-only">{index + 1}</span>
+              {controls(index)}
+            </span>
+          ))}
+    </span>
   );
 }

@@ -296,3 +296,4 @@ export * from "./utils/game-widget-update.js";
 export * from "./constants/fork-profile.js";
 export type { NaiImageDestination, NaiJobState, NaiQueueJobView, NaiQueueStatus } from "./types/nai-request-guard.js";
 export * from "./schemas/library-cover.schema.js";
+export * from "./schemas/native-integrations.schema.js";
