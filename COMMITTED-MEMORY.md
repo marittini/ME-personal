@@ -56,3 +56,10 @@ The model still determines semantic identity, progress and translation quality.
 Only exact scoped identities or a verified existing ID can update a record;
 merely similar names are not merged. Source-version dependencies protect against
 stale evidence but cannot prove a model's natural-language interpretation.
+
+For regeneration at an earlier transcript position, each fact retains at most three
+prior evidence-checked values, separate from the vault's single current record.
+Future-dependent values never enter an earlier prompt. Invalid evidence and manual
+corrections cannot resurrect old values. Beyond this bounded history, original
+messages and historical episode summaries remain available; exact state rollback
+to arbitrarily old turns is not promised.

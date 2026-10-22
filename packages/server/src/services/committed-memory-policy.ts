@@ -96,6 +96,16 @@ export function consolidateCommittedMemory(state: CommittedMemoryState): Committ
         fact.id = previous.fact.id;
         fact.excluded = previous.fact.excluded || fact.excluded;
         fact.edited = previous.fact.edited || fact.edited;
+        if (!previous.fact.invalidated && !previous.fact.edited) {
+          const { previous: history = [], ...oldValue } = previous.fact;
+          const evidence = [
+            ...new Map(
+              [...(oldValue.dependencies ?? []), ...previous.batch.sources].map((source) => [source.id, source]),
+            ).values(),
+          ];
+          fact.previous = [...history, { ...oldValue, dependencies: evidence, turn: previous.batch.turn }].slice(-3);
+        }
+
         // Retain evidence versions so a later edit cannot silently legitimize stale knowledge.
         fact.dependencies = [
           ...new Map(
@@ -128,6 +138,18 @@ export function reconcileCommittedMemory(
         ...batch,
         facts: batch.facts.map((fact) => ({
           ...fact,
+          previous: (fact.previous ?? [])
+            .slice(-3)
+            .filter(
+              (version) =>
+                memoryFactIdentity(version) === memoryFactIdentity(fact) &&
+                (version.dependencies ?? []).length > 0 &&
+                version.dependencies!.every((source) => fingerprints.get(source.id) === source.fingerprint),
+            )
+            .map((version) => ({
+              ...version,
+              turn: Math.max(...version.dependencies!.map((source) => positions.get(source.id) ?? 0)),
+            })),
           invalidated:
             fact.invalidated ||
             (fact.dependencies ?? []).some((source) => fingerprints.get(source.id) !== source.fingerprint),
@@ -184,12 +206,29 @@ export function selectCommittedMemory(
   const query = terms(queryText);
   const candidates: Array<CommittedMemorySelection & { score: number }> = [];
   const current = new Map<string, CommittedMemoryBatch["facts"][number]>();
-  for (const batch of [...valid].sort((a, b) => a.turn - b.turn))
-    for (const f of batch.facts) {
-      if (f.audience !== "shared" && (!audienceIds.length || !audienceIds.every((id) => f.audience.includes(id))))
+  for (const batch of [...state.batches].filter((b) => !b.invalidated).sort((a, b) => a.turn - b.turn))
+    for (const fact of batch.facts) {
+      if (fact.audience !== "shared" && (!audienceIds.length || !audienceIds.every((id) => fact.audience.includes(id))))
         continue;
-      current.set(memoryFactIdentity(f), batch.excluded ? { ...f, excluded: true } : f);
+      let value = fact;
+      const futureEvidence =
+        batch.sources.some((source) => excluded.has(source.id)) ||
+        (fact.dependencies ?? []).some((source) => excluded.has(source.id));
+      if (futureEvidence && !fact.excluded && !fact.edited && !fact.invalidated && !batch.excluded) {
+        const previous = [...(fact.previous ?? [])]
+          .reverse()
+          .find(
+            (version) =>
+              !version.invalidated &&
+              (version.dependencies ?? []).length > 0 &&
+              !version.dependencies!.some((source) => excluded.has(source.id)),
+          );
+        if (!previous) continue;
+        value = previous;
+      }
+      current.set(memoryFactIdentity(value), batch.excluded ? { ...value, excluded: true } : value);
     }
+
   for (const f of current.values())
     if (
       f.status === "current" &&

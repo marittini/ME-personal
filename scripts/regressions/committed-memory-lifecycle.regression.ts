@@ -146,6 +146,16 @@ try {
   assert.equal(facts[0]?.progress, "completed");
   assert.equal(facts[0]?.status, "resolved");
   assert(!(await committedMemoryForPrompt(db, chat.id, ""))?.selected.some((item) => item.reason === "current"));
+  const timeline = await chats.listMessages(chat.id);
+  const beforeCompletion = await committedMemoryForPrompt(db, chat.id, "book", [timeline[2]!.id]);
+  assert(
+    beforeCompletion?.text.includes("[promise:in_progress]"),
+    "earlier generation restores the evidence-checked previous value",
+  );
+  assert(!beforeCompletion?.text.includes("has returned"));
+  const beforeProgress = await committedMemoryForPrompt(db, chat.id, "book", [timeline[1]!.id]);
+  assert(beforeProgress?.text.includes("[promise:pending]"));
+  assert(!beforeProgress?.text.includes("on her way"));
   const holder = status.state.batches.find((batch) => batch.facts.length)!;
   await editCommittedMemory(db, chat.id, {
     batchId: holder.id,
@@ -282,6 +292,19 @@ try {
   assert.equal(calls - beforeSplitting, 5, "output truncation splits into bounded smaller attempts");
   assert.equal(splitStatus.state.batches.flatMap((batch) => batch.facts).length, 1);
   truncateMulti = false;
+  for (let index = 0; index < 4; index++) {
+    await chats.createMessage({
+      chatId: split.id,
+      role: "assistant",
+      characterId: null,
+      content: `Book promise update ${index}.`,
+    });
+    await startCommittedMemory(db, split.id);
+    assert.equal((await finish(split.id)).state.job?.status, "complete");
+  }
+  const bounded = (await committedMemoryStatus(db, split.id)).state.batches.flatMap((batch) => batch.facts);
+  assert.equal(bounded.length, 1);
+  assert.equal(bounded[0]?.previous?.length, 3, "version history is bounded and never listed as extra memories");
   await chats.createMessage({ chatId: split.id, role: "assistant", characterId: null, content: "A final new event." });
   truncateSingle = true;
   await startCommittedMemory(db, split.id);

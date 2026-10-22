@@ -110,7 +110,8 @@ export function parseCommittedMemoryOutput(
       f.key = known.key;
     }
     if (f.kind !== "promise") delete f.progress;
-    else if (f.progress === "completed" || f.progress === "cancelled") f.status = "resolved";
+    else if ((f.progress === "completed" || f.progress === "cancelled") && f.status !== "uncertain")
+      f.status = "resolved";
     else if (f.status === "resolved") f.progress = "completed";
     const identity = memoryFactIdentity(f);
     if (seen.has(identity)) throw new Error("Memory contains duplicate fact identities");
@@ -481,7 +482,8 @@ export async function editCommittedMemory(db: DB, chatId: string, edit: Committe
         if (fact.kind !== "promise")
           throw Object.assign(new Error("Progress is only available for promises"), { statusCode: 400 });
         fact.progress = edit.progress;
-        if (edit.progress === "completed" || edit.progress === "cancelled") fact.status = "resolved";
+        if ((edit.progress === "completed" || edit.progress === "cancelled") && fact.status !== "uncertain")
+          fact.status = "resolved";
         else if (fact.status === "resolved") fact.status = "current";
         fact.edited = true;
       }
@@ -498,6 +500,7 @@ export async function editCommittedMemory(db: DB, chatId: string, edit: Committe
         fact.edited = true;
       }
       if (edit.excluded !== undefined) fact.excluded = edit.excluded;
+      if (edit.content !== undefined || edit.status !== undefined || edit.progress !== undefined) delete fact.previous;
     } else {
       const restricted = messages.some(
         (message) =>

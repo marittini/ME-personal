@@ -18,6 +18,8 @@ export interface CommittedMemoryFact {
   progress?: "pending" | "in_progress" | "completed" | "cancelled";
   dependencies?: CommittedMemorySource[];
   invalidated?: boolean;
+  /** Up to three evidence-checked prior values, used only for earlier generation points. */
+  previous?: Array<Omit<CommittedMemoryFact, "previous"> & { turn: number }>;
 }
 export interface CommittedMemoryBatch {
   id: string;

@@ -206,10 +206,23 @@ function MemoryDetail({
               className={field}
               aria-label={t("chat.committedMemory.vault.status")}
               disabled={edit.isPending}
-              value={fact.status}
-              onChange={(e) => patch({ ...identity, status: e.target.value as CommittedMemoryFact["status"] })}
+              value={fact.kind === "promise" && fact.status === "resolved" ? "current" : fact.status}
+              onChange={(e) =>
+                patch({
+                  ...identity,
+                  status:
+                    fact.kind === "promise" &&
+                    e.target.value === "current" &&
+                    (fact.progress === "completed" || fact.progress === "cancelled")
+                      ? "resolved"
+                      : (e.target.value as CommittedMemoryFact["status"]),
+                })
+              }
             >
-              {(["current", "resolved", "uncertain"] as const).map((s) => (
+              {(fact.kind === "promise"
+                ? (["current", "uncertain"] as const)
+                : (["current", "resolved", "uncertain"] as const)
+              ).map((s) => (
                 <option key={s} value={s}>
                   {t(`chat.committedMemory.factStatus.${s}`)}
                 </option>
@@ -631,22 +644,26 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
               ))}
             </select>
           </label>
-          <label className="block text-sm">
-            {t("chat.committedMemory.vault.contextSize")}
-            <input
-              type="number"
-              className={`${field} mt-2`}
-              min={5}
-              max={500}
-              defaultValue={Number(metadata?.summaryContextSize ?? 50)}
-              key={`context:${metadata?.summaryContextSize}`}
-              disabled={busy || update.isPending}
-              onBlur={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isInteger(n) && n >= 5 && n <= 500) saveSettings({ summaryContextSize: n });
-              }}
-            />
-          </label>
+          {metadata?.committedMemorySourceMode === "last" && (
+            <>
+              <label className="block text-sm">
+                {t("chat.committedMemory.vault.contextSize")}
+                <input
+                  type="number"
+                  className={`${field} mt-2`}
+                  min={5}
+                  max={500}
+                  defaultValue={Number(metadata?.summaryContextSize ?? 50)}
+                  key={`context:${metadata?.summaryContextSize}`}
+                  disabled={busy || update.isPending}
+                  onBlur={(e) => {
+                    const n = Number(e.target.value);
+                    if (Number.isInteger(n) && n >= 5 && n <= 500) saveSettings({ summaryContextSize: n });
+                  }}
+                />
+              </label>
+            </>
+          )}
           {metadata?.committedMemorySourceMode === "range" && (
             <div className="grid grid-cols-2 gap-3">
               {(["Start", "End"] as const).map((edge) => (
@@ -656,7 +673,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                     className={`${field} mt-2`}
                     type="number"
                     min={1}
-                    max={data.totalMessages ?? 1}
+                    max={Math.max(1, data.totalMessages ?? 1)}
                     key={`${edge}:${metadata?.[`committedMemoryRange${edge}`]}`}
                     defaultValue={Number(
                       metadata?.[`committedMemoryRange${edge}`] ?? (edge === "Start" ? 1 : (data.totalMessages ?? 1)),
