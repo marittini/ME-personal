@@ -1,3 +1,4 @@
+import { CharacterLibraryCustomization } from "./CharacterLibraryCustomization";
 // ──────────────────────────────────────────────
 // Character Editor — Full-page detail view
 // Replaces the chat area when editing a character.
@@ -1383,6 +1384,13 @@ export function CharacterEditor() {
                 removingAvatar={removeAvatar.isPending}
                 hasUnsavedChanges={dirty}
               />
+              {characterId && (
+                <CharacterLibraryCustomization
+                  key={characterId}
+                  characterId={characterId}
+                  characterName={formData.name}
+                />
+              )}
             </section>
             <section data-editor-section="card">
               <CharacterCardTab

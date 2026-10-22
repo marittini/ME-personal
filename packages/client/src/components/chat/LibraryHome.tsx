@@ -32,9 +32,6 @@ import { useDialogStore } from "../../stores/dialog.store";
 const LibrarySettingsHome = lazy(() =>
   import("./LibrarySettingsHome").then((module) => ({ default: module.LibrarySettingsHome })),
 );
-const LibraryCoverEditor = lazy(() =>
-  import("./LibraryCoverEditor").then((module) => ({ default: module.LibraryCoverEditor })),
-);
 
 type LibrarySection = "home" | "library" | "record" | "settings";
 
@@ -109,7 +106,6 @@ export function LibraryHome() {
   const navigation = useUIStore((state) => state.libraryNavigation);
   const positions = useUIStore((state) => state.readerPositions);
   const covers = useUIStore((state) => state.libraryCovers);
-  const [editingCover, setEditingCover] = useState<string | null>(null);
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
   const { section, query } = navigation;
@@ -317,14 +313,6 @@ export function LibraryHome() {
             <section className="grid grid-cols-[7.2rem_minmax(0,1fr)] gap-6 border-b border-[var(--border)] pb-8 pt-5 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-10 md:pb-10">
               <div className="min-w-0">
                 <WorkCover work={selectedWork} className="aspect-[2/3] w-full" />
-                <button
-                  type="button"
-                  className="mt-2 min-h-11 w-full rounded-md border border-[var(--border)] px-2 text-sm"
-                  aria-expanded={editingCover === selectedWork.id}
-                  onClick={() => setEditingCover(editingCover === selectedWork.id ? null : selectedWork.id)}
-                >
-                  {t("libraryCover.edit")}
-                </button>
               </div>
               <div className="flex min-w-0 flex-col justify-end">
                 <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-4xl">{selectedWork.title}</h1>
@@ -340,15 +328,6 @@ export function LibraryHome() {
                 </button>
               </div>
             </section>
-            {editingCover === selectedWork.id && (
-              <Suspense fallback={<p role="status">{t("libraryCover.loading")}</p>}>
-                <LibraryCoverEditor
-                  key={selectedWork.id}
-                  workId={selectedWork.id}
-                  onClose={() => setEditingCover(null)}
-                />
-              </Suspense>
-            )}
 
             <section className="pt-8">
               <div className="flex items-center justify-between gap-4">
