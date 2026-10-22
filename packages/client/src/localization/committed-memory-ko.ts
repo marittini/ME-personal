@@ -1,4 +1,5 @@
 export const committedMemoryKoreanMessages: Record<string, string> = {
+  "chat.committedMemory.vault.legacyBudget": "기존 8,000바이트 제한",
   "chat.committedMemory.restrictedAudience": "제한된 지식: {{audience}}",
   "chat.committedMemory.title": "통합 기억",
   "chat.committedMemory.help":
@@ -108,4 +109,26 @@ export const committedMemoryKoreanMessages: Record<string, string> = {
   "chat.committedMemory.vault.hideHelp":
     "순정의 숨김·최근 대화 보존 규칙을 컨텍스트 구성 시 적용합니다. 원문은 유지되며 요약이 무효화되면 다시 포함됩니다.",
   "chat.committedMemory.vault.tail": "원문으로 남길 최근 메시지 수 (0 이상)",
+  "chat.committedMemory.vault.details": "상세 정보 및 출처",
+  "chat.committedMemory.vault.stopJob": "처리 중단",
+  "chat.committedMemory.vault.recallSettings": "기억 호출",
+  "chat.committedMemory.vault.recallHelp":
+    "키워드와 의미 유사도로 관련 기억을 자동 선택합니다. 오래된 기억은 주입 내용만 압축하며 저장된 원문은 보존합니다. 토큰 수는 추정치이며 예산 미설정 시 기존 8,000바이트 제한을 사용합니다.",
+  "chat.committedMemory.vault.semantic": "벡터 의미 검색 사용",
+  "chat.committedMemory.vault.maintenance": "백업 및 유지 관리",
+  "chat.committedMemory.vault.maintenanceHelp":
+    "초기화 전 백업을 내보낼 수 있습니다. 색인 재생성은 기존 색인을 비우고 다음 검색에서 설정된 임베딩 연결로 허용된 기억을 색인합니다. 기존 기억 보완은 확정된 기억만 요약 API로 처리하며 중단할 수 있습니다.",
+  "chat.committedMemory.vault.export": "기억 백업 내보내기",
+  "chat.committedMemory.vault.enrich": "기존 기억 한국어·압축본 보완",
+  "chat.committedMemory.vault.rebuild": "검색 색인 재생성",
+  "chat.committedMemory.vault.reset": "이 대화의 기억 초기화",
+  "chat.committedMemory.vault.resetConfirm":
+    "이 대화의 기억 {{count}}건과 사실·약속·표시문·이전 기억값·검색 벡터·사용 내역을 초기화할까요? 실행 중인 기억 작업도 중단합니다. 원본 대화와 설정은 유지합니다. 필요하면 먼저 백업을 내보내세요.",
+  "chat.committedMemory.vault.advanced": "요약 범위 및 연결 상세 설정",
+  "chat.committedMemory.vault.recentMessages": "단기기억 상세 범위 (메시지 수)",
+  "chat.committedMemory.vault.longTermMessages": "장기기억 범위 (이후 핵심만 호출)",
+  "chat.committedMemory.vault.topK": "호출할 줄거리 최대 개수",
+  "chat.committedMemory.vault.tokenBudget": "기억 토큰 예산 (추정치)",
+  "chat.committedMemory.vault.tokenUsage": "추정 토큰: {{used}} / {{total}}",
+  "chat.committedMemory.job.cancelled": "중단됨",
 };

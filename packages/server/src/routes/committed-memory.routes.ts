@@ -7,6 +7,11 @@ import {
   setCommittedMemoryEnabled,
   startCommittedMemory,
   committedMemoryForPrompt,
+  resetCommittedMemory,
+  cancelCommittedMemory,
+  configureCommittedMemory,
+  enrichCommittedMemory,
+  rebuildCommittedMemoryIndex,
 } from "../services/committed-memory.js";
 import { createChatsStorage } from "../services/storage/chats.storage.js";
 export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
@@ -30,6 +35,47 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
     if ((app as unknown as { activeGenerations?: Map<string, unknown> }).activeGenerations?.has(req.params.id))
       return reply.status(409).send({ error: "Wait for the reply to finish before committing memory" });
     return startCommittedMemory(app.db, req.params.id, body.data.debugMode, body.data);
+  });
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/reset", async (req, reply) => {
+    if (
+      !z
+        .object({ confirm: z.literal(true) })
+        .strict()
+        .safeParse(req.body).success
+    )
+      return reply.status(400).send({ error: "Reset confirmation required" });
+    if ((app as unknown as { activeGenerations?: Map<string, unknown> }).activeGenerations?.has(req.params.id))
+      return reply.status(409).send({ error: "Wait for generation to finish before resetting memory" });
+    return resetCommittedMemory(app.db, req.params.id);
+  });
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/cancel", (req) =>
+    cancelCommittedMemory(app.db, req.params.id),
+  );
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/enrich", (req) =>
+    enrichCommittedMemory(app.db, req.params.id),
+  );
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/rebuild", (req) =>
+    rebuildCommittedMemoryIndex(app.db, req.params.id),
+  );
+  app.get<{ Params: { id: string } }>("/:id/committed-memory/export", async (req, reply) => {
+    const status = await committedMemoryStatus(app.db, req.params.id);
+    return reply
+      .header("Content-Disposition", 'attachment; filename="memory-backup.json"')
+      .send({ exportedAt: new Date().toISOString(), state: status.state });
+  });
+  app.patch<{ Params: { id: string } }>("/:id/committed-memory/config", async (req, reply) => {
+    const body = z
+      .object({
+        tokenBudget: z.number().int().min(256).max(32000).optional(),
+        recentMessages: z.number().int().min(0).max(1000).optional(),
+        longTermMessages: z.number().int().min(0).max(10000).optional(),
+        topK: z.number().int().min(1).max(100).optional(),
+        semanticEnabled: z.boolean().optional(),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: "Invalid memory configuration" });
+    return configureCommittedMemory(app.db, req.params.id, body.data);
   });
   app.patch<{ Params: { id: string } }>("/:id/committed-memory", async (req, reply) => {
     const body = z.object({ enabled: z.boolean() }).safeParse(req.body);
