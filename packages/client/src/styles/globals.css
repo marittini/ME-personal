@@ -8714,9 +8714,15 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
   border-radius: 0;
   box-shadow: none !important;
 }
-[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-message-avatar,
-[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-roleplay-avatar-spacer,
-[data-reader-enabled="true"]:not([data-reader-tools="true"]) [data-roleplay-presentation="classic"] .mari-roleplay-avatar-panel-rail {
+[data-reader-enabled="true"]:not([data-reader-tools="true"])
+  [data-roleplay-presentation="classic"]
+  .mari-message-avatar,
+[data-reader-enabled="true"]:not([data-reader-tools="true"])
+  [data-roleplay-presentation="classic"]
+  .mari-roleplay-avatar-spacer,
+[data-reader-enabled="true"]:not([data-reader-tools="true"])
+  [data-roleplay-presentation="classic"]
+  .mari-roleplay-avatar-panel-rail {
   display: none;
 }
 [data-reader-enabled="true"]:not([data-reader-tools="true"]) .mari-roleplay-message-row {
@@ -8743,4 +8749,13 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
     overflow: hidden;
     pointer-events: none;
   }
+}
+
+/* Reader typography applies only to prose, never code, controls or quoted blocks. */
+[data-reader-enabled] .mari-message-content p:not(blockquote p):not(li p) {
+  text-indent: var(--reader-indent, 0em);
+}
+::highlight(reader-excerpts) {
+  background: color-mix(in srgb, var(--primary) 24%, transparent);
+  color: inherit;
 }

@@ -1,3 +1,4 @@
+import { useReaderContentSignal } from "../../hooks/use-reader-content-signal";
 // ──────────────────────────────────────────────
 // Shared utilities, helpers, and types used across
 // the ConversationMessage* family of components.
@@ -5,6 +6,9 @@
 import { Fragment, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { ChevronRight, EyeOff, FileText, X } from "lucide-react";
 import {
+  splitMessageParagraphs,
+  matchParagraphTranslations,
+  splitGroupedSegmentDisplayLines,
   type GroupedSegment,
   type MessageExtra,
   type MessageReaction,
@@ -428,6 +432,7 @@ export function MessageContent({
   // Portable gallery refs resolve to the speaker BEFORE markdown rendering, so
   // the shared renderer stays untouched and grouped segments can resolve to
   // their own per-segment speaker.
+  const renderedSignal = useReaderContentSignal(content);
   const resolved = resolveSelfCardAssets(content, selfCharacterId, galleryIndex);
   if (IMAGE_URL_RE.test(resolved.trim())) {
     const url = resolved.trim();
@@ -462,7 +467,7 @@ export function MessageContent({
     <Fragment key={kp}>{renderMarkdownBlocks(text, renderInline)}</Fragment>
   );
   return (
-    <span data-tts-conversation-content="">
+    <span ref={renderedSignal} className="mari-message-content" data-tts-conversation-content="">
       {stickerMap ? renderWithStickerBlocks(compacted, stickerMap, renderTextBlock) : renderTextBlock(compacted, "sc")}
     </span>
   );
@@ -732,6 +737,41 @@ export function ConversationMessageLightbox({
       >
         <X size="1.125rem" />
       </button>
+    </div>
+  );
+}
+
+export function conversationTranslationPlan(ctx: MessageRenderContext) {
+  const paragraphs =
+    ctx.groupedSegments && !ctx.isUser
+      ? ctx.groupedSegments.flatMap(splitGroupedSegmentDisplayLines)
+      : splitMessageParagraphs(ctx.renderedContent);
+  return ctx.showTranslationOnly || ctx.isTranslating || ctx.editing || ctx.extra.diceRollResult
+    ? null
+    : matchParagraphTranslations(paragraphs, ctx.translatedText);
+}
+
+export function ConversationParagraphs({
+  content,
+  translations,
+  bubbleClass,
+  style,
+  ...props
+}: Parameters<typeof MessageContent>[0] & {
+  translations?: string[] | null;
+  bubbleClass?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5" data-conversation-paragraphs="">
+      {splitMessageParagraphs(content).map((paragraph, index) => (
+        <div key={index} className={bubbleClass} style={style} data-conversation-paragraph="">
+          <MessageContent {...props} content={paragraph} />
+          {translations?.[index] && (
+            <ConversationMessageTranslation translatedText={translations[index]} isTranslating={false} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

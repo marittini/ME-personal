@@ -42,6 +42,15 @@ export function DialogueSpeechControls({
   const sentinel = useRef<HTMLSpanElement>(null);
   const operation = useRef(false);
   const epoch = useRef(0);
+  const [renderRevision, setRenderRevision] = useState(0);
+  useEffect(() => {
+    const rendered = (event: Event) => {
+      if (event.target instanceof Element && event.target.closest(`[data-message-id="${CSS.escape(messageId)}"]`))
+        setRenderRevision((value) => value + 1);
+    };
+    document.addEventListener("reader-content-rendered", rendered);
+    return () => document.removeEventListener("reader-content-rendered", rendered);
+  }, [messageId]);
   const [targets, setTargets] = useState<HTMLElement[]>([]);
   const [cached, setCached] = useState<boolean[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
@@ -143,7 +152,7 @@ export function DialogueSpeechControls({
     return () => {
       hosts.forEach((host) => host.remove());
     };
-  }, [enabled, groups, messageId, translation, chat?.mode]);
+  }, [enabled, groups, messageId, translation, chat?.mode, renderRevision]);
   const personaSettings = async () => {
     if (!personaInfo?.id) return;
     const value = await showPromptDialog({

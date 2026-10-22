@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState } from "react";
 import { Languages, RotateCcw, Save } from "lucide-react";
 import { DEFAULT_TRANSLATION_SYSTEM_PROMPT, estimateTextTokens } from "@marinara-engine/shared";
 import { formatEstimatedTokens } from "../../../lib/character-token-count";
@@ -10,6 +11,12 @@ import { useTranslation as useUiTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSaveTranslatorDefaults, useTranslatorDefaults } from "../../../hooks/use-translator-defaults";
 
+const TranslationTools = lazy(() =>
+  import("../../../components/chat/NativeIntegrationSettings").then((module) => ({
+    default: module.NativeIntegrationSettings,
+  })),
+);
+
 interface TranslationSectionProps {
   chatId: string;
   metadata: Record<string, unknown>;
@@ -18,6 +25,7 @@ interface TranslationSectionProps {
 }
 
 export function TranslationSection({ chatId, metadata, textConnections, onMetadataChange }: TranslationSectionProps) {
+  const [toolsOpen, setToolsOpen] = useState(false);
   const { t: localizeUi } = useUiTranslation();
   const { data: hasSavedDefaults } = useTranslatorDefaults();
   const saveDefaults = useSaveTranslatorDefaults();
@@ -224,6 +232,20 @@ export function TranslationSection({ chatId, metadata, textConnections, onMetada
             )}
           </div>
         </div>
+        <details
+          open={toolsOpen}
+          onToggle={(event) => setToolsOpen(event.currentTarget.open)}
+          data-component="TranslationIntegratedTools"
+        >
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">
+            {localizeUi("settingsHub.translationTools")}
+          </summary>
+          {toolsOpen && (
+            <Suspense fallback={<p role="status">{localizeUi("integrations.loading")}</p>}>
+              <TranslationTools key={chatId} kind="translation" initialChatId={chatId} />
+            </Suspense>
+          )}
+        </details>
       </div>
     </ChatSettingsSection>
   );

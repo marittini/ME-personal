@@ -2,11 +2,17 @@
 // Grouped multi-speaker message layout (merged group chat / Name: text format)
 // ──────────────────────────────────────────────
 import { Fragment, type ReactNode, type RefObject } from "react";
-import { normalizeTextForMatch } from "@marinara-engine/shared";
+import {
+  normalizeTextForMatch,
+  splitMessageParagraphs,
+  splitGroupedSegmentDisplayLines,
+} from "@marinara-engine/shared";
 import { cn, getAvatarCropStyle } from "../../lib/utils";
 import {
   HiddenFromAIConversationSummary,
   MessageContent,
+  ConversationParagraphs,
+  conversationTranslationPlan,
   ConversationMessageAttachments,
   ConversationMessageTranslation,
   ConversationMessageSwipes,
@@ -36,6 +42,7 @@ export function ConversationMessageGrouped({
   reactionRow?: ReactNode;
 }) {
   const { t: localizeUi } = useUiTranslation();
+  const paragraphTranslations = conversationTranslationPlan(ctx);
   const {
     message,
     extra,
@@ -127,6 +134,7 @@ export function ConversationMessageGrouped({
       data-component="ConversationMessage.Grouped"
       tabIndex={0}
       data-message-id={message.id}
+      data-message-number={messageIndex}
       data-message-role={message.role}
       className={cn(
         "relative px-4 py-0.5 transition-colors hover:bg-[var(--secondary)]/30",
@@ -187,7 +195,12 @@ export function ConversationMessageGrouped({
           const segName = segChar?.convoDisplayName?.trim() || segChar?.name || grp.speaker || "";
           const segColor = segChar?.nameColor;
           const isFirst = i === 0;
-          const combinedText = grp.lines.join("\n");
+          const combinedText = splitGroupedSegmentDisplayLines(grp).join("\n\n");
+          const offset = (groupedSegments ?? []).slice(0, i).flatMap(splitGroupedSegmentDisplayLines).length;
+          const translations = paragraphTranslations?.slice(
+            offset,
+            offset + splitGroupedSegmentDisplayLines(grp).length,
+          );
           // Reactions aimed at this segment (issue #3210). The add affordance sits
           // in the speaker's name row; the chip row renders under the segment text,
           // outside the segment's [data-card-css] wrapper. The target key is the
@@ -228,7 +241,8 @@ export function ConversationMessageGrouped({
                 className="mari-chat-style-text pl-14 py-0.5 text-[0.875rem] leading-relaxed break-words whitespace-pre-wrap text-[var(--muted-foreground)] italic animate-[fadeSlideIn_0.4s_ease-out]"
                 style={messageTextStyle}
               >
-                <MessageContent
+                <ConversationParagraphs
+                  translations={translations}
                   content={combinedText}
                   mentionNames={mentionNames}
                   emojiMap={emojiMap}
@@ -278,10 +292,12 @@ export function ConversationMessageGrouped({
                         {segAddButton}
                       </div>
                       <div
-                        className="mari-message-bubble mari-chat-style-conversation texting-bubble texting-bubble-other rounded-2xl px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap shadow-sm"
+                        className="text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap"
                         style={messageTextStyle}
                       >
-                        <MessageContent
+                        <ConversationParagraphs
+                          translations={translations}
+                          bubbleClass="mari-message-bubble mari-chat-style-conversation texting-bubble texting-bubble-other rounded-2xl px-3.5 py-2 shadow-sm"
                           content={combinedText}
                           mentionNames={mentionNames}
                           emojiMap={emojiMap}
@@ -303,10 +319,7 @@ export function ConversationMessageGrouped({
             );
           }
 
-          const paragraphs = combinedText
-            .split(/\n{2,}/)
-            .map((p) => p.trim())
-            .filter(Boolean);
+          const paragraphs = splitMessageParagraphs(combinedText);
           // Whitespace-only segment: render nothing — an empty [data-card-css]
           // wrapper would let container-styling themes paint a phantom box.
           if (paragraphs.length === 0) return null;
@@ -368,6 +381,7 @@ export function ConversationMessageGrouped({
                         selfCharacterId={segSelfId}
                         galleryIndex={galleryIndex}
                       />
+                      <ConversationMessageTranslation translatedText={translations?.[0]} isTranslating={false} />
                     </div>
                   </div>
                 </div>
@@ -386,6 +400,7 @@ export function ConversationMessageGrouped({
                       selfCharacterId={segSelfId}
                       galleryIndex={galleryIndex}
                     />
+                    <ConversationMessageTranslation translatedText={translations?.[pi + 1]} isTranslating={false} />
                   </div>
                 ))}
               </div>
@@ -411,7 +426,7 @@ export function ConversationMessageGrouped({
           {!isHiddenCollapsed && (
             <div className="ml-14">
               <ConversationMessageTranslation
-                translatedText={ctx.showTranslationOnly ? null : translatedText}
+                translatedText={ctx.showTranslationOnly || paragraphTranslations ? null : translatedText}
                 isTranslating={isTranslating}
               />
             </div>

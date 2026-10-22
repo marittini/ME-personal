@@ -1,3 +1,4 @@
+import { useLibraryCardDisplay } from "../../hooks/use-library-card-display";
 import { CardLibraryPreview } from "./CardLibraryPreview";
 import { AvatarImage } from "./AvatarImage";
 import {
@@ -232,6 +233,7 @@ function CardLibraryDetailCard({
 }) {
   const { t: localizeUi } = useUiTranslation();
   const copy = LIBRARY_COPY[kind];
+  const display = useLibraryCardDisplay(card, kind);
   const placeholderClass =
     kind === "characters" ? "mari-avatar-placeholder--character" : "mari-avatar-placeholder--persona";
 
@@ -242,7 +244,7 @@ function CardLibraryDetailCard({
           {card.avatarPath ? (
             <AvatarImage
               src={card.avatarPath}
-              alt={card.name}
+              alt={display.name}
               iconSize="2.5rem"
               className="h-full w-full object-cover"
               style={getAvatarCropStyle(card.avatarCrop)}
@@ -258,12 +260,12 @@ function CardLibraryDetailCard({
           <div>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="truncate text-xl font-semibold text-[var(--marinara-chat-chrome-panel-title)] sm:text-2xl">
-                  {card.name}
+                <h2 className="break-words text-xl font-semibold text-[var(--marinara-chat-chrome-panel-title)] sm:text-2xl">
+                  {display.name}
                 </h2>
-                {card.title && (
-                  <p className="mt-1 truncate text-sm italic text-[var(--marinara-chat-chrome-panel-muted)]">
-                    {card.title}
+                {display.title && (
+                  <p className="mt-1 break-words text-sm italic text-[var(--marinara-chat-chrome-panel-muted)]">
+                    {display.title}
                   </p>
                 )}
                 {card.meta && (
@@ -301,7 +303,7 @@ function CardLibraryDetailCard({
                   {localizeUi("ui.characters.summary.label")}
                 </h3>
                 <div className="mari-message-content mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--marinara-chat-chrome-panel-text)]">
-                  {renderMarkdownBlocks(card.summary, applyInlineMarkdown, `summary-${card.id}`)}
+                  {renderMarkdownBlocks(display.summary, applyInlineMarkdown, `summary-${card.id}`)}
                 </div>
               </section>
             )}

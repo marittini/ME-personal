@@ -432,6 +432,7 @@ export function CharacterEditor() {
   const formatQuotes = useQuoteFormatter();
   const dirtyRef = useRef(false);
   const editRevisionRef = useRef(0);
+  const [libraryDirty, setLibraryDirty] = useState(false);
   const setEditorDirty = useUIStore((s) => s.setEditorDirty);
   // Report the focused field to the omnibar so "make this warmer" knows the target.
   const setActiveEditorField = useUIStore((s) => s.setActiveEditorField);
@@ -462,8 +463,8 @@ export function CharacterEditor() {
   }, [setDirtyState]);
   useEffect(() => {
     dirtyRef.current = dirty;
-    setEditorDirty(dirty);
-  }, [dirty, setEditorDirty]);
+    setEditorDirty(dirty || libraryDirty);
+  }, [dirty, libraryDirty, setEditorDirty]);
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -1178,7 +1179,7 @@ export function CharacterEditor() {
   );
 
   return (
-    <div className="mari-editor-shell mari-editor-legacy-bridge flex flex-1 flex-col overflow-hidden">
+    <div className="mari-editor-shell mari-editor-legacy-bridge flex min-h-0 flex-1 flex-col overflow-hidden">
       <ExportFormatDialog
         open={exportDialogOpen}
         title={localizeUi("ui.characters.charactereditor.exportCharacter_cdcda78")}
@@ -1386,6 +1387,7 @@ export function CharacterEditor() {
               />
               {characterId && (
                 <CharacterLibraryCustomization
+                  onDirtyChange={setLibraryDirty}
                   key={characterId}
                   characterId={characterId}
                   characterName={formData.name}

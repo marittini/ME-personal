@@ -12,6 +12,7 @@ import {
   MAX_CHAT_VARIABLES,
   MAX_CHAT_VARIABLE_VALUE_LENGTH,
   validateChatVariableName,
+  readerExcerptsSchema,
   createChatSchema,
   createMessageSchema,
   appendChatSummaryEntryToMetadata,
@@ -1622,6 +1623,11 @@ export async function chatsRoutes(app: FastifyInstance) {
     const chat = await storage.getById(req.params.id);
     if (!chat) return reply.status(404).send({ error: "Chat not found" });
     const incoming = req.body as Record<string, unknown>;
+    if (Object.hasOwn(incoming, "readerExcerpts")) {
+      const parsed = readerExcerptsSchema.safeParse(incoming.readerExcerpts);
+      if (!parsed.success) return reply.status(400).send({ error: "Invalid reader excerpts" });
+      incoming.readerExcerpts = parsed.data;
+    }
     const summaryRetrievalFieldSchemas = {
       semanticSummaryRecentCount: semanticSummaryRetrievalSettingsSchema.shape.semanticSummaryRecentCount,
       semanticSummaryOlderCount: semanticSummaryRetrievalSettingsSchema.shape.semanticSummaryOlderCount,

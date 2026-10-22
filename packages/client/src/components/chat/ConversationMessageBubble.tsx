@@ -13,6 +13,8 @@ import {
   HiddenFromAIConversationSummary,
   DiceMessageContent,
   MessageContent,
+  ConversationParagraphs,
+  conversationTranslationPlan,
   ConversationMessageEditForm,
   ConversationMessageAttachments,
   ConversationMessageTranslation,
@@ -75,6 +77,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
     shouldHideUserAvatar,
   } = ctx;
 
+  const paragraphTranslations = conversationTranslationPlan(ctx);
   return (
     <>
       {/* Inner row: avatar + body — swipes live outside so avatar never drifts */}
@@ -223,6 +226,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                   selfCharacterId;
                 const segName = segChar?.convoDisplayName?.trim() || segChar?.name || grp.speaker || "";
                 const displayLines = splitGroupedSegmentDisplayLines(grp);
+                const translationOffset = groupedSegments.slice(0, i).flatMap(splitGroupedSegmentDisplayLines).length;
 
                 if (!grp.speaker) {
                   if (displayLines.length === 0) return null;
@@ -232,8 +236,12 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                       className="mari-message-content mari-chat-style-text py-0.5 text-[0.875rem] leading-relaxed break-words whitespace-pre-wrap text-[var(--muted-foreground)] italic animate-[fadeSlideIn_0.25s_ease-out]"
                       style={messageTextStyle}
                     >
-                      <MessageContent
-                        content={displayLines.join("\n")}
+                      <ConversationParagraphs
+                        translations={paragraphTranslations?.slice(
+                          translationOffset,
+                          translationOffset + displayLines.length,
+                        )}
+                        content={displayLines.join("\n\n")}
                         mentionNames={mentionNames}
                         emojiMap={emojiMap}
                         stickerMap={stickerMap}
@@ -266,6 +274,10 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                       selfCharacterId={segSelfId}
                       galleryIndex={galleryIndex}
                     />
+                    <ConversationMessageTranslation
+                      translatedText={paragraphTranslations?.[translationOffset + lineIndex]}
+                      isTranslating={false}
+                    />
                   </div>
                 ));
               })}
@@ -274,9 +286,12 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
             <div
               className={cn(
                 "mari-message-content mari-chat-style-text text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap",
-                "mari-message-bubble mari-chat-style-conversation texting-bubble relative px-3.5 py-2 shadow-sm",
-                isUser ? "texting-bubble-user" : "texting-bubble-other",
-                bubbleCornerClass,
+                (isStreaming && !renderedContent) || extra.diceRollResult
+                  ? "mari-message-bubble mari-chat-style-conversation texting-bubble relative px-3.5 py-2 shadow-sm"
+                  : "w-full",
+                ((isStreaming && !renderedContent) || extra.diceRollResult) &&
+                  (isUser ? "texting-bubble-user" : "texting-bubble-other"),
+                ((isStreaming && !renderedContent) || extra.diceRollResult) && bubbleCornerClass,
                 isStreaming && !renderedContent && "py-2.5",
               )}
               style={messageTextStyle}
@@ -307,7 +322,13 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                   {extra.diceRollResult ? (
                     <DiceMessageContent diceRollResult={extra.diceRollResult} createdAt={message.createdAt} />
                   ) : null}
-                  <MessageContent
+                  <ConversationParagraphs
+                    translations={paragraphTranslations}
+                    bubbleClass={cn(
+                      "mari-message-bubble mari-chat-style-conversation texting-bubble relative px-3.5 py-2 shadow-sm",
+                      isUser ? "texting-bubble-user" : "texting-bubble-other",
+                      bubbleCornerClass,
+                    )}
                     content={renderedContent}
                     mentionNames={mentionNames}
                     emojiMap={emojiMap}
@@ -324,7 +345,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
           {!isHiddenCollapsed && (
             <>
               <ConversationMessageTranslation
-                translatedText={ctx.showTranslationOnly ? null : translatedText}
+                translatedText={ctx.showTranslationOnly || paragraphTranslations ? null : translatedText}
                 isTranslating={isTranslating}
               />
               <ConversationMessageAttachments

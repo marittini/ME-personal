@@ -5,7 +5,7 @@ import {
   type TTSVoiceAssignment,
 } from "@marinara-engine/shared";
 import { DIALOGUE_QUOTE_CAPTURE_GROUP_PATTERN_SOURCE, stripSurroundingDialogueQuotes } from "./dialogue-quotes";
-import { parseTTSAudioLines, type TTSAudioParticipant } from "./tts-audio-tags";
+import { normalizeTTSAudioMarkup, parseTTSAudioLines, type TTSAudioParticipant } from "./tts-audio-tags";
 
 export interface TTSUtterance {
   text: string;
@@ -479,6 +479,7 @@ export function buildTTSVoiceRequests(
   participants: readonly TTSAudioParticipant[] = [],
   roomSpeakerMode?: "tagged" | "native",
 ): TTSVoiceRequest[] {
+  text = normalizeTTSAudioMarkup(text);
   if (roomSpeakerMode === "native") {
     const clean = text
       .replace(/<\/?audio_(?:character|persona)\b[^>]*>/gi, "")

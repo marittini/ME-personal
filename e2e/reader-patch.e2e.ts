@@ -136,7 +136,7 @@ for (const mode of ["roleplay", "conversation"] as const) {
 test("settings tab opens a function hub and native voice settings", async ({ page }) => {
   await quiet(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByRole("navigation", { name: "서재 탐색" }).getByRole("button", { name: "설정", exact: true }).click();
   await expect(page.getByRole("heading", { name: "마이페이지", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "음성·통화 설정", exact: true }).click();
   await expect(page.getByRole("heading", { name: "음성·통화 설정", exact: true })).toBeVisible();
@@ -235,7 +235,10 @@ test("NAI character prompt uses two raw requests, exposes copyable outputs and p
       return route.fulfill({ json: { content: JSON.stringify(shape) } });
     });
     await page.goto("/");
-    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "서재 탐색" })
+      .getByRole("button", { name: "설정", exact: true })
+      .click();
     await page.getByRole("button", { name: "NovelAI 캐릭터 프롬프트", exact: true }).click();
     await page.getByRole("combobox", { name: "캐릭터·페르소나", exact: true }).selectOption(`character:${card.id}`);
     await page.getByRole("button", { name: "프롬프트 생성", exact: true }).click();
@@ -263,7 +266,7 @@ test("bundled Korean can be selected without a language-pack download", async ({
     return route.fulfill({ status: 503, json: { error: "No downloadable pack in this proof" } });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByRole("navigation", { name: "서재 탐색" }).getByRole("button", { name: "설정", exact: true }).click();
   await page.getByRole("button", { name: "언어·일반 설정", exact: true }).click();
   const select = page.locator("#settings-control-language-select");
   await select.selectOption("en");

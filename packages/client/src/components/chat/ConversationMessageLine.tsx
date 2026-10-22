@@ -12,6 +12,8 @@ import {
   HiddenFromAIConversationSummary,
   DiceMessageContent,
   MessageContent,
+  ConversationParagraphs,
+  conversationTranslationPlan,
   ConversationMessageEditForm,
   ConversationMessageAttachments,
   ConversationMessageTranslation,
@@ -68,6 +70,7 @@ export function ConversationMessageLine({ ctx }: { ctx: MessageRenderContext }) 
     shouldHideUserAvatar,
   } = ctx;
 
+  const paragraphTranslations = conversationTranslationPlan(ctx);
   return (
     <>
       {/* Multi-select checkbox */}
@@ -206,7 +209,7 @@ export function ConversationMessageLine({ ctx }: { ctx: MessageRenderContext }) 
                     {extra.diceRollResult ? (
                       <DiceMessageContent diceRollResult={extra.diceRollResult} createdAt={message.createdAt} />
                     ) : null}
-                    {renderedContentParts ? (
+                    {renderedContentParts && !paragraphTranslations ? (
                       <div className="space-y-1.5">
                         {renderedContentParts.map((part, i) => (
                           <div key={i} className="animate-[fadeSlideIn_0.4s_ease-out]">
@@ -223,7 +226,8 @@ export function ConversationMessageLine({ ctx }: { ctx: MessageRenderContext }) 
                         ))}
                       </div>
                     ) : (
-                      <MessageContent
+                      <ConversationParagraphs
+                        translations={paragraphTranslations}
                         content={renderedContent}
                         mentionNames={mentionNames}
                         emojiMap={emojiMap}
@@ -246,7 +250,7 @@ export function ConversationMessageLine({ ctx }: { ctx: MessageRenderContext }) 
         {!isHiddenCollapsed && (
           <>
             <ConversationMessageTranslation
-              translatedText={ctx.showTranslationOnly ? null : translatedText}
+              translatedText={ctx.showTranslationOnly || paragraphTranslations ? null : translatedText}
               isTranslating={isTranslating}
             />
             <ConversationMessageAttachments

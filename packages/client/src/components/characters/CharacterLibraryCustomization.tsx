@@ -1,3 +1,4 @@
+import { LibraryCustomizationFields } from "./LibraryCustomizationFields";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { showConfirmDialog } from "../../lib/app-dialogs";
@@ -12,27 +13,58 @@ const CoverEditor = lazy(() =>
 export function CharacterLibraryCustomization({
   characterId,
   characterName,
+  onDirtyChange,
 }: {
   characterId: string;
   characterName: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const close = async () => {
+    if (
+      dirty &&
+      !(await showConfirmDialog({
+        title: t("reader.cancel"),
+        message: t("libraryCustomization.discardDraft"),
+        confirmLabel: t("reader.cancel"),
+        cancelLabel: t("libraryCustomization.keepEditing"),
+      }))
+    )
+      return;
+    setDirty(false);
+    onDirtyChange?.(false);
+    setOpen(false);
+  };
   return (
     <details
       className="border-t border-[var(--border)] pt-3"
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        if (event.currentTarget.open) setOpen(true);
+      }}
       data-component="CharacterLibraryCustomization"
     >
-      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
+      <summary
+        className="flex min-h-11 cursor-pointer items-center text-sm font-semibold"
+        onClick={(event) => {
+          event.preventDefault();
+          if (open) void close();
+          else setOpen(true);
+        }}
+      >
         {t("libraryCustomization.title")}
       </summary>
       {open && (
         <CharacterLibraryCovers
           characterId={characterId}
           characterName={characterName}
-          onClose={() => setOpen(false)}
+          onClose={() => void close()}
+          onDirtyChange={(value) => {
+            setDirty(value);
+            onDirtyChange?.(value);
+          }}
         />
       )}
     </details>
@@ -43,15 +75,27 @@ function CharacterLibraryCovers({
   characterId,
   characterName,
   onClose,
+  onDirtyChange,
 }: {
   characterId: string;
   characterName: string;
   onClose: () => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const { t } = useTranslation();
   const chats = useChats();
   const soloId = libraryChatGroupKey({ id: "", characterIds: [characterId] });
-  const [dirty, setDirty] = useState(false);
+  const [coverDirty, setCoverDirty] = useState(false);
+  const [labelsDirty, setLabelsDirty] = useState(false);
+  const dirty = coverDirty || labelsDirty;
+  const changeCoverDirty = (value: boolean) => {
+    setCoverDirty(value);
+    onDirtyChange(value || labelsDirty);
+  };
+  const changeLabelsDirty = (value: boolean) => {
+    setLabelsDirty(value);
+    onDirtyChange(value || coverDirty);
+  };
   const [selected, setSelected] = useState(soloId);
   const works = useMemo(() => {
     const grouped = new Map<string, string>();
@@ -101,7 +145,9 @@ function CharacterLibraryCovers({
               }))
             )
               return;
-            setDirty(false);
+            setCoverDirty(false);
+            setLabelsDirty(false);
+            onDirtyChange(false);
             setSelected(next);
           }}
         >
@@ -112,8 +158,9 @@ function CharacterLibraryCovers({
           ))}
         </select>
       </label>
+      <LibraryCustomizationFields key={`labels:${workId}`} workId={workId} onDirtyChange={changeLabelsDirty} />
       <Suspense fallback={<p role="status">{t("libraryCover.loading")}</p>}>
-        <CoverEditor key={workId} workId={workId} onClose={onClose} onDirtyChange={setDirty} />
+        <CoverEditor key={workId} workId={workId} onClose={onClose} onDirtyChange={changeCoverDirty} />
       </Suspense>
     </div>
   );

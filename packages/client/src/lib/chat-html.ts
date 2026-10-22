@@ -103,6 +103,7 @@ const CHAT_HTML_ALLOWED_ATTR = [
   "color",
   "colspan",
   "data-spk",
+  "data-tts-dialogue",
   "decoding",
   "href",
   "id",

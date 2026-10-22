@@ -1,3 +1,4 @@
+import { useLibraryCardDisplay } from "../../hooks/use-library-card-display";
 import { Check, Hash, Star, User } from "lucide-react";
 import type { AvatarCrop } from "@marinara-engine/shared";
 import { useTranslation } from "react-i18next";
@@ -34,12 +35,13 @@ export function CardLibraryPreview({
   onClick: () => void;
 }) {
   const { t: localizeUi } = useTranslation();
+  const display = useLibraryCardDisplay(card, kind);
   const placeholderClass =
     kind === "personas" ? "mari-avatar-placeholder--persona" : "mari-avatar-placeholder--character";
   const portrait = card.avatarPath ? (
     <AvatarImage
       src={card.avatarPath}
-      alt={card.name}
+      alt={display.name}
       loading="lazy"
       iconSize="1.5rem"
       className="h-full w-full object-cover"
@@ -107,15 +109,15 @@ export function CardLibraryPreview({
         <div className="min-w-0">
           <div
             className={cn(
-              "truncate font-semibold text-[var(--marinara-chat-chrome-panel-title)]",
+              "break-words font-semibold text-[var(--marinara-chat-chrome-panel-title)]",
               compact ? "text-xs" : "text-sm sm:text-base",
             )}
           >
-            {card.name}
+            {display.name}
           </div>
-          {card.title && (
+          {display.title && (
             <div className="mt-0.5 truncate text-[0.625rem] italic text-[var(--marinara-chat-chrome-panel-muted)] sm:mt-1 sm:text-[0.6875rem]">
-              {card.title}
+              {display.title}
             </div>
           )}
           {card.meta && (
@@ -130,7 +132,7 @@ export function CardLibraryPreview({
             compact ? "line-clamp-2" : "line-clamp-3 sm:line-clamp-4 sm:text-xs sm:leading-5",
           )}
         >
-          {card.summary.length > 180 ? card.summary.slice(0, 177).trimEnd() + "..." : card.summary}
+          {display.summary.length > 180 ? display.summary.slice(0, 177).trimEnd() + "..." : display.summary}
         </p>
         {!compact && (
           <div className="mt-auto flex flex-wrap gap-1 sm:gap-1.5">

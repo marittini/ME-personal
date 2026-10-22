@@ -26,11 +26,6 @@ const Weather = lazy(() =>
     default: () => <module.NativeIntegrationSettings kind="weather" />,
   })),
 );
-const Translation = lazy(() =>
-  import("./NativeIntegrationSettings").then((module) => ({
-    default: () => <module.NativeIntegrationSettings kind="translation" />,
-  })),
-);
 const GlobalPreset = lazy(() =>
   import("./NativeIntegrationSettings").then((module) => ({
     default: () => <module.NativeIntegrationSettings kind="globalPreset" />,
@@ -39,17 +34,14 @@ const GlobalPreset = lazy(() =>
 const KeyVault = lazy(() =>
   import("../connections/ConnectionKeyVault").then((module) => ({ default: module.ConnectionKeyVault })),
 );
-const Excerpt = lazy(() => import("./ExcerptStudio").then((module) => ({ default: module.ExcerptStudio })));
 const FEATURES = {
   speech: Speech,
   queue: Queue,
   extensions: Extensions,
   naiPrompt: NaiPrompt,
   weather: Weather,
-  translationTools: Translation,
   globalPreset: GlobalPreset,
   keyVault: KeyVault,
-  excerpt: Excerpt,
 };
 type Feature = keyof typeof FEATURES;
 

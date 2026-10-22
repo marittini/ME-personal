@@ -1401,7 +1401,7 @@ export function AppShell({
         )}
       >
         <TopBar mobileTopbarNavigation={shellOverlayMode} />
-        <div className="mari-app-background-paint relative flex flex-1 flex-col overflow-hidden">
+        <div className="mari-app-background-paint relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* Browser — kept mounted once opened so state persists across close/reopen */}
           <MountOnceWhenOpened open={botBrowserOpen} overlay>
             <BotBrowserView />
@@ -1414,7 +1414,7 @@ export function AppShell({
           <div
             data-chat-covered={chatSurfaceActive ? undefined : "true"}
             className={cn(
-              "mari-app-background-paint flex flex-1 flex-col overflow-hidden",
+              "mari-app-background-paint flex min-h-0 flex-1 flex-col overflow-hidden",
               (botBrowserOpen || gameAssetsBrowserOpen || (!shellOverlayMode && hasDetailView)) && "hidden",
             )}
             style={

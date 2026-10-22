@@ -1,9 +1,22 @@
 export type TTSAudioParticipant = { kind: "character" | "persona"; id: string; name: string };
 export type TTSAudioLine = TTSAudioParticipant & { text: string; start: number; end: number };
 
+/** Decode only audio wrappers, outside code, leaving arbitrary HTML and source data alone. */
+export function normalizeTTSAudioMarkup(text: string): string {
+  const protectedOrTag =
+    /(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|`[^`\n]*`|(?:&(?:amp;)?lt;|&#0*60;|&#x0*3c;|〈|＜)(\/?audio_(?:character|persona)\b[^<>\r\n]{0,1000}?)(?:&(?:amp;)?gt;|&#0*62;|&#x0*3e;|〉|＞)/gi;
+  return text.replace(protectedOrTag, (whole, _fence, tag: string | undefined) =>
+    tag
+      ? `<${tag.replace(/&(?:amp;)?(?:quot|#34|#x22);/gi, '"').replace(/&(?:amp;)?(?:apos|#39|#x27);/gi, "'")}>`
+      : whole,
+  );
+}
+
 /** Only known, unambiguous identities are recoverable; code and nested markup are never speech. */
 export function parseTTSAudioLines(text: string, participants: readonly TTSAudioParticipant[]): TTSAudioLine[] {
-  const masked = text.replace(/(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|`[^`\n]*`/g, (code) => " ".repeat(code.length));
+  const masked = normalizeTTSAudioMarkup(text).replace(/(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|`[^`\n]*`/g, (code) =>
+    " ".repeat(code.length),
+  );
   const lines: TTSAudioLine[] = [];
   const add = (kind: string | undefined, id: string, raw: string, start: number, length: number) => {
     const matches = participants.filter((p) => p.id === id && (!kind || p.kind === kind));
@@ -30,7 +43,7 @@ export function parseTTSAudioLines(text: string, participants: readonly TTSAudio
 export function hideTTSAudioCues(text: string): string {
   let audio = false;
   let quoted = false;
-  return text.replace(
+  return normalizeTTSAudioMarkup(text).replace(
     /(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|`[^`\n]*`|<\/?audio_(?:character|persona)\b[^>]*>|["“”「」『』]|\[([^\]\r\n]{1,160})\](?!\s*(?:\(|:))[ \t]*/gi,
     (match, _fence, cue: string | undefined) => {
       if (match.startsWith("<")) {

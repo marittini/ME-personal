@@ -7061,8 +7061,7 @@ assert.deepEqual(inheritedGroupConversationSegments, [
   { speaker: "Char2", lines: ["yeah?"], start: 43, end: 55 },
 ]);
 assert.deepEqual(splitGroupedSegmentDisplayLines(inheritedGroupConversationSegments![0]!), [
-  "so anyway",
-  "i was thinking about that",
+  "so anyway\ni was thinking about that",
 ]);
 const newlineAfterSpeakerNameSegments = parseGroupedSpeakerSegments(
   "Char1:\nso anyway\ni was thinking about that\nChar2:\r\nyeah?",
@@ -7105,7 +7104,7 @@ assert.deepEqual(
     ...inheritedGroupConversationSegments![0]!,
     lines: ["so anyway\r\nstill thinking"],
   }),
-  ["so anyway", "still thinking"],
+  ["so anyway\nstill thinking"],
 );
 const annotatedPartiallyPrefixedReply = annotateContentWithReactions(
   partiallyPrefixedConversationReply,
