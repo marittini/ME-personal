@@ -5,6 +5,7 @@ import {
   type TTSVoiceAssignment,
 } from "@marinara-engine/shared";
 import { DIALOGUE_QUOTE_CAPTURE_GROUP_PATTERN_SOURCE, stripSurroundingDialogueQuotes } from "./dialogue-quotes";
+import { parseTTSAudioLines, type TTSAudioParticipant } from "./tts-audio-tags";
 
 export interface TTSUtterance {
   text: string;
@@ -119,6 +120,9 @@ function buildTTSConfigCacheSignature(config: TTSConfig): string {
     config.audioFormat,
     config.speed,
     config.elevenLabsStability,
+    config.elevenLabsSimilarityBoost ?? 0.75,
+    config.elevenLabsStyle ?? 0,
+    config.elevenLabsSpeakerBoost ?? true,
     config.elevenLabsLanguageCode,
     config.voice,
     config.skipTagContent ? "skip-tags" : "read-tags",
@@ -129,6 +133,7 @@ function buildTTSConfigCacheSignature(config: TTSConfig): string {
     config.narratorVoice,
     config.voiceMode,
     JSON.stringify(config.voiceAssignments ?? []),
+    JSON.stringify(config.personaVoiceAssignments ?? []),
     config.npcDefaultVoicesEnabled ? "npc-defaults" : "npc-global",
     JSON.stringify(config.npcDefaultMaleVoices ?? []),
     JSON.stringify(config.npcDefaultFemaleVoices ?? []),
@@ -470,7 +475,25 @@ export function buildTTSVoiceRequests(
   fallbackSpeaker?: string | null,
   fallbackCharacterId?: string | null,
   resolveCharacterIdForSpeaker?: (speaker?: string | null) => string | null | undefined,
+  participants: readonly TTSAudioParticipant[] = [],
 ): TTSVoiceRequest[] {
+  if (/<audio_(?:character|persona)\b/i.test(text)) {
+    return parseTTSAudioLines(text, participants).flatMap((line) => {
+      const voice =
+        line.kind === "persona"
+          ? config.voiceMode === "per-character"
+            ? config.personaVoiceAssignments?.find((row) => row.personaId === line.id)?.voice || config.voice
+            : config.voice
+          : resolveTTSVoiceForSpeaker(config, line.name, line.id);
+      if (config.source === "elevenlabs" && !voice) return [];
+      return splitTTSChunks(line.text, config).map((chunk) => ({
+        text: chunk,
+        speaker: line.name,
+        voice,
+        ...(line.kind === "character" ? { characterId: line.id } : {}),
+      }));
+    });
+  }
   const normalized = filterTTSText(decodeEncodedSpeakerTags(text), config);
   const hasSpeakerTags = /<speaker="[^"]*">/i.test(normalized);
   const shouldExtractUtterances = config.dialogueOnly || hasSpeakerTags;

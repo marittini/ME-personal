@@ -39,6 +39,7 @@ function resolveBuildCommit() {
 }
 
 const BUILD_COMMIT = resolveBuildCommit();
+const shellPrecacheChunks = new Set<string>();
 
 function manualChunks(id: string) {
   if (id.endsWith("/lib/tracker-card-colors.ts")) return "tracker-colors";
@@ -104,6 +105,19 @@ function bundleBudget(): Plugin {
   return {
     name: "bundle-budget",
     generateBundle(_options, bundle) {
+      // Precache the real static dependency graph of startup and the library shell.
+      // Optional editors/panels are cached on first use, including their own dependencies.
+      shellPrecacheChunks.clear();
+      const collect = (filename: string) => {
+        if (shellPrecacheChunks.has(filename)) return;
+        const chunk = bundle[filename];
+        if (!chunk || chunk.type !== "chunk") return;
+        shellPrecacheChunks.add(filename);
+        chunk.imports.forEach(collect);
+      };
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type === "chunk" && (chunk.isEntry || chunk.name === "AppShell")) collect(chunk.fileName);
+      }
       const chunks = Object.values(bundle)
         .filter((item): item is import("rollup").OutputChunk => item.type === "chunk")
         .map((chunk) => ({
@@ -199,9 +213,33 @@ export default defineConfig({
               "**/{pngtuber,mesh-avatar,vrm}-renderer-*.js",
               "**/vendor-three*.js",
               "**/vendor-mesh-avatar*.js",
+              // Reader shells fetch feature chunks and nonessential art only when opened.
+              "**/illustrations/**",
+              "**/releases/**",
             ],
             navigateFallbackAllowlist: [],
+            manifestTransforms: [
+              async (entries) => ({
+                manifest: entries.filter(
+                  (entry) =>
+                    !entry.url.endsWith(".js") ||
+                    shellPrecacheChunks.has(entry.url.replace(/^\//, "")) ||
+                    !entry.url.startsWith("assets/"),
+                ),
+                warnings: [],
+              }),
+            ],
             runtimeCaching: [
+              {
+                urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+                  sameOrigin && /^\/assets\/.+\.(?:js|css)$/.test(url.pathname),
+                handler: "CacheFirst",
+                options: {
+                  cacheName: "feature-assets",
+                  expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 60 * 60 },
+                  cacheableResponse: { statuses: [200] },
+                },
+              },
               {
                 urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
                 handler: "NetworkOnly",

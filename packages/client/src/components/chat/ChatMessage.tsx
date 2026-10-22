@@ -120,6 +120,7 @@ import { api } from "../../lib/api-client";
 import { applyTextareaQuoteFormat } from "../../lib/textarea-quotes";
 import { ttsService } from "../../lib/tts-service";
 import { useTTSConfig } from "../../hooks/use-tts";
+import { hideTTSAudioCues, type TTSAudioParticipant } from "../../lib/tts-audio-tags";
 import {
   buildTTSVoiceRequests,
   findTTSCharacterIdBySpeakerName,
@@ -2118,6 +2119,11 @@ export const ChatMessage = memo(function ChatMessage({
       : undefined;
   const isTranslating = !!translating[message.id];
 
+  const extra = useMemo(() => {
+    if (!message.extra) return {};
+    return typeof message.extra === "string" ? JSON.parse(message.extra) : message.extra;
+  }, [message.extra]);
+
   // TTS
   const { data: ttsConfig } = useTTSConfig();
   const ttsEnabled = ttsConfig?.enabled ?? false;
@@ -2134,12 +2140,30 @@ export const ChatMessage = memo(function ChatMessage({
   );
   const ttsVoiceRequests = useMemo(() => {
     if (!ttsConfig) return [];
+    const personaId =
+      isUser && typeof extra.personaSnapshot?.personaId === "string"
+        ? extra.personaSnapshot.personaId
+        : personaInfo?.id;
+    const personaVoice =
+      isUser && ttsConfig.voiceMode === "per-character"
+        ? ttsConfig.personaVoiceAssignments?.find((row) => row.personaId === personaId)?.voice
+        : undefined;
     const requests = buildTTSVoiceRequests(
       message.content,
-      ttsConfig,
+      personaVoice ? { ...ttsConfig, voiceMode: "single", voice: personaVoice } : ttsConfig,
       ttsSpeakerName,
       message.characterId,
       resolveTTSCharacterId,
+      [
+        ...[...(characterMap ?? [])]
+          .filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id))
+          .map(([id, character]): TTSAudioParticipant => ({
+            kind: "character",
+            id,
+            name: character.name,
+          })),
+        ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
+      ],
     );
     return withTTSVoiceRequestCacheKeys(
       visualNovel || followSpeechParagraphs
@@ -2152,6 +2176,12 @@ export const ChatMessage = memo(function ChatMessage({
     message.characterId,
     message.content,
     message.id,
+    isUser,
+    extra.personaSnapshot?.personaId,
+    personaInfo?.id,
+    personaInfo?.name,
+    characterMap,
+    chatCharacterIds,
     resolveTTSCharacterId,
     ttsConfig,
     ttsSpeakerName,
@@ -2358,10 +2388,6 @@ export const ChatMessage = memo(function ChatMessage({
   );
 
   // Parse message extra for conversation start flag
-  const extra = useMemo(() => {
-    if (!message.extra) return {};
-    return typeof message.extra === "string" ? JSON.parse(message.extra) : message.extra;
-  }, [message.extra]);
   const isConversationStart = !!extra.isConversationStart || memoryStartCharacterIds?.length === 0;
   const conversationStartForCharacterIds: string[] = extra.conversationStartForCharacterIds ?? [];
   const isHiddenFromAllAI = extra.hiddenFromAI === true;
@@ -2742,7 +2768,7 @@ export const ChatMessage = memo(function ChatMessage({
               scopedMode: scopedRegexMode,
               characterId: message.characterId,
             });
-      return resolveDisplayMacros(text);
+      return resolveDisplayMacros(isUser || isSystem ? text : hideTTSAudioCues(text));
     },
     [
       applyToAIOutput,

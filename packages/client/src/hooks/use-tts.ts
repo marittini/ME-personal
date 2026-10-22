@@ -3,6 +3,7 @@
 // ──────────────────────────────────────────────
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
+import { ttsService } from "../lib/tts-service";
 import type {
   TTSConfig,
   TTSModelsResponse,
@@ -43,6 +44,17 @@ export function useUpdateTTSConfig() {
   return useMutation({
     mutationFn: (config: TTSConfig) => api.put<void>("/tts/config", config),
     onSuccess: () => invalidateTTSSettings(qc),
+  });
+}
+
+export function useSetTTSEnabled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => api.put<void>("/tts/config/enabled", { enabled }),
+    onSuccess: async (_result, enabled) => {
+      if (!enabled) ttsService.stop();
+      await qc.invalidateQueries({ queryKey: KEYS.config });
+    },
   });
 }
 

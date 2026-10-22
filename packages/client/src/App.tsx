@@ -9,7 +9,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -19,7 +18,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Translation } from "react-i18next";
 import { APP_VERSION } from "@marinara-engine/shared";
-import { CustomThemeInjector } from "./components/layout/CustomThemeInjector";
 import { PersonalExtensionInjector } from "./components/layout/PersonalExtensionInjector";
 const ModelDownloadModal = lazy(() =>
   import("./components/modals/ModelDownloadModal").then((module) => ({ default: module.ModelDownloadModal })),
@@ -28,7 +26,6 @@ const WhatsNewModal = lazy(() =>
   import("./components/modals/WhatsNewModal").then((module) => ({ default: module.WhatsNewModal })),
 );
 import { StorageMigrationNoticeModal } from "./components/modals/StorageMigrationNoticeModal";
-import { SeasonalGreetingModal } from "./components/modals/SeasonalGreetingModal";
 import { AppDialogRenderer } from "./components/ui/AppDialogRenderer";
 import { ChibiProfessorMariEasterEgg } from "./components/ui/ChibiProfessorMariEasterEgg";
 import { CsrfOriginWarningBanner } from "./components/diagnostics/CsrfOriginWarningBanner";
@@ -56,17 +53,14 @@ import {
   isCssGradient,
   RAINBOW_GRADIENT_PRESET,
 } from "./lib/css-colors";
-import { normalizeThemeCss } from "./lib/theme-css";
 import {
   CHAT_WIDGET_COLOR_PROPERTIES,
   getChatWidgetColorRoles,
   getChatWidgetColorStyle,
 } from "./lib/chat-widget-colors";
 import { getChatWidgetFontFamily, stripFontFamilyQuotes, toCssFontFamilyValue } from "./lib/font-family";
-import { useLegacyThemeMigration, useThemes } from "./hooks/use-themes";
 import { useSettingsSync } from "./hooks/use-settings-sync";
 import { useStorageMigrationNotice } from "./hooks/use-storage-migration-notice";
-import { useSeasonalTheme } from "./hooks/use-seasonal-theme";
 import { useCustomNotificationSoundStatus } from "./hooks/use-custom-notification-sound";
 import { useReducedAmbientEffects } from "./hooks/use-reduced-ambient-effects";
 import { installLongTaskWarner } from "./lib/perf-diagnostics";
@@ -123,11 +117,6 @@ const ACCENT_RGB_GRADIENT_STOP_MS = 6_000;
 const CUSTOM_CURSOR_RECOLOR_SCROLL_FREEZE_MS = 360;
 const TOAST_DURATION_MS = 6_000;
 const TOAST_VISIBLE_LIMIT = 3;
-const THEME_ACCENT_PULSE_VARIABLE = "--marinara-theme-accent-pulse";
-const THEME_ACCENT_PULSE_SOURCE_VARIABLE = "--marinara-theme-accent-pulse-source";
-const THEME_ACCENT_PULSE_ENABLED_VALUES = new Set(["1", "true", "yes", "on", "enabled", "enable", "pulse"]);
-const ACCENT_SOURCE_SELF_REFERENCE_RE =
-  /var\(\s*--(?:primary|ring|accent|sidebar-accent|sidebar-accent-foreground|marinara-app-accent-solid|marinara-app-accent-gradient|marinara-chat-chrome-accent|marinara-chat-chrome-accent-gradient)\b/i;
 
 function formatRecoveryError(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -368,44 +357,6 @@ function getAccentGlow(accent: string, theme: "dark" | "light") {
   return `color-mix(in srgb, ${accent} ${theme === "light" ? "12%" : "18%"}, transparent)`;
 }
 
-function stripCssComments(css: string) {
-  return css.replace(/\/\*[\s\S]*?\*\//g, "");
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function readCssCustomProperty(css: string, name: string) {
-  const match = css.match(new RegExp(`${escapeRegExp(name)}\\s*:\\s*([^;{}\\n\\r]+)`, "i"));
-  return match?.[1]?.trim() ?? "";
-}
-
-function isEnabledCssValue(value: string) {
-  return THEME_ACCENT_PULSE_ENABLED_VALUES.has(value.trim().toLowerCase());
-}
-
-function getFirstThemeAccentSource(css: string) {
-  const sourceCandidates = [
-    readCssCustomProperty(css, THEME_ACCENT_PULSE_SOURCE_VARIABLE),
-    readCssCustomProperty(css, "--marinara-app-accent-gradient"),
-    readCssCustomProperty(css, "--marinara-app-accent-solid"),
-    readCssCustomProperty(css, "--primary"),
-  ];
-
-  return sourceCandidates.find((value) => value && !ACCENT_SOURCE_SELF_REFERENCE_RE.test(value)) ?? "";
-}
-
-function getThemeAccentPulseConfig(css: string | null | undefined) {
-  const normalizedCss = stripCssComments(normalizeThemeCss(css ?? ""));
-  const enabled = isEnabledCssValue(readCssCustomProperty(normalizedCss, THEME_ACCENT_PULSE_VARIABLE));
-
-  return {
-    enabled,
-    source: getFirstThemeAccentSource(normalizedCss),
-  };
-}
-
 function applyAppAccentVariables({
   root,
   accent,
@@ -517,14 +468,7 @@ export function App() {
   const rightPanel = useUIStore((s) => s.rightPanel);
   const settingsTab = useUIStore((s) => s.settingsTab);
   const appearanceSettingsActive = rightPanelOpen && rightPanel === "settings" && settingsTab === "appearance";
-  const { data: syncedThemes = [] } = useThemes();
   const { data: customNotificationSound } = useCustomNotificationSoundStatus();
-  const activeCustomTheme = useMemo(() => syncedThemes.find((themeItem) => themeItem.isActive) ?? null, [syncedThemes]);
-  const themeAccentPulseConfig = useMemo(
-    () => getThemeAccentPulseConfig(activeCustomTheme?.css),
-    [activeCustomTheme?.css],
-  );
-  useLegacyThemeMigration();
   useSettingsSync();
   const showDownloadModal = useSidecarStore((s) => s.showDownloadModal);
   const setShowDownloadModal = useSidecarStore((s) => s.setShowDownloadModal);
@@ -536,8 +480,6 @@ export function App() {
   const [agentUpdatesResolved, setAgentUpdatesResolved] = useState(false);
   const handleAgentUpdatesResolved = useCallback(() => setAgentUpdatesResolved(true), []);
   const [chatWindowIntroOpen, setChatWindowIntroOpen] = useState(false);
-  const seasonal = useSeasonalTheme();
-  const [seasonalGreetingOpen, setSeasonalGreetingOpen] = useState(false);
   const handleWhatsNewResolved = useCallback(() => setWhatsNewResolved(true), []);
   // Shares the modal's query via the cache; gating the prompter on the QUERY
   // (pending or a notice still waiting) instead of the modal's open state
@@ -724,7 +666,7 @@ export function App() {
     syncLiteralBackground();
     const frame = requestAnimationFrame(syncLiteralBackground);
     return () => cancelAnimationFrame(frame);
-  }, [activeCustomTheme?.css, appBackgroundColor, seasonal.themeId, theme, visualTheme]);
+  }, [appBackgroundColor, theme, visualTheme]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -762,7 +704,7 @@ export function App() {
     const accent = appAccentColor.trim();
     const defaultAccent = getDefaultAppAccentColor();
     const defaultSolidAccent = getCssColorFallback(defaultAccent, "currentColor");
-    const accentSource = accent || themeAccentPulseConfig.source || defaultAccent;
+    const accentSource = accent || defaultAccent;
     const solidAccent = getCssColorFallback(accentSource, defaultSolidAccent);
     const accentIsGradient = isCssGradient(accentSource);
     const animatedAccentSource = appAccentRgbMode ? RAINBOW_GRADIENT_PRESET : accentSource;
@@ -771,7 +713,7 @@ export function App() {
     const animatedGradientStops = animatedAccentIsGradient
       ? getCssGradientColorStops(animatedAccentSource, animatedSolidAccent)
       : [animatedSolidAccent];
-    const accentAnimationEnabled = appAccentRgbMode || appAccentPulseMode || themeAccentPulseConfig.enabled;
+    const accentAnimationEnabled = appAccentRgbMode || appAccentPulseMode;
     const usesTimerDrivenAccentAnimation = accentAnimationEnabled;
 
     root.style.setProperty("--marinara-app-accent-static", solidAccent);
@@ -984,16 +926,7 @@ export function App() {
       delete root.dataset.marinaraAccentAnimation;
       delete root.dataset.marinaraCursorRecolorFrozen;
     };
-  }, [
-    appAccentColor,
-    appAccentPulseMode,
-    appAccentRgbMode,
-    customCursorEnabled,
-    reduceAmbientEffects,
-    theme,
-    themeAccentPulseConfig.enabled,
-    themeAccentPulseConfig.source,
-  ]);
+  }, [appAccentColor, appAccentPulseMode, appAccentRgbMode, customCursorEnabled, reduceAmbientEffects, theme]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1010,18 +943,13 @@ export function App() {
 
   // Apply visual theme (default / sillytavern) to the document root
   useEffect(() => {
-    if (visualTheme && visualTheme !== "default") {
-      document.documentElement.dataset.visualTheme = visualTheme;
-    } else {
-      delete document.documentElement.dataset.visualTheme;
-    }
+    delete document.documentElement.dataset.visualTheme;
   }, [visualTheme]);
 
   // Seasonal look of the day (styles/themes/seasonal-*.css), layered over every theme until it ends.
   useEffect(() => {
-    if (seasonal.themeId) document.documentElement.dataset.seasonalTheme = seasonal.themeId;
-    else delete document.documentElement.dataset.seasonalTheme;
-  }, [seasonal.themeId]);
+    delete document.documentElement.dataset.seasonalTheme;
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${fontSize}px`;
@@ -1213,7 +1141,6 @@ export function App() {
 
   return (
     <>
-      <CustomThemeInjector />
       <PersonalExtensionInjector />
       <ChibiProfessorMariEasterEgg />
       <Suspense fallback={null}>
@@ -1227,7 +1154,6 @@ export function App() {
             !migrationNotice &&
             agentUpdatesResolved &&
             !agentUpdateOpen &&
-            !seasonalGreetingOpen &&
             (isLite || !showDownloadModal)
           }
           onChatWindowIntroOpenChange={setChatWindowIntroOpen}
@@ -1255,26 +1181,6 @@ export function App() {
           !whatsNewOpen &&
           !migrationNoticePending &&
           !migrationNotice &&
-          !chatWindowIntroOpen &&
-          !seasonalGreetingOpen &&
-          (isLite || !showDownloadModal)
-        }
-      />
-      <SeasonalGreetingModal
-        themeId={seasonal.themeId}
-        pending={seasonal.showGreeting}
-        onShown={seasonal.markGreeted}
-        onTurnOff={seasonal.turnOff}
-        onOpenChange={setSeasonalGreetingOpen}
-        presentationAllowed={
-          whatsNewResolved &&
-          !hasModalOpen &&
-          !hasAppDialogOpen &&
-          !whatsNewOpen &&
-          !migrationNoticePending &&
-          !migrationNotice &&
-          agentUpdatesResolved &&
-          !agentUpdateOpen &&
           !chatWindowIntroOpen &&
           (isLite || !showDownloadModal)
         }

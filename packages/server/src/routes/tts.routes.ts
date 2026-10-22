@@ -16,7 +16,6 @@ import {
   ttsVoiceModeInputSchema,
   setCharacterVoiceAssignment,
   TTS_VOICE_MAX_LENGTH,
-  normalizeMusicEnemyTier,
   resolveTtsRequestTimeoutMs,
   TTS_SETTINGS_KEY,
   TTS_API_KEY_MASK,
@@ -178,29 +177,6 @@ const extractedDialogueSchema = z.object({
       }),
     )
     .max(500),
-});
-
-const gameAudioSchema = z.object({
-  kind: z.enum(["sfx", "music"]),
-  prompt: z.string().trim().min(1).max(4_100),
-  /** Optional audio-connection override (#5146); absent = default/legacy resolution. */
-  audioConnectionId: z.string().optional(),
-  /** Context-track request (#5161): a persistent composition generated ONCE
-   *  per area slug or encounter tier into the scoreable music library
-   *  (music/<axis>/<key>/), instead of a throwaway per-prompt clip. Music only. */
-  context: z
-    .object({
-      axis: z.enum(["area", "tier"]),
-      key: z
-        .string()
-        .trim()
-        .min(1)
-        .max(80)
-        .regex(/^[a-z0-9][a-z0-9_-]*$/),
-      /** Composition length; context tracks default to 120s. */
-      lengthMs: z.number().int().min(10_000).max(300_000).optional(),
-    })
-    .optional(),
 });
 
 const AUDIO_FILE_PATTERN = /\.(mp3|wav|ogg|m4a|flac)$/i;
@@ -1454,6 +1430,14 @@ export async function ttsRoutes(app: FastifyInstance) {
     });
   const UNREADABLE_SETTINGS = { error: "The saved Text to Speech settings could not be read." };
 
+  // A quick switch must never overwrite voices or a newer settings save from another tab.
+  app.put("/config/enabled", async (req, reply) => {
+    const { enabled } = z.object({ enabled: z.boolean() }).strict().parse(req.body);
+    const saved = await updateStoredConfig((existing) => ({ ...existing, enabled }));
+    if (!saved) return reply.status(409).send(UNREADABLE_SETTINGS);
+    return reply.status(204).send();
+  });
+
   /**
    * PUT /api/tts/config/voice-assignment
    * Sets or clears one character's voice and leaves every other setting as stored,
@@ -1642,58 +1626,9 @@ export async function ttsRoutes(app: FastifyInstance) {
    * POST /api/tts/game-audio
    * Generates and caches scene-specific Game Mode music or sound effects.
    */
-  app.post("/game-audio", async (req, reply) => {
-    const { kind, prompt, audioConnectionId, context } = gameAudioSchema.parse(req.body);
-    if (context && kind !== "music") {
-      return reply.status(400).send({ error: "Context tracks are music only" });
-    }
-    if (kind === "music" && !context) {
-      // The per-prompt 30-second music path is retired (#5161); leaving it
-      // reachable would let stray callers keep filling music/generated/ with
-      // clips nothing selects.
-      return reply.status(400).send({ error: "Music generation requires a context key (area or tier)" });
-    }
-    if (context?.axis === "tier") {
-      // Aliases (elite, legendary, …) are accepted but the STORED key must be
-      // canonical — a music/tier/elite/ folder would be a paid composition the
-      // scorer can never select.
-      const canonicalTier = normalizeMusicEnemyTier(context.key);
-      if (!canonicalTier) {
-        return reply.status(400).send({ error: `Unknown encounter tier "${context.key}"` });
-      }
-      context.key = canonicalTier;
-    }
-    const cfg = await resolveAudioConfig(storage, connections, audioConnectionId);
-    if (cfg.connectionUnavailable) return reply.status(409).send({ error: TTS_CONNECTION_UNAVAILABLE });
-    const enabled = kind === "sfx" ? cfg.elevenLabsGameSoundEffects === true : cfg.elevenLabsGameMusic === true;
-    if (cfg.source !== "elevenlabs" || !enabled) {
-      return reply.status(400).send({ error: `ElevenLabs game ${kind} generation is not enabled` });
-    }
-    if (!cfg.apiKey) {
-      return reply.status(400).send({ error: "ElevenLabs API key is not configured" });
-    }
-
-    const normalizedPrompt = normalizeGameAudioPrompt(prompt);
-    // Context generations lock on their KEY: two turns racing the same area
-    // must collapse into one composition even when their prompts differ.
-    const lockKey = context ? `context\0${context.axis}\0${context.key}` : `${kind}\0${normalizedPrompt.toLowerCase()}`;
-    let generation = gameAudioGenerationLocks.get(lockKey);
-    if (!generation) {
-      generation = generateElevenLabsGameAudio(cfg, kind, normalizedPrompt, context).finally(() => {
-        gameAudioGenerationLocks.delete(lockKey);
-      });
-      gameAudioGenerationLocks.set(lockKey, generation);
-    }
-    try {
-      return await generation;
-    } catch (error) {
-      logger.error(error, "ElevenLabs game %s generation failed", kind);
-      return reply.status(502).send({
-        error: `ElevenLabs game ${kind} generation failed`,
-        detail: error instanceof Error ? error.message : "Unknown provider error",
-      });
-    }
-  });
+  app.post("/game-audio", async (_req, reply) =>
+    reply.status(410).send({ error: "Game audio generation has been removed." }),
+  );
 
   /**
    * POST /api/tts/speak
@@ -1822,6 +1757,9 @@ export async function ttsRoutes(app: FastifyInstance) {
                   ...(elevenLabsLanguageCode ? { language_code: elevenLabsLanguageCode } : {}),
                   voice_settings: {
                     stability: cfg.elevenLabsStability,
+                    similarity_boost: cfg.elevenLabsSimilarityBoost ?? 0.75,
+                    style: cfg.elevenLabsStyle ?? 0,
+                    use_speaker_boost: cfg.elevenLabsSpeakerBoost ?? true,
                     ...(includeSpeed ? { speed: elevenLabsSpeed } : {}),
                   },
                 })

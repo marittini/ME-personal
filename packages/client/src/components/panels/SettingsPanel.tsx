@@ -23,7 +23,6 @@ import {
   type ChatWidgetShape,
   type ConversationAvatarShape,
   type ConversationMessageStyle,
-  type GameDialogueDisplayMode,
   type ChatListBackgroundMode,
   type RoleplayAvatarStyle,
   type RoleplayChatPosition,
@@ -31,7 +30,6 @@ import {
   type TrackerPanelSizeProfile,
   type TrackerStatDisplayMode,
   type TrackerThoughtBubbleDisplay,
-  type VisualTheme,
 } from "../../stores/ui.store";
 import { UILanguageSetting } from "./settings/UILanguageSetting";
 import { MultiplayerSettings } from "../../features/multiplayer/MultiplayerSettings";
@@ -61,7 +59,6 @@ import {
 } from "../../lib/api-client";
 import { ANDROID_BRIDGE_READY_EVENT, getAndroidBridgeToken } from "../../lib/android-bridge";
 import { chatBackgroundUrlToMetadata } from "../../lib/backgrounds";
-import { normalizeThemeCss, sanitizeAppCss } from "../../lib/theme-css";
 import { getChatWidgetFontFamily } from "../../lib/font-family";
 import { forceRefreshSpa } from "@/lib/browser-runtime";
 import {
@@ -90,9 +87,6 @@ import {
   createImageStyleProfileId,
   normalizeImageStyleProfileSettings,
   normalizeVideoGenerationUserSettings,
-  createFolderEntry,
-  getFolderImportEntries,
-  getFolderManifestConfig,
   type AppSettingsResponse,
   type APIConnection,
   type ConversationCallCharacterVideoClipKind,
@@ -102,17 +96,9 @@ import {
   type ImageStyleProfileSettings,
   type QuoteFormat,
   type SidecarHealthSection,
-  type Theme,
   type VideoGenerationUserSettings,
 } from "@marinara-engine/shared";
-import {
-  findDuplicateTheme,
-  useCreateTheme,
-  useDeleteTheme,
-  useSetActiveTheme,
-  useThemes,
-  useUpdateTheme,
-} from "../../hooks/use-themes";
+import { useSetActiveTheme } from "../../hooks/use-themes";
 import {
   ArrowDown,
   ArrowUp,
@@ -127,18 +113,14 @@ import {
   Palette,
   Puzzle,
   CloudRain,
-  FileCode2,
   FileText,
   Power,
   Paintbrush,
   AlertTriangle,
   ShieldAlert,
   Tag,
-  Code,
   Plus,
   Save,
-  Eye,
-  EyeOff,
   Download,
   Dock,
   FolderOpen,
@@ -146,7 +128,6 @@ import {
   RefreshCw,
   RotateCcw,
   ExternalLink,
-  ScrollText,
   UserCheck,
   WandSparkles,
   Terminal,
@@ -173,7 +154,6 @@ import {
 import { useConnections } from "../../hooks/use-connections";
 import { useChatStore } from "../../stores/chat.store";
 import { parseChatMetadata } from "../../lib/chat-display";
-import { useOpenGameAssetsFolder, useRescanGameAssets } from "../../hooks/use-game-assets";
 import { chatKeys } from "../../hooks/use-chats";
 import { useInstalledCapabilityPackages } from "../../hooks/use-capability-packages";
 import { useDocsLanguage, useFixDocsLanguage, useSetDocsLanguage } from "../../hooks/use-docs-language";
@@ -187,7 +167,6 @@ import {
   ConversationSoundSetting,
   SETTINGS_BUTTON_CLASS,
   SETTINGS_CHOICE_CARD_CLASS,
-  SETTINGS_COMPACT_PRIMARY_BUTTON_CLASS,
   SETTINGS_ICON_BUTTON_CLASS,
   SETTINGS_PRIMARY_BUTTON_CLASS,
   SETTINGS_PRIMARY_FULL_BUTTON_CLASS,
@@ -216,13 +195,8 @@ import {
   type SupportDiagnostics,
 } from "../../lib/support-diagnostics";
 import { showConfirmDialog } from "../../lib/app-dialogs";
-import { downloadJsonFile, sanitizeExportFilenamePart } from "../../lib/download-json";
 import { saveExportFile } from "../../lib/file-download";
-import {
-  HOST_DEVICE_FILE_MANAGER_MESSAGE,
-  HostDeviceFileManagerError,
-  isHostDeviceBrowser,
-} from "../../lib/host-device";
+import { HOST_DEVICE_FILE_MANAGER_MESSAGE, isHostDeviceBrowser } from "../../lib/host-device";
 
 type CustomFontFace = {
   filename: string;
@@ -594,19 +568,6 @@ const CHAT_LIST_BACKGROUND_OPTIONS: Array<{ id: ChatListBackgroundMode; label: s
   { id: "off", label: "Off", desc: "No banners. Chat rows keep the plain sidebar background." },
 ];
 
-const GAME_DIALOGUE_DISPLAY_OPTIONS: Array<{ id: GameDialogueDisplayMode; label: string; desc: string }> = [
-  {
-    id: "classic",
-    label: "Classic Dialogue Box",
-    desc: "One active segment in the dialogue box, with logs available from the Logs button.",
-  },
-  {
-    id: "stacked",
-    label: "History Above Dialogue Box",
-    desc: "Shows prior segments above the dialogue box and keeps the full session scrollable there.",
-  },
-];
-
 const TRACKER_THOUGHT_BUBBLE_DISPLAY_OPTIONS: Array<{
   id: TrackerThoughtBubbleDisplay;
   label: string;
@@ -680,39 +641,6 @@ const QUOTE_FORMAT_OPTIONS: Array<{ id: QuoteFormat; label: string; sample: stri
   { id: "typographic", label: "Typographic", sample: "\u201cHello,\u201d it\u2019s me." },
 ];
 
-const GAME_ASSET_CATEGORIES = [
-  {
-    id: "music",
-    label: "Music",
-    defaultFolder: "exploration/fantasy/calm",
-    accept: "audio/*,.mp3,.ogg,.wav,.flac,.m4a,.aac,.webm",
-  },
-  {
-    id: "ambient",
-    label: "Ambient",
-    defaultFolder: "nature",
-    accept: "audio/*,.mp3,.ogg,.wav,.flac,.m4a,.aac,.webm",
-  },
-  {
-    id: "sfx",
-    label: "Sound Effects",
-    defaultFolder: "exploration",
-    accept: "audio/*,.mp3,.ogg,.wav,.flac,.m4a,.aac,.webm",
-  },
-  {
-    id: "sprites",
-    label: "Sprites",
-    defaultFolder: "generic-fantasy",
-    accept: "image/*,.svg",
-  },
-  {
-    id: "backgrounds",
-    label: "Backgrounds",
-    defaultFolder: "custom",
-    accept: "image/*",
-  },
-] as const;
-
 const VIDEO_PROMPT_TEMPLATE_KEYS = [
   "game.video",
   "roleplay.galleryVideoDirector",
@@ -735,9 +663,6 @@ const CONVERSATION_CALL_VIDEO_CLIP_LABELS: Record<ConversationCallCharacterVideo
   crying: "Crying",
   sighing: "Sighing",
 };
-
-type GameAssetCategoryId = (typeof GAME_ASSET_CATEGORIES)[number]["id"];
-const GAME_ASSET_CATEGORY_BY_ID = new Map(GAME_ASSET_CATEGORIES.map((category) => [category.id, category]));
 
 const IMAGE_STYLE_SUBJECT_KINDS: ImagePromptKind[] = [
   "avatar",
@@ -1486,12 +1411,11 @@ function TrackerPanelAppearanceDrawer() {
   );
 }
 
-type AppearanceGroup = "app" | "conversation" | "roleplay" | "game";
+type AppearanceGroup = "app" | "conversation" | "roleplay";
 
 function appearanceGroupForSection(id: SettingsSectionId): AppearanceGroup {
   if (id === "chat-display" || id === "conversation-theme") return "conversation";
   if (id === "roleplay-tracker" || id === "roleplay-messages") return "roleplay";
-  if (id === "game-presentation") return "game";
   return "app";
 }
 
@@ -1781,7 +1705,7 @@ export function SettingsPanel() {
                       aria-label={localizeUi("settings.appearance.modeNavigation")}
                       className="@container mb-3 grid grid-cols-4 divide-x divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40"
                     >
-                      {(["app", "conversation", "roleplay", "game"] as const).map((mode) => (
+                      {(["app", "conversation", "roleplay"] as const).map((mode) => (
                         <button
                           key={mode}
                           type="button"
@@ -2247,7 +2171,7 @@ function DocsLanguageSetting() {
 
 function GeneralSettings() {
   const { t: localizeUi } = useUiTranslation();
-  const { t, i18n: localization } = useTranslation();
+  const { t } = useTranslation();
   const localize = useLocalizedUiText();
   const { data: installedCapabilities = [] } = useInstalledCapabilityPackages();
   const musicDjInstalled = installedCapabilities.some(
@@ -2259,20 +2183,10 @@ function GeneralSettings() {
   const setEnableStreaming = useUIStore((s) => s.setEnableStreaming);
   const streamingSpeed = useUIStore((s) => s.streamingSpeed);
   const setStreamingSpeed = useUIStore((s) => s.setStreamingSpeed);
-  const gameInstantTextReveal = useUIStore((s) => s.gameInstantTextReveal);
-  const setGameInstantTextReveal = useUIStore((s) => s.setGameInstantTextReveal);
-  const gameMiddleMouseNav = useUIStore((s) => s.gameMiddleMouseNav);
-  const setGameMiddleMouseNav = useUIStore((s) => s.setGameMiddleMouseNav);
-  const gameTextSpeed = useUIStore((s) => s.gameTextSpeed);
-  const setGameTextSpeed = useUIStore((s) => s.setGameTextSpeed);
-  const gameAutoPlayDelay = useUIStore((s) => s.gameAutoPlayDelay);
-  const setGameAutoPlayDelay = useUIStore((s) => s.setGameAutoPlayDelay);
   const enterToSendRP = useUIStore((s) => s.enterToSendRP);
   const setEnterToSendRP = useUIStore((s) => s.setEnterToSendRP);
   const enterToSendConvo = useUIStore((s) => s.enterToSendConvo);
   const setEnterToSendConvo = useUIStore((s) => s.setEnterToSendConvo);
-  const enterToSendGame = useUIStore((s) => s.enterToSendGame);
-  const setEnterToSendGame = useUIStore((s) => s.setEnterToSendGame);
   const keepGuidanceAfterRegenerate = useUIStore((s) => s.keepGuidanceAfterRegenerate);
   const setKeepGuidanceAfterRegenerate = useUIStore((s) => s.setKeepGuidanceAfterRegenerate);
   const confirmBeforeDelete = useUIStore((s) => s.confirmBeforeDelete);
@@ -2281,8 +2195,6 @@ function GeneralSettings() {
   const setChatHelpButtonHidden = useUIStore((s) => s.setChatHelpButtonHidden);
   const achievementsEnabled = useUIStore((s) => s.achievementsEnabled);
   const setAchievementsEnabled = useUIStore((s) => s.setAchievementsEnabled);
-  const seasonalThemesDisabled = useUIStore((s) => s.seasonalThemesDisabled);
-  const setSeasonalThemesDisabled = useUIStore((s) => s.setSeasonalThemesDisabled);
   const messagesPerPage = useUIStore((s) => s.messagesPerPage);
   const setMessagesPerPage = useUIStore((s) => s.setMessagesPerPage);
   const boldDialogue = useUIStore((s) => s.boldDialogue);
@@ -2350,13 +2262,6 @@ function GeneralSettings() {
             checked={achievementsEnabled}
             onChange={setAchievementsEnabled}
             help={localizeUi("settings.controls.achievements.help")}
-          />
-          <ToggleSetting
-            anchorId={getSettingsControlAnchorId("disable-seasonal-themes")}
-            label={localizeUi("settings.controls.disableSeasonalThemes.label")}
-            checked={seasonalThemesDisabled}
-            onChange={setSeasonalThemesDisabled}
-            help={localizeUi("settings.controls.disableSeasonalThemes.help")}
           />
           <ToggleSetting
             anchorId={getSettingsControlAnchorId("music-player")}
@@ -2529,14 +2434,6 @@ function GeneralSettings() {
               >
                 {localizeUi("settings.modes.conversations")}
               </button>
-              <button
-                type="button"
-                onClick={() => setEnterToSendGame(!enterToSendGame)}
-                aria-pressed={enterToSendGame}
-                className={SETTINGS_BUTTON_CLASS}
-              >
-                {localizeUi("settings.modes.game")}
-              </button>
             </div>
           </div>
 
@@ -2667,95 +2564,6 @@ function GeneralSettings() {
           </div>
         </div>
       </SettingsSection>
-
-      <SettingsSection
-        title={localizeUi("settings.sections.gamePlayback.title")}
-        description={localizeUi("settings.sections.gamePlayback.description")}
-        icon={<ScrollText size="0.875rem" />}
-        {...getSettingsSectionAnchorProps("game-playback")}
-      >
-        <div className="flex flex-col gap-2.5">
-          <ToggleSetting
-            anchorId={getSettingsControlAnchorId("game-instant-text-reveal")}
-            label={localizeUi("settings.controls.gameInstantText.label")}
-            checked={gameInstantTextReveal}
-            onChange={setGameInstantTextReveal}
-            help={localizeUi("settings.controls.gameInstantText.help")}
-          />
-          <ToggleSetting
-            anchorId={getSettingsControlAnchorId("game-middle-mouse-navigation")}
-            label={localizeUi("settings.controls.gameMouseNavigation.label")}
-            checked={gameMiddleMouseNav}
-            onChange={setGameMiddleMouseNav}
-            help={localizeUi("settings.controls.gameMouseNavigation.help")}
-          />
-
-          {!gameInstantTextReveal && (
-            <label
-              id={getSettingsControlAnchorId("game-narration-speed")}
-              className="flex scroll-mt-3 flex-col gap-1.5 rounded-lg p-1 transition-colors hover:bg-[var(--accent)]/50"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xs">{localize("Game narration speed")}</span>
-                <span className="text-xs tabular-nums text-[var(--muted-foreground)]">{gameTextSpeed}</span>
-                <HelpTooltip
-                  text={localize(
-                    "How fast the typewriter effect displays narration text in Game mode. Lower values give a slower cinematic reveal. Higher values show text almost instantly.",
-                  )}
-                />
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={100}
-                step={1}
-                value={gameTextSpeed}
-                onChange={(e) => setGameTextSpeed(Number(e.target.value))}
-                className="w-full accent-[var(--primary)]"
-              />
-              <div className="flex justify-between text-[0.625rem] text-[var(--muted-foreground)]">
-                <span>{localize("Slow")}</span>
-                <span>{localize("Fast")}</span>
-              </div>
-            </label>
-          )}
-
-          <label
-            id={getSettingsControlAnchorId("game-auto-play-delay")}
-            className="flex scroll-mt-3 flex-col gap-1.5 rounded-lg p-1 transition-colors hover:bg-[var(--accent)]/50"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs">{localize("Game auto-play segment delay")}</span>
-              <span className="text-xs tabular-nums text-[var(--muted-foreground)]">
-                {t("settings.units.secondsShort", {
-                  value: new Intl.NumberFormat(localization.resolvedLanguage ?? localization.language, {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  }).format(gameAutoPlayDelay / 1000),
-                })}
-              </span>
-              <HelpTooltip
-                text={localize(
-                  "Pause between each narration segment when auto-play is enabled in Game mode. Enable auto-play via the ▶ button next to Next.",
-                )}
-              />
-            </div>
-            <input
-              type="range"
-              min={200}
-              max={5000}
-              step={100}
-              value={gameAutoPlayDelay}
-              onChange={(e) => setGameAutoPlayDelay(Number(e.target.value))}
-              className="w-full accent-[var(--primary)]"
-            />
-            <div className="flex justify-between text-[0.625rem] text-[var(--muted-foreground)]">
-              <span>{t("settings.common.short")}</span>
-              <span>{t("settings.common.long")}</span>
-            </div>
-          </label>
-        </div>
-      </SettingsSection>
     </div>
   );
 }
@@ -2805,9 +2613,6 @@ function ImageGenerationSettings() {
   const imageIllustrationWidth = useUIStore((s) => s.imageIllustrationWidth);
   const imageIllustrationHeight = useUIStore((s) => s.imageIllustrationHeight);
   const setImageIllustrationDimensions = useUIStore((s) => s.setImageIllustrationDimensions);
-  const imageGameWidth = useUIStore((s) => s.imageGameWidth);
-  const imageGameHeight = useUIStore((s) => s.imageGameHeight);
-  const setImageGameDimensions = useUIStore((s) => s.setImageGameDimensions);
   const imagePortraitWidth = useUIStore((s) => s.imagePortraitWidth);
   const imagePortraitHeight = useUIStore((s) => s.imagePortraitHeight);
   const setImagePortraitDimensions = useUIStore((s) => s.setImagePortraitDimensions);
@@ -2849,14 +2654,6 @@ function ImageGenerationSettings() {
           width={imageIllustrationWidth}
           height={imageIllustrationHeight}
           onCommit={setImageIllustrationDimensions}
-        />
-        <ImageDimensionRow
-          controlId="image-game-size"
-          label={localizeUi("settings.controls.gameGeneration.label")}
-          help={localizeUi("settings.controls.gameGeneration.help")}
-          width={imageGameWidth}
-          height={imageGameHeight}
-          onCommit={setImageGameDimensions}
         />
         <ImageDimensionRow
           controlId="image-portrait-size"
@@ -3122,217 +2919,6 @@ function VideoGenerationSettings() {
   );
 }
 
-function GameAssetsSettings() {
-  const { t: localizeUi } = useUiTranslation();
-  const rescanGameAssets = useRescanGameAssets();
-  const openGameAssetsFolder = useOpenGameAssetsFolder();
-  const openGameAssetsBrowser = useUIStore((s) => s.openGameAssetsBrowser);
-  const assetFileRef = useRef<HTMLInputElement>(null);
-  const [assetCategory, setAssetCategory] = useState<GameAssetCategoryId>("backgrounds");
-  const [assetSubcategory, setAssetSubcategory] = useState<string>(
-    GAME_ASSET_CATEGORY_BY_ID.get("backgrounds")?.defaultFolder ?? "custom",
-  );
-  const [assetFiles, setAssetFiles] = useState<File[]>([]);
-  const [assetUploading, setAssetUploading] = useState(false);
-  const assetCategoryMeta = GAME_ASSET_CATEGORY_BY_ID.get(assetCategory) ?? GAME_ASSET_CATEGORIES[0];
-
-  const handleAssetCategoryChange = (nextCategory: GameAssetCategoryId) => {
-    setAssetCategory(nextCategory);
-    setAssetSubcategory(GAME_ASSET_CATEGORY_BY_ID.get(nextCategory)?.defaultFolder ?? "custom");
-    setAssetFiles([]);
-    if (assetFileRef.current) assetFileRef.current.value = "";
-  };
-
-  const handleOpenGameAssetFolder = (subfolder: string) => {
-    openGameAssetsFolder.mutate(subfolder, {
-      onError: (error) => {
-        if (error instanceof HostDeviceFileManagerError) return;
-        toast.error(
-          getPrivilegedActionErrorMessage(
-            error,
-            localizeUi("ui.panels.gameassetssettings.failedToOpenGameAssetsFolder"),
-          ),
-        );
-      },
-    });
-  };
-
-  const handleGameAssetUpload = async () => {
-    if (assetUploading) return;
-    if (assetFiles.length === 0) {
-      toast.error(localizeUi("ui.panels.gameassetssettings.chooseAtLeastOneAssetFileFirst"));
-      return;
-    }
-    const folder = assetSubcategory.trim().replace(/^\/+|\/+$/g, "") || assetCategoryMeta.defaultFolder;
-    if (folder.includes("..") || folder.includes("\\") || folder.startsWith("/")) {
-      toast.error(localizeUi("ui.panels.gameassetssettings.folderNamesCannotContainPathTraversal"));
-      return;
-    }
-
-    const tooLarge = assetFiles.find((file) => file.size > 50 * 1024 * 1024);
-    if (tooLarge) {
-      toast.error(
-        localizeUi("ui.panels.gameassetssettings.value1IsTooLargeGameAssetsAreLimitedTo", { value1: tooLarge.name }),
-      );
-      return;
-    }
-
-    setAssetUploading(true);
-    try {
-      const uploads = await Promise.allSettled(
-        assetFiles.map((file) => {
-          const form = new FormData();
-          form.append("category", assetCategory);
-          form.append("subcategory", folder);
-          form.append("file", file, file.name);
-          return api.upload<{ tag: string; path: string; manifestCount: number }>("/game-assets/upload", form);
-        }),
-      );
-      const succeeded = uploads.filter((result) => result.status === "fulfilled").length;
-      const failed = uploads.length - succeeded;
-      await rescanGameAssets.mutateAsync();
-      if (succeeded > 0) {
-        toast.success(
-          localizeUi("ui.panels.gameassetssettings.uploadedValue1GameAssetValue2", {
-            value1: succeeded,
-            value2: succeeded === 1 ? "" : localizeUi("ui.noodle.stageprofileview.s"),
-          }),
-        );
-      }
-      if (failed > 0) {
-        const reason = uploads.find((result) => result.status === "rejected");
-        toast.error(
-          reason?.status === "rejected" && reason.reason instanceof Error
-            ? reason.reason.message
-            : localizeUi("ui.panels.gameassetssettings.value1AssetUploadValue2Failed", {
-                value1: failed,
-                value2: failed === 1 ? "" : localizeUi("ui.noodle.stageprofileview.s"),
-              }),
-        );
-      }
-      setAssetFiles([]);
-      if (assetFileRef.current) assetFileRef.current.value = "";
-    } finally {
-      setAssetUploading(false);
-    }
-  };
-
-  return (
-    <SettingsSection
-      title={localizeUi("settings.sections.gameAssets.title")}
-      description={localizeUi("settings.sections.gameAssets.componentDescription")}
-      icon={<FolderOpen size="0.875rem" />}
-      {...getSettingsSectionAnchorProps("game-assets")}
-    >
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={openGameAssetsBrowser}
-            className={SETTINGS_PRIMARY_FULL_BUTTON_CLASS}
-            title={localizeUi("settings.actions.openAssetBrowser")}
-          >
-            <Image size="0.8125rem" />
-            {localizeUi("ui.panels.gameassetssettings.assetBrowser")}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              rescanGameAssets
-                .mutateAsync()
-                .then(() => toast.success(localizeUi("ui.panels.gameassetssettings.gameAssetsRescanned")))
-                .catch(() => toast.error(localizeUi("ui.panels.gameassetssettings.failedToRescanGameAssets")));
-            }}
-            className={cn(SETTINGS_BUTTON_CLASS, "w-full")}
-          >
-            <RefreshCw size="0.75rem" />
-            {localizeUi("ui.panels.gameassetssettings.rescan")}
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {GAME_ASSET_CATEGORIES.map((folder) => (
-            <button
-              key={folder.id}
-              type="button"
-              onClick={() => handleOpenGameAssetFolder(folder.id)}
-              className={cn(SETTINGS_BUTTON_CLASS, "capitalize")}
-            >
-              <FolderOpen size="0.75rem" />
-              {folder.id}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <label className="flex min-w-0 flex-col gap-1">
-            <span className="text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.panels.gameassetssettings.type")}
-            </span>
-            <select
-              value={assetCategory}
-              onChange={(e) => handleAssetCategoryChange(e.target.value as GameAssetCategoryId)}
-              className="w-full rounded-lg bg-[var(--background)] px-3 py-2 text-xs text-[var(--foreground)] outline-none ring-1 ring-[var(--border)] focus:ring-[var(--primary)]"
-            >
-              {GAME_ASSET_CATEGORIES.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-0 flex-col gap-1">
-            <span className="text-[0.625rem] font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.panels.gameassetssettings.folder")}
-            </span>
-            <input
-              value={assetSubcategory}
-              onChange={(e) => setAssetSubcategory(e.target.value)}
-              placeholder={assetCategoryMeta.defaultFolder}
-              className="w-full rounded-lg bg-[var(--background)] px-3 py-2 text-xs text-[var(--foreground)] outline-none ring-1 ring-[var(--border)] focus:ring-[var(--primary)]"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            ref={assetFileRef}
-            type="file"
-            multiple
-            accept={assetCategoryMeta.accept}
-            className="hidden"
-            onChange={(e) => setAssetFiles(Array.from(e.target.files ?? []))}
-          />
-          <button type="button" onClick={() => assetFileRef.current?.click()} className={SETTINGS_BUTTON_CLASS}>
-            <Upload size="0.75rem" />
-            {localizeUi("ui.panels.gameassetssettings.chooseFiles")}
-          </button>
-          <button
-            type="button"
-            onClick={handleGameAssetUpload}
-            disabled={assetUploading || assetFiles.length === 0}
-            className={SETTINGS_BUTTON_CLASS}
-          >
-            {assetUploading ? <Loader2 size="0.75rem" className="animate-spin" /> : <Upload size="0.75rem" />}
-            {localizeUi("ui.panels.gameassetssettings.uploadToServer")}
-          </button>
-          {assetFiles.length > 0 && (
-            <span className="truncate text-[0.625rem] text-[var(--muted-foreground)]">
-              {assetFiles.length === 1
-                ? assetFiles[0]?.name
-                : localizeUi("ui.panels.gameassetssettings.value1FilesSelected", { value1: assetFiles.length })}
-            </span>
-          )}
-        </div>
-
-        <p className="text-[0.625rem] leading-relaxed text-[var(--muted-foreground)]">
-          {localizeUi("ui.panels.gameassetssettings.audioSupportsMp3OggWavFlacM4aAacAnd")}
-        </p>
-      </div>
-    </SettingsSection>
-  );
-}
-
 function ChatWidgetStylePreview({
   preset,
   font,
@@ -3425,8 +3011,6 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
   const defaultAppAccentColor = getDefaultAppAccentColor();
   const displayedAppAccentColor =
     appAccentColor.trim().toLowerCase() === defaultAppAccentColor.toLowerCase() ? "" : appAccentColor;
-  const visualTheme = useUIStore((s) => s.visualTheme);
-  const setVisualTheme = useUIStore((s) => s.setVisualTheme);
   const chatWidgetPreset = useUIStore((s) => s.chatWidgetPreset);
   const setChatWidgetPreset = useUIStore((s) => s.setChatWidgetPreset);
   const chatWidgetFont = useUIStore((s) => s.chatWidgetFont);
@@ -3672,16 +3256,8 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
     appearanceChat?.mode === "roleplay"
       ? (parseChatMetadata(appearanceChat.metadata).roleplayDisplayStyle ?? roleplayDisplayStyle)
       : roleplayDisplayStyle;
-  const gameDialogueDisplayMode = useUIStore((s) => s.gameDialogueDisplayMode);
-  const setGameDialogueDisplayMode = useUIStore((s) => s.setGameDialogueDisplayMode);
   const chatListBackgrounds = useUIStore((s) => s.chatListBackgrounds);
   const setChatListBackgrounds = useUIStore((s) => s.setChatListBackgrounds);
-  const gameTextEffectsEnabled = useUIStore((s) => s.gameTextEffectsEnabled);
-  const setGameTextEffectsEnabled = useUIStore((s) => s.setGameTextEffectsEnabled);
-  const gameAvatarScale = useUIStore((s) => s.gameAvatarScale);
-  const setGameAvatarScale = useUIStore((s) => s.setGameAvatarScale);
-  const gameFullBodySpriteScale = useUIStore((s) => s.gameFullBodySpriteScale);
-  const setGameFullBodySpriteScale = useUIStore((s) => s.setGameFullBodySpriteScale);
   const textStrokeWidth = useUIStore((s) => s.textStrokeWidth);
   const setTextStrokeWidth = useUIStore((s) => s.setTextStrokeWidth);
   const textStrokeColor = useUIStore((s) => s.textStrokeColor);
@@ -3745,20 +3321,6 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
   ]);
   const roleplayAvatarPreview = roleplayAvatarPreviewSize ?? roleplayAvatarPreviewBase;
   const roleplaySpritePreview = roleplaySpritePreviewSize ?? roleplaySpritePreviewBase;
-  const gameAvatarPreviewBase: SettingsArtPreviewSize = {
-    width: 2.25 * gameAvatarScale,
-    height: 2.6 * gameAvatarScale,
-  };
-  const gameFullBodyPreviewBase: SettingsArtPreviewSize = {
-    width: 0.9 * gameFullBodySpriteScale,
-    height: 3.4 * gameFullBodySpriteScale,
-  };
-  const [gameAvatarPreviewSize, gameFullBodyPreviewSize] = fitSettingsArtPreviewSizes([
-    gameAvatarPreviewBase,
-    gameFullBodyPreviewBase,
-  ]);
-  const gameAvatarPreview = gameAvatarPreviewSize ?? gameAvatarPreviewBase;
-  const gameFullBodyPreview = gameFullBodyPreviewSize ?? gameFullBodyPreviewBase;
 
   return (
     <div className="flex flex-col gap-3">
@@ -3831,42 +3393,6 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
                     {localizeUi("settings.appearance.resetSidebarWidth")}
                   </button>
                 </span>
-              </div>
-              <div id={getSettingsControlAnchorId("visual-theme")} className="flex scroll-mt-3 flex-col gap-2">
-                <div className="flex items-center gap-1.5">
-                  <Paintbrush size="0.75rem" className="text-[var(--marinara-chat-chrome-button-text-active)]" />
-                  <span className="text-xs font-medium">{localizeUi("ui.panels.appearancesettings.visualStyle")}</span>
-                  <HelpTooltip
-                    text={localizeUi("ui.panels.appearancesettings.chooseHowTheEntireAppLooksMarinaraUsesA")}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      {
-                        id: "default" as VisualTheme,
-                        label: "Default (Marinara)",
-                        desc: "Y2K / retro aesthetic with glow effects",
-                      },
-                      {
-                        id: "sillytavern" as VisualTheme,
-                        label: "SillyTavern",
-                        desc: "Classic SillyTavern look — clean & minimal",
-                      },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      aria-pressed={visualTheme === opt.id}
-                      onClick={() => setVisualTheme(opt.id)}
-                      className={SETTINGS_CHOICE_CARD_CLASS}
-                    >
-                      <span className="font-semibold">{opt.label}</span>
-                      <span className="text-[0.625rem] text-[var(--muted-foreground)] leading-tight">{opt.desc}</span>
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <label id={getSettingsControlAnchorId("theme-mode")} className="flex scroll-mt-3 flex-col gap-1">
@@ -5153,137 +4679,6 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
           </SettingsSection>
         </>
       )}
-
-      {group === "game" && (
-        <>
-          <h2 className="text-sm font-semibold" data-appearance-group="game">
-            {localizeUi("settings.appearance.groups.game")}
-          </h2>
-          <SettingsSection
-            title={localizeUi("settings.sections.gamePresentation.title")}
-            description={localizeUi("settings.sections.gamePresentation.description")}
-            icon={<ScrollText size="0.875rem" />}
-            {...getSettingsSectionAnchorProps("game-presentation")}
-          >
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-1.5">
-                  <Image size="0.75rem" className="text-[var(--muted-foreground)]" />
-                  <span className="text-xs font-medium">{localizeUi("ui.panels.appearancesettings.gameVnArt")}</span>
-                  <HelpTooltip
-                    text={localizeUi(
-                      "ui.panels.appearancesettings.scalesGameModeDialoguePortraitsSeparatelyFromTheCenter",
-                    )}
-                  />
-                </div>
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/45 p-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                    <div className="flex h-20 w-full shrink-0 items-end justify-center gap-3 overflow-hidden rounded-md bg-black/30 p-2 ring-1 ring-[var(--border)]/70 sm:w-28">
-                      <div
-                        className="shrink-0 rounded-lg border border-white/20 bg-gradient-to-b from-sky-300/80 via-cyan-200/65 to-slate-800/90 shadow-lg transition-all"
-                        style={{
-                          width: toPreviewRem(gameAvatarPreview.width),
-                          height: toPreviewRem(gameAvatarPreview.height),
-                        }}
-                      />
-                      <div
-                        className="mari-settings-portrait-preview shrink-0 rounded-full border border-white/20 shadow-lg transition-all"
-                        style={{
-                          width: toPreviewRem(gameFullBodyPreview.width),
-                          height: toPreviewRem(gameFullBodyPreview.height),
-                        }}
-                      />
-                    </div>
-                    <div className="grid min-w-0 flex-1 gap-3 sm:min-w-[9rem]">
-                      <label
-                        id={getSettingsControlAnchorId("game-dialogue-portrait-scale")}
-                        className="flex scroll-mt-3 min-w-0 flex-col gap-1"
-                      >
-                        <span className="text-[0.6875rem] font-medium text-[var(--foreground)]">
-                          {localizeUi("ui.panels.appearancesettings.dialoguePortraitScale")}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range"
-                            min={0.75}
-                            max={1.75}
-                            step={0.05}
-                            value={gameAvatarScale}
-                            onChange={(e) => setGameAvatarScale(Number(e.target.value))}
-                            className="min-w-0 flex-1 accent-[var(--primary)]"
-                          />
-                          <span className="w-12 text-right text-xs tabular-nums text-[var(--muted-foreground)]">
-                            {Math.round(gameAvatarScale * 100)}%
-                          </span>
-                        </div>
-                      </label>
-                      <label
-                        id={getSettingsControlAnchorId("game-full-body-sprite-scale")}
-                        className="flex scroll-mt-3 min-w-0 flex-col gap-1"
-                      >
-                        <span className="text-[0.6875rem] font-medium text-[var(--foreground)]">
-                          {localizeUi("ui.panels.appearancesettings.fullBodySpriteScale")}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range"
-                            min={0.75}
-                            max={2.75}
-                            step={0.05}
-                            value={gameFullBodySpriteScale}
-                            onChange={(e) => setGameFullBodySpriteScale(Number(e.target.value))}
-                            className="min-w-0 flex-1 accent-[var(--primary)]"
-                          />
-                          <span className="w-12 text-right text-xs tabular-nums text-[var(--muted-foreground)]">
-                            {Math.round(gameFullBodySpriteScale * 100)}%
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-1.5">
-                  <ScrollText size="0.75rem" className="text-[var(--muted-foreground)]" />
-                  <span className="text-xs font-medium">
-                    {localizeUi("ui.panels.appearancesettings.gameDialogueDisplay")}
-                  </span>
-                  <HelpTooltip
-                    text={localizeUi("ui.panels.appearancesettings.chooseWhetherGameModeUsesAClassicDialogueBox")}
-                  />
-                </div>
-                <div
-                  id={getSettingsControlAnchorId("game-dialogue-display")}
-                  className="grid scroll-mt-3 grid-cols-1 gap-2 sm:grid-cols-2"
-                >
-                  {GAME_DIALOGUE_DISPLAY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      aria-pressed={gameDialogueDisplayMode === opt.id}
-                      onClick={() => setGameDialogueDisplayMode(opt.id)}
-                      className={SETTINGS_CHOICE_CARD_CLASS}
-                    >
-                      <span className="font-semibold">{opt.label}</span>
-                      <span className="text-[0.625rem] leading-tight text-[var(--muted-foreground)]">{opt.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <ToggleSetting
-                anchorId={getSettingsControlAnchorId("game-text-effects")}
-                label={localizeUi("settings.controls.gameTextEffects.label")}
-                checked={gameTextEffectsEnabled}
-                onChange={setGameTextEffectsEnabled}
-                help={localizeUi("settings.controls.gameTextEffects.help")}
-              />
-            </div>
-          </SettingsSection>
-        </>
-      )}
     </div>
   );
 }
@@ -5369,644 +4764,8 @@ function AddonsSettings() {
       </SettingsIntro>
       <PersonalExtensionsSettings showIntro={false} />
       {extensionPolicy?.externalExtensionsEnabled && <ExternalExtensionsSettings />}
-      <ThemesSettings showIntro={false} />
     </div>
   );
-}
-
-const THEME_PREVIEW_DEBOUNCE_MS = 300;
-
-function ThemesSettings({ showIntro = true }: { showIntro?: boolean } = {}) {
-  const { t: localizeUi } = useUiTranslation();
-  const { data: syncedThemes = [], isLoading } = useThemes();
-  const createTheme = useCreateTheme();
-  const updateTheme = useUpdateTheme();
-  const deleteTheme = useDeleteTheme();
-  const setActiveTheme = useSetActiveTheme();
-  const activeCustomTheme = syncedThemes.find((theme) => theme.isActive) ?? null;
-  const isSavingTheme = createTheme.isPending || updateTheme.isPending || setActiveTheme.isPending;
-
-  // Editor state
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null); // null = creating new
-  const [themeName, setThemeName] = useState("");
-  const [themeCss, setThemeCss] = useState("");
-  const [livePreview, setLivePreview] = useState(true);
-
-  // Replacing a dense app-level stylesheet invalidates styles across the full
-  // document. Keep typing immediate and apply only the settled preview instead
-  // of forcing that work for every character entered.
-  useEffect(() => {
-    const previewStyleId = "marinara-css-editor-preview";
-    const existingStyle = document.getElementById(previewStyleId) as HTMLStyleElement | null;
-
-    if (!editorOpen || !livePreview) {
-      existingStyle?.remove();
-      return;
-    }
-
-    const style = existingStyle ?? document.createElement("style");
-    if (!existingStyle) {
-      style.id = previewStyleId;
-      document.head.appendChild(style);
-    }
-
-    const previewTimeout = window.setTimeout(() => {
-      style.textContent = sanitizeAppCss(themeCss);
-      // Keep the preview after the active-theme injector's saved CSS.
-      document.head.appendChild(style);
-    }, THEME_PREVIEW_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(previewTimeout);
-  }, [editorOpen, livePreview, themeCss]);
-
-  useEffect(
-    () => () => {
-      document.getElementById("marinara-css-editor-preview")?.remove();
-    },
-    [],
-  );
-
-  const openNewTheme = useCallback(() => {
-    setEditingId(null);
-    setThemeName("");
-    setThemeCss(CSS_TEMPLATE);
-    setEditorOpen(true);
-  }, []);
-
-  const openEditTheme = useCallback((theme: Theme) => {
-    setEditingId(theme.id);
-    setThemeName(theme.name);
-    setThemeCss(normalizeThemeCss(theme.css));
-    setEditorOpen(true);
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    try {
-      const name = themeName.trim() || "Untitled Theme";
-      const css = normalizeThemeCss(themeCss);
-      if (editingId) {
-        await updateTheme.mutateAsync({ id: editingId, name, css });
-        toast.success(localizeUi("ui.panels.themessettings.themeValue1Updated", { value1: name }));
-      } else {
-        const theme = await createTheme.mutateAsync({
-          name,
-          css,
-          installedAt: new Date().toISOString(),
-        });
-        await setActiveTheme.mutateAsync(theme.id);
-        toast.success(localizeUi("ui.panels.themessettings.themeValue1SavedAndActivated", { value1: name }));
-      }
-      setEditorOpen(false);
-    } catch (err) {
-      console.error("[ThemesSettings] Failed to save theme:", err);
-      toast.error(localizeUi("ui.panels.themessettings.failedToSaveThemeCheckTheBrowserConsoleFor"));
-    }
-  }, [createTheme, editingId, setActiveTheme, themeCss, themeName, updateTheme, localizeUi]);
-
-  const handleImportThemeFile = async (file: File) => {
-    try {
-      const text = await file.text();
-      const latestThemes = await api.get<Theme[]>("/themes");
-      let workingThemes = [...latestThemes];
-      let imported = 0;
-      let skipped = 0;
-      let failed = 0;
-      const skipMessages: string[] = [];
-      const failureMessages: string[] = [];
-
-      const recordSkippedTheme = (message: string) => {
-        skipped++;
-        skipMessages.push(message);
-      };
-
-      if (file.name.endsWith(".json")) {
-        const parsed = parseThemeJsonWithControlCharFallback(text);
-        const entries = getFolderImportEntries(parsed, ["themes"]);
-        for (const [index, entry] of entries.entries()) {
-          const source = getFolderManifestConfig(entry);
-          if (!source || typeof source !== "object" || Array.isArray(source)) {
-            recordSkippedTheme(`Entry ${index + 1} is not a theme object.`);
-            continue;
-          }
-          const record = source as Record<string, unknown>;
-          const importedThemeName =
-            typeof record.name === "string" && record.name.trim()
-              ? record.name.trim()
-              : file.name.replace(/\.json$/i, "");
-          if (typeof record.css !== "string") {
-            recordSkippedTheme(`"${importedThemeName}" is missing a css field.`);
-            continue;
-          }
-          const importedThemeCss = normalizeThemeCss(record.css);
-          if (!importedThemeCss.trim()) {
-            recordSkippedTheme(`"${importedThemeName}" has empty css.`);
-            continue;
-          }
-          const duplicate = findDuplicateTheme(workingThemes, importedThemeName, importedThemeCss);
-          if (duplicate) {
-            recordSkippedTheme(`"${importedThemeName}" is already synced.`);
-            continue;
-          }
-          try {
-            const created = await createTheme.mutateAsync({
-              name: importedThemeName,
-              css: importedThemeCss,
-              installedAt: new Date().toISOString(),
-            });
-            workingThemes = [created, ...workingThemes];
-            imported++;
-          } catch (err) {
-            failed++;
-            failureMessages.push(
-              err instanceof Error ? `"${importedThemeName}" failed: ${err.message}` : `"${importedThemeName}" failed.`,
-            );
-            console.warn("[ThemesSettings] Failed to import theme entry:", importedThemeName, err);
-          }
-        }
-      } else {
-        const importedThemeName = file.name.replace(/\.css$/, "");
-        const importedThemeCss = normalizeThemeCss(text);
-        const duplicate = findDuplicateTheme(workingThemes, importedThemeName, importedThemeCss);
-        if (duplicate) {
-          recordSkippedTheme(`"${importedThemeName}" is already synced.`);
-        } else {
-          await createTheme.mutateAsync({
-            name: importedThemeName,
-            css: importedThemeCss,
-            installedAt: new Date().toISOString(),
-          });
-          imported++;
-        }
-      }
-
-      if (imported > 0 || skipped > 0 || failed > 0) {
-        const summary = [
-          imported > 0 ? `${imported} imported` : null,
-          skipped > 0 ? `${skipped} skipped` : null,
-          failed > 0 ? `${failed} failed` : null,
-        ].filter(Boolean);
-        const message = `Theme import: ${summary.join(", ")}`;
-        const description = [...failureMessages, ...skipMessages].slice(0, 3).join(" ");
-        if (failed > 0) toast.warning(message, { description, duration: 12_000 });
-        else if (skipped > 0) toast.warning(message, { description, duration: 12_000 });
-        else toast.success(message);
-      } else {
-        toast.error(localizeUi("ui.panels.themessettings.noValidThemesFoundInFile"));
-      }
-    } catch (err) {
-      console.error("[ThemesSettings] Failed to import theme:", err);
-      toast.error(
-        err instanceof SyntaxError
-          ? localizeUi("ui.panels.themessettings.failedToImportThemeTheJsonCouldNotBe")
-          : getPrivilegedActionErrorMessage(
-              err,
-              localizeUi("ui.panels.themessettings.failedToImportThemeEnsureValidFile"),
-            ),
-      );
-    }
-  };
-  // ── CSS Editor View ──
-  if (editorOpen) {
-    return (
-      <div className="flex flex-col gap-3">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setEditorOpen(false)}
-              aria-label={localizeUi("settings.actions.closeThemeEditor")}
-              title={localizeUi("settings.actions.closeThemeEditor")}
-              className={SETTINGS_ICON_BUTTON_CLASS}
-            >
-              <X size="0.75rem" />
-            </button>
-            <span className="text-xs font-semibold">
-              {editingId
-                ? localizeUi("ui.panels.themessettings.editTheme")
-                : localizeUi("ui.panels.themessettings.newTheme")}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setLivePreview(!livePreview)}
-              aria-pressed={livePreview}
-              className={SETTINGS_BUTTON_CLASS}
-              title={
-                livePreview
-                  ? localizeUi("ui.panels.themessettings.disableLivePreview")
-                  : localizeUi("ui.panels.themessettings.enableLivePreview")
-              }
-            >
-              {livePreview ? <Eye size="0.75rem" /> : <EyeOff size="0.75rem" />}
-              {localizeUi("settings.notifications.customSound.actions.preview")}
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSavingTheme}
-              className={SETTINGS_COMPACT_PRIMARY_BUTTON_CLASS}
-            >
-              {isSavingTheme ? <Loader2 size="0.75rem" className="animate-spin" /> : <Save size="0.75rem" />}
-              {isSavingTheme
-                ? localizeUi("ui.noodle.stageprofileform.saving")
-                : localizeUi("ui.noodle.noodlehome.save")}
-            </button>
-          </div>
-        </div>
-
-        {/* Theme name */}
-        <input
-          type="text"
-          value={themeName}
-          onChange={(e) => setThemeName(e.target.value)}
-          placeholder={localizeUi("settings.placeholders.themeName")}
-          className="rounded-lg border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-xs text-[var(--foreground)] outline-none transition-colors focus:border-[var(--primary)]/50"
-        />
-
-        {/* CSS textarea */}
-        <textarea
-          value={themeCss}
-          onChange={(e) => setThemeCss(e.target.value)}
-          spellCheck={false}
-          className="min-h-[22.5rem] resize-y rounded-lg border border-[var(--border)] bg-[#0d1117] p-3 font-mono text-[0.6875rem] leading-relaxed text-emerald-300 outline-none transition-colors focus:border-[var(--primary)]/50 placeholder:text-white/20"
-          placeholder={localizeUi("settings.placeholders.themeCss")}
-        />
-
-        {/* Quick reference */}
-        <details className="group rounded-lg bg-[var(--secondary)]/50 ring-1 ring-[var(--border)]">
-          <summary className="cursor-pointer px-3 py-2 text-[0.625rem] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]">
-            {localizeUi("ui.panels.themessettings.cssVariableReference")}
-          </summary>
-          <div className="border-t border-[var(--border)] px-3 py-2 font-mono text-[0.625rem] leading-relaxed text-[var(--muted-foreground)]">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-              <span>{localizeUi("ui.panels.themessettings.background")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.pageBackground")}</span>
-              <span>{localizeUi("ui.panels.themessettings.foreground")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.mainText")}</span>
-              <span>{localizeUi("ui.panels.themessettings.primary")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.accentButtons")}</span>
-              <span>{localizeUi("ui.panels.themessettings.primaryForeground")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.textOnPrimary")}</span>
-              <span>{localizeUi("ui.panels.themessettings.secondary")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.cardsInputs")}</span>
-              <span>{localizeUi("ui.panels.themessettings.card")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.cardBackground")}</span>
-              <span>{localizeUi("ui.panels.themessettings.border")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.borders")}</span>
-              <span>{localizeUi("ui.panels.themessettings.mutedForeground")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.dimmedText")}</span>
-              <span>{localizeUi("ui.panels.themessettings.sidebar")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.sidebarBg")}</span>
-              <span>{localizeUi("ui.panels.themessettings.sidebarBorder")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.sidebarBorder_26eaad1")}</span>
-              <span>{localizeUi("ui.panels.themessettings.marinaraShellEdgeBorder")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.leftRightShellEdge")}</span>
-              <span>{localizeUi("ui.panels.themessettings.destructive")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.errorDelete")}</span>
-              <span>{localizeUi("ui.panels.themessettings.popover")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.dropdownBg")}</span>
-              <span>{localizeUi("ui.panels.themessettings.accent")}</span>
-              <span className="text-white/40">{localizeUi("ui.panels.themessettings.hoverHighlights")}</span>
-            </div>
-          </div>
-        </details>
-      </div>
-    );
-  }
-
-  // ── Theme List View ──
-  return (
-    <div className="flex flex-col gap-3">
-      {showIntro && (
-        <SettingsIntro>
-          {localizeUi("ui.panels.themessettings.createOrImportCustomCssThemesThemesSyncAcross")}
-        </SettingsIntro>
-      )}
-
-      <SettingsSection
-        title={localizeUi("settings.sections.themeLibrary.title")}
-        description={localizeUi("settings.sections.themeLibrary.componentDescription")}
-        icon={<Palette size="0.875rem" />}
-        {...getSettingsSectionAnchorProps("theme-library")}
-      >
-        <div className="flex flex-col gap-3">
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            <button type="button" onClick={openNewTheme} className={cn(SETTINGS_BUTTON_CLASS, "flex-1")}>
-              <Plus size="0.75rem" />
-              {localizeUi("ui.panels.themessettings.createTheme")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                triggerFilePicker({
-                  accept: ".css,.json",
-                  onSelect: (files) => {
-                    const file = files[0];
-                    if (file) void handleImportThemeFile(file);
-                  },
-                });
-              }}
-              className={cn(SETTINGS_BUTTON_CLASS, "flex-1")}
-            >
-              <Download size="0.75rem" />
-              {localizeUi("ui.panels.themessettings.importFile")}
-            </button>
-          </div>
-
-          {/* Active theme: None option */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium">{localizeUi("ui.panels.themessettings.installedThemes")}</span>
-            <button
-              onClick={() =>
-                setActiveTheme.mutate(null, {
-                  onError: (err) => {
-                    console.error("[ThemesSettings] Failed to reset active theme:", err);
-                    toast.error(localizeUi("ui.panels.themessettings.failedToResetTheActiveTheme"));
-                  },
-                })
-              }
-              className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-xs transition-all",
-                activeCustomTheme === null
-                  ? "bg-[var(--primary)]/15 text-[var(--primary)] ring-1 ring-[var(--primary)]/30"
-                  : "bg-[var(--secondary)] text-[var(--muted-foreground)] hover:bg-[var(--accent)]",
-              )}
-            >
-              <Palette size="0.75rem" className="mari-chrome-accent-icon" />
-              {localizeUi("ui.panels.themessettings.defaultTheme")}
-              {activeCustomTheme === null && <Check size="0.75rem" className="mari-chrome-accent-icon ml-auto" />}
-            </button>
-
-            {/* Custom theme list */}
-            {syncedThemes.map((t) => (
-              <div
-                key={t.id}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all",
-                  activeCustomTheme?.id === t.id
-                    ? "bg-[var(--primary)]/15 text-[var(--primary)] ring-1 ring-[var(--primary)]/30"
-                    : "bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:bg-[var(--accent)]",
-                )}
-              >
-                <button
-                  onClick={() =>
-                    setActiveTheme.mutate(t.id, {
-                      onError: (err) => {
-                        console.error("[ThemesSettings] Failed to activate theme:", err);
-                        toast.error(localizeUi("ui.panels.themessettings.failedToActivateTheme"));
-                      },
-                    })
-                  }
-                  className="flex flex-1 items-center gap-2 min-w-0"
-                >
-                  <FileCode2 size="0.75rem" className="mari-chrome-accent-icon shrink-0" />
-                  <span className="mari-chrome-text truncate">{t.name}</span>
-                  {activeCustomTheme?.id === t.id && (
-                    <Check size="0.75rem" className="mari-chrome-accent-icon shrink-0" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openEditTheme(t)}
-                  className={SETTINGS_ICON_BUTTON_CLASS}
-                  title={localizeUi("settings.actions.editThemeCss")}
-                  aria-label={localizeUi("settings.actions.editThemeCss")}
-                >
-                  <Code size="0.75rem" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadJsonFile(
-                      {
-                        kind: "marinara.theme-folder",
-                        version: 1,
-                        exportedAt: new Date().toISOString(),
-                        folderName: "Themes",
-                        themes: [
-                          createFolderEntry({
-                            folderName: "Themes",
-                            itemName: t.name,
-                            itemKind: "marinara.theme",
-                            config: { name: t.name, css: t.css },
-                            fallbackName: "theme",
-                          }),
-                        ],
-                      },
-                      `${sanitizeExportFilenamePart(t.name, "theme")}.json`,
-                    );
-                  }}
-                  className={SETTINGS_ICON_BUTTON_CLASS}
-                  title={localizeUi("settings.actions.exportTheme")}
-                  aria-label={localizeUi("settings.actions.exportTheme")}
-                >
-                  <Upload size="0.75rem" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void (async () => {
-                      const confirmed = await showConfirmDialog({
-                        title: localizeUi("ui.panels.themessettings.deleteTheme"),
-                        message: localizeUi(
-                          "ui.panels.themessettings.deleteValue1ThisPermanentlyRemovesTheSavedThemeCss",
-                          { value1: t.name },
-                        ),
-                        confirmLabel: localizeUi("lorebook.editor.batch.delete"),
-                        tone: "destructive",
-                      });
-                      if (!confirmed) return;
-                      try {
-                        await deleteTheme.mutateAsync(t.id);
-                        toast.success(localizeUi("ui.panels.themessettings.themeValue1Removed", { value1: t.name }));
-                      } catch (err) {
-                        console.error("[ThemesSettings] Failed to remove theme:", err);
-                        toast.error(localizeUi("ui.panels.themessettings.failedToRemoveTheme"));
-                      }
-                    })();
-                  }}
-                  className={cn(SETTINGS_ICON_BUTTON_CLASS, "mari-chrome-control--danger")}
-                  title={localizeUi("settings.actions.removeTheme")}
-                  aria-label={localizeUi("settings.actions.removeTheme")}
-                >
-                  <Trash2 size="0.75rem" />
-                </button>
-              </div>
-            ))}
-
-            {isLoading && syncedThemes.length === 0 && (
-              <p className="mari-chrome-text-muted py-2 text-center text-[0.625rem]">
-                {localizeUi("ui.panels.themessettings.loadingSyncedThemes")}
-              </p>
-            )}
-
-            {!isLoading && syncedThemes.length === 0 && (
-              <p className="mari-chrome-text-muted py-2 text-center text-[0.625rem]">
-                {localizeUi("ui.panels.themessettings.noSyncedCustomThemesYetCreateOneOrImport")}
-              </p>
-            )}
-          </div>
-
-          {/* Info box */}
-          <div className="rounded-lg bg-[var(--secondary)]/50 p-2.5 text-[0.625rem] text-[var(--muted-foreground)] ring-1 ring-[var(--border)]">
-            <strong>{localizeUi("ui.panels.themessettings.tip")}</strong>{" "}
-            {localizeUi("ui.panels.themessettings.cssThemesCanOverrideAnyCssVariableEG")}{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--background"}</code>,{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--primary"}</code>,{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--marinara-app-accent-solid"}</code>,{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--marinara-theme-accent-pulse"}</code>,{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--marinara-chat-chrome-accent"}</code>,{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--marinara-chat-chrome-accent-gradient"}</code>,{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{"--marinara-chat-chrome-surface-bg"}</code>
-            {localizeUi("ui.panels.themessettings.orAddCustomStylesJsonThemesShouldHave")}{" "}
-            <code className="rounded bg-[var(--secondary)] px-1">{'{ "name": "...", "css": "..." }'}</code>{" "}
-            {localizeUi("ui.panels.themessettings.formatImportedThemeFilesSyncToThisMarinaraServer")}
-          </div>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-}
-
-const CSS_TEMPLATE = `/* ═══════════════════════════════════════
-   My Custom Theme
-   ═══════════════════════════════════════ */
-
-:root {
-  /* ── Core Colors ── */
-  /* --background: #0a0a0f; */
-  /* --foreground: #e4e4e7; */
-  /* --primary: #a78bfa; */
-  /* --primary-foreground: #fff; */
-  /* --marinara-app-accent-solid: var(--primary); */
-  /* --marinara-app-accent-gradient: linear-gradient(90deg, var(--marinara-app-accent-solid), color-mix(in srgb, var(--marinara-app-accent-solid) 76%, var(--foreground) 24%), var(--marinara-app-accent-solid)); */
-  /* --marinara-theme-accent-pulse: enabled; */
-  /* --marinara-theme-accent-pulse-source: #a78bfa; */
-
-  /* ── Surface Colors ── */
-  /* --card: #111118; */
-  /* --secondary: #1a1a24; */
-  /* --accent: #252534; */
-  /* --popover: #111118; */
-
-  /* ── Borders ── */
-  /* --border: #27272a; */
-  /* --sidebar-border: #27272a; */
-  /* --marinara-shell-edge-border: color-mix(in srgb, var(--primary) 14%, var(--background) 86%); */
-
-  /* ── Text ── */
-  /* --muted-foreground: #71717a; */
-
-  /* ── Sidebar ── */
-  /* --sidebar: #0c0c12; */
-
-  /* ── Shared Chat / Roleplay / Game Chrome ── */
-  /* --marinara-chat-chrome-accent: var(--marinara-app-accent-solid); */
-  /* --marinara-chat-chrome-accent-gradient: var(--marinara-app-accent-gradient); */
-  /* --marinara-chat-chrome-text: var(--foreground); Non-action chrome copy. */
-  /* --marinara-chat-chrome-button-text-base: var(--marinara-chat-chrome-accent); */
-  /* --marinara-chat-chrome-highlight-text-base: var(--marinara-chat-chrome-accent); */
-  /* --marinara-chat-chrome-surface-bg: var(--card); */
-  /* --marinara-chat-chrome-surface-bg-hover: color-mix(in srgb, var(--marinara-chat-chrome-surface-bg) 92%, var(--foreground) 8%); */
-  /* --marinara-chat-chrome-surface-bg-active: color-mix(in srgb, var(--marinara-chat-chrome-surface-bg) 88%, var(--foreground) 12%); */
-  /* --marinara-chat-chrome-button-bg: var(--marinara-chat-chrome-surface-bg); */
-  /* --marinara-chat-chrome-button-bg-hover: color-mix(in srgb, var(--marinara-chat-chrome-surface-bg-hover) 90%, var(--marinara-chat-chrome-accent) 10%); */
-  /* --marinara-chat-chrome-button-bg-active: color-mix(in srgb, var(--marinara-chat-chrome-surface-bg-active) 84%, var(--marinara-chat-chrome-accent) 16%); */
-  /* --marinara-chat-chrome-button-border: color-mix(in srgb, var(--marinara-chat-chrome-accent) 12%, transparent); */
-  /* --marinara-chat-chrome-button-border-hover: color-mix(in srgb, var(--marinara-chat-chrome-accent) 20%, transparent); */
-  /* --marinara-chat-chrome-button-border-active: color-mix(in srgb, var(--marinara-chat-chrome-accent) 24%, transparent); */
-  /* --marinara-chat-chrome-button-text: color-mix(in srgb, var(--marinara-chat-chrome-button-text-base) 64%, transparent); */
-  /* --marinara-chat-chrome-button-text-hover: color-mix(in srgb, var(--marinara-chat-chrome-button-text-base) 92%, transparent); */
-  /* --marinara-chat-chrome-button-text-active: color-mix(in srgb, var(--marinara-chat-chrome-button-text-base) 96%, transparent); */
-  /* --marinara-chat-chrome-panel-bg: var(--marinara-chat-chrome-button-bg); */
-  /* --marinara-chat-chrome-panel-border: color-mix(in srgb, var(--marinara-chat-chrome-accent) 16%, transparent); */
-  /* --marinara-chat-chrome-panel-divider: color-mix(in srgb, var(--marinara-chat-chrome-accent) 13%, transparent); */
-  /* --marinara-chat-chrome-panel-text: color-mix(in srgb, var(--marinara-chat-chrome-text) 90%, transparent); */
-  /* --marinara-chat-chrome-panel-title: color-mix(in srgb, var(--marinara-chat-chrome-text) 96%, transparent); */
-  /* --marinara-chat-chrome-panel-muted: color-mix(in srgb, var(--marinara-chat-chrome-text) 58%, transparent); */
-  /* --marinara-chat-chrome-highlight-bg: color-mix(in srgb, var(--marinara-chat-chrome-accent) 9%, transparent); */
-  /* --marinara-chat-chrome-highlight-bg-hover: color-mix(in srgb, var(--marinara-chat-chrome-accent) 13%, transparent); */
-  /* --marinara-chat-chrome-highlight-text: color-mix(in srgb, var(--marinara-chat-chrome-highlight-text-base) 94%, transparent); */
-  /* --marinara-chat-chrome-input-bg: var(--marinara-chat-chrome-surface-bg); */
-
-  /* ── Chat windows and drawers (Chat Settings and its sections) ── */
-  /* --mari-window-bg: var(--marinara-chat-chrome-panel-bg); */
-  /* --mari-window-border: var(--marinara-chat-chrome-panel-border); */
-  /* --mari-window-radius: calc(var(--radius) + 0.25rem); */
-  /* --mari-window-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4); */
-  /* --mari-window-header-bg: transparent; */
-  /* --mari-drawer-border: var(--border); */
-  /* --mari-drawer-header-bg-hover: color-mix(in oklab, var(--accent) 50%, transparent); */
-}
-
-/* Uncomment and edit the variables above.
-   You can also target shared chrome directly:
-   .marinara-chat-toolbar-button { border-radius: 0.5rem; }
-   .marinara-chat-popover { box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.4); }
-   [data-window="chat-settings"] .mari-window__header { background: rgb(0 0 0 / 0.2); }
-
-   You can also add any custom CSS below: */
-`;
-
-function parseThemeJsonWithControlCharFallback(text: string) {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch (parseErr) {
-    try {
-      const sanitized = text.replace(/"([^"\\]|\\.)*"/g, (match) =>
-        match.replace(/\r/g, "").replace(/\n/g, "\\n").replace(/\t/g, "\\t"),
-      );
-      return JSON.parse(sanitized) as unknown;
-    } catch {
-      throw parseErr;
-    }
-  }
-}
-
-function triggerFilePicker(options: {
-  accept?: string;
-  multiple?: boolean;
-  webkitdirectory?: boolean;
-  onSelect: (files: FileList) => void;
-}) {
-  // Clean up any previously created/leaked inputs before spawning a new one.
-  const existing = document.querySelectorAll(".marinara-programmatic-picker");
-  existing.forEach((el) => el.parentNode?.removeChild(el));
-
-  const el = document.createElement("input");
-  el.type = "file";
-  el.className = "marinara-programmatic-picker";
-  el.style.position = "fixed";
-  el.style.top = "10px";
-  el.style.left = "10px";
-  el.style.zIndex = "99999";
-  el.style.opacity = "0";
-  if (options.accept) el.accept = options.accept;
-  if (options.multiple) el.multiple = true;
-  if (options.webkitdirectory) {
-    el.setAttribute("webkitdirectory", "");
-  }
-
-  el.addEventListener("change", (e) => {
-    const files = (e.target as HTMLInputElement).files;
-    if (files && files.length > 0) {
-      try {
-        options.onSelect(files);
-      } catch (err) {
-        console.error("[triggerFilePicker] Error in onSelect callback:", err);
-      }
-    }
-    if (el.parentNode === document.body) {
-      document.body.removeChild(el);
-    }
-  });
-
-  document.body.appendChild(el);
-  el.click();
 }
 
 type ProfileImportStats = {
@@ -6693,8 +5452,6 @@ function ImportSettings() {
           </div>
         </div>
       </SettingsSection>
-
-      <GameAssetsSettings />
     </div>
   );
 }

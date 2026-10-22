@@ -291,6 +291,9 @@ export type GameStoryboardViewerDisplayMode = "floating" | "background";
 
 /** Extra metadata stored on a chat. */
 export interface ChatMetadata {
+  /** Speech delivery guidance is room-local and independent of paid audio playback. */
+  ttsInstructionsEnabled?: boolean;
+  ttsTaggedDialogue?: boolean;
   /** Fresh, explicitly reviewed setup for an optional shared session. */
   multiplayerSetup?: boolean;
   multiplayerSetupComplete?: boolean;

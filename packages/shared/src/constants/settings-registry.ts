@@ -104,7 +104,7 @@ export const SETTINGS_TABS: readonly {
   },
 ];
 
-export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
+const ALL_SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   {
     id: "application",
     tab: "general",
@@ -386,6 +386,10 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
 
 // Keyed by plain string: lookups come from persisted UI state and omnibar rows,
 // which are only strings until this map validates them.
+export const SETTINGS_SECTIONS = ALL_SETTINGS_SECTIONS.filter(
+  (section) => !["game-playback", "game-assets", "game-presentation", "theme-library"].includes(section.id),
+);
+
 export const SETTINGS_SECTION_BY_ID = new Map<string, SettingsSectionMeta>(
   SETTINGS_SECTIONS.map((section) => [section.id, section]),
 );
