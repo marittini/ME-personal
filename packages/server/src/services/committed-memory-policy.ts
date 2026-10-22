@@ -131,10 +131,10 @@ export function selectCommittedMemory(
     for (const f of batch.facts) {
       if (f.audience !== "shared" && (!audienceIds.length || !audienceIds.every((id) => f.audience.includes(id))))
         continue;
-      current.set(`${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`, f);
+      current.set(`${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`, batch.excluded ? { ...f, excluded: true } : f);
     }
   for (const f of current.values())
-    if (f.status === "current")
+    if (f.status === "current" && !f.excluded)
       candidates.push({
         id: f.id,
         content: `[${f.kind}] ${f.content}`,
@@ -143,6 +143,8 @@ export function selectCommittedMemory(
         score: (f.kind === "promise" ? 4 : 2) + relevance(f.content, query),
       });
   for (const b of valid) {
+    // A corrected/withheld fact may still be repeated by the original narrative.
+    if (b.excluded || b.facts.some((f) => f.excluded || f.edited)) continue;
     const recent = newest - b.turn < 30;
     const content = recent ? b.summary : b.core;
     if (!content) continue;

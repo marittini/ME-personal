@@ -1,3 +1,4 @@
+import { CommittedMemoryBubble } from "./CommittedMemoryBubble";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { normalizeSemanticSummaryRetrievalSettings } from "@marinara-engine/shared";
 
@@ -2076,6 +2077,7 @@ export function ChatRoleplaySurface({
       </div>
 
       {/* Package toolbars, Beholder and the connected chat are windows that minimize to bubbles. */}
+      <CommittedMemoryBubble key={activeChatId} chatId={activeChatId} />
       {showTrackerPanelBubble && <TrackerPanelBubble chatId={activeChatId} />}
       {conversationToolbarPackages.map((item, index) => (
         <ChatControlWindow

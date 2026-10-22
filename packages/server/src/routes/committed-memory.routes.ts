@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   committedMemoryStatus,
+  editCommittedMemory,
+  committedMemoryConnectionStatus,
   setCommittedMemoryEnabled,
   startCommittedMemory,
   committedMemoryForPrompt,
@@ -44,6 +46,26 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
       );
     },
   );
+  app.get<{ Params: { id: string } }>("/:id/committed-memory/connection", (req) =>
+    committedMemoryConnectionStatus(app.db, req.params.id),
+  );
+  app.patch<{ Params: { id: string } }>("/:id/committed-memory/record", async (req, reply) => {
+    const body = z
+      .object({
+        batchId: z.string().min(1),
+        factId: z.string().min(1).optional(),
+        expectedRevision: z.string().min(1),
+        content: z.string().trim().min(1).max(1500).optional(),
+        summary: z.string().trim().max(12000).optional(),
+        core: z.string().trim().max(2500).optional(),
+        excluded: z.boolean().optional(),
+        status: z.enum(["current", "resolved", "uncertain"]).optional(),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: "Invalid request" });
+    return editCommittedMemory(app.db, req.params.id, body.data);
+  });
   app.get<{ Params: { id: string; messageId: string } }>(
     "/:id/committed-memory/source/:messageId",
     async (req, reply) => {

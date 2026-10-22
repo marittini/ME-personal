@@ -1,4 +1,4 @@
-import { LOCAL_SIDECAR_CONNECTION_ID } from "@marinara-engine/shared";
+import { isChatProvider, LOCAL_SIDECAR_CONNECTION_ID } from "@marinara-engine/shared";
 import type { createConnectionsStorage } from "../storage/connections.storage.js";
 import type { BaseLLMProvider, ChatOptions } from "../llm/base-provider.js";
 import { getLocalSidecarProvider, LOCAL_SIDECAR_MODEL } from "../llm/local-sidecar.js";
@@ -112,6 +112,9 @@ export async function resolveChatSummaryConnection(args: {
   );
   pushUniqueCandidate(candidates, args.chatConnectionId ? { id: args.chatConnectionId, source: "chat" } : null);
 
+  const globalDefault = await args.connections.getDefault();
+  pushUniqueCandidate(candidates, globalDefault?.id ? { id: globalDefault.id, source: "default" } : null);
+
   if (candidates.length === 0) {
     return { ok: false, error: "No API connection configured for chat summary", warnings };
   }
@@ -130,12 +133,8 @@ export async function resolveChatSummaryConnection(args: {
 
     const conn = await loadSummaryConnection(candidate, args.connections, warnings);
     if (!conn) continue;
-    if (conn.provider === "image_generation") {
-      warnings.push(`Connection ${conn.id} is an image-generation connection`);
-      continue;
-    }
-    if (conn.provider === "video_generation") {
-      warnings.push(`Connection ${conn.id} is a video-generation connection`);
+    if (!isChatProvider(conn.provider)) {
+      warnings.push(`Connection ${conn.id} is not a text-generation connection`);
       continue;
     }
 

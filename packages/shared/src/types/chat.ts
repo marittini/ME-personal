@@ -329,6 +329,7 @@ export interface ChatMetadata {
   /** Structured rolling summary entries. Missing means legacy summary-only metadata. */
   summaryEntries?: ChatSummaryEntry[];
   committedMemory?: CommittedMemoryState;
+  committedMemoryFloatingButton?: boolean;
   /** Recent message count used by manual rolling summary generation and automatic summaries. */
   summaryContextSize?: number;
   /** User-message cadence for the automated roleplay summary updater. */

@@ -10,6 +10,8 @@ export interface CommittedMemoryFact {
   status: "current" | "resolved" | "uncertain";
   /** Empty means narrator only. Public knowledge must be explicit. */
   audience: "shared" | string[];
+  excluded?: boolean;
+  edited?: boolean;
   sourceIds: string[];
 }
 export interface CommittedMemoryBatch {
@@ -21,6 +23,8 @@ export interface CommittedMemoryBatch {
   core: string;
   facts: CommittedMemoryFact[];
   invalidated?: boolean;
+  excluded?: boolean;
+  revision?: string;
 }
 export interface CommittedMemoryState {
   version: 1;
@@ -45,4 +49,24 @@ export interface CommittedMemoryStatus {
   state: CommittedMemoryState;
   pending: number;
   lastReceipt: { messageId: string; items: CommittedMemorySelection[] } | null;
+}
+
+/** Optional vault corrections never alter source identity or knowledge scope. */
+export interface CommittedMemoryEdit {
+  batchId: string;
+  factId?: string;
+  expectedRevision: string;
+  content?: string;
+  summary?: string;
+  core?: string;
+  excluded?: boolean;
+  status?: CommittedMemoryFact["status"];
+}
+export interface CommittedMemoryConnectionStatus {
+  ok: boolean;
+  connectionId?: string;
+  model?: string;
+  source?: string;
+  error?: string;
+  warnings: string[];
 }
