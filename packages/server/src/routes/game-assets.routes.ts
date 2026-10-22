@@ -1,3 +1,4 @@
+import { DEFAULT_STORED_WEBP_QUALITY } from "../services/image/webp-storage.js";
 // ──────────────────────────────────────────────
 // Routes: Game Asset serving, upload, manifest
 // ──────────────────────────────────────────────
@@ -356,7 +357,7 @@ async function normalizeGeneratedBackgroundBuffer(buffer: Buffer, ext: string) {
       return await pipeline.jpeg({ quality: 92 }).toBuffer();
     }
     if (ext === ".webp") {
-      return await pipeline.webp({ quality: 92 }).toBuffer();
+      return await pipeline.webp({ quality: DEFAULT_STORED_WEBP_QUALITY }).toBuffer();
     }
     return await pipeline.png().toBuffer();
   } catch (error) {

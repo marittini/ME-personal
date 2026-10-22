@@ -27,7 +27,7 @@ import { isCssGradient, MARINARA_GRADIENT_PRESET, RAINBOW_GRADIENT_PRESET } from
 import { announceChatFloatingUiDismiss } from "../lib/chat-floating-ui-events";
 import { detectConversationTimeZone, normalizeConversationTimeZone } from "../lib/conversation-time-zone";
 import { BASIC_PANEL_SORT_OPTIONS, normalizeBasicPanelSort, type BasicPanelSort } from "../lib/panel-sort";
-import { DEFAULT_APP_LANGUAGE, type AppLanguage } from "../localization/locale-types";
+import { type AppLanguage } from "../localization/locale-types";
 import { deferEditorLeave } from "../lib/editor-leave";
 import { OMNIBAR_ASIDE_DELAY_MS, readLegacyMariConnectionId } from "../lib/omnibar-aside-text";
 import { markOmnibarOpenStart } from "../lib/omnibar-open-timing";
@@ -59,6 +59,7 @@ export type ChatModeShortcut = "conversation" | "roleplay" | "game";
 
 export type ReaderPosition = { messageId: string; messageNumber: number; offset: number; updatedAt: string };
 export type ReaderPreferences = {
+  letterSpacing: number;
   lineHeight: number;
   paragraphGap: number;
   width: number;
@@ -891,7 +892,11 @@ interface UIState {
   // ── Settings (persisted) ──
   readerPreferences: ReaderPreferences;
   readerPositions: Record<string, ReaderPosition>;
-  libraryNavigation: { section: "home" | "library" | "record"; query: string; selectedWorkId: string | null };
+  libraryNavigation: {
+    section: "home" | "library" | "record" | "settings";
+    query: string;
+    selectedWorkId: string | null;
+  };
   fontSize: FontSize;
   language: AppLanguage;
   /** Font size for chat messages (px) */
@@ -2185,11 +2190,18 @@ export const useUIStore = create<UIState>()(
         detailReturnRightPanel: null,
 
         // Settings defaults
-        readerPreferences: { lineHeight: 1.8, paragraphGap: 1, width: 720, font: "inherit", align: "start" },
+        readerPreferences: {
+          letterSpacing: 0,
+          lineHeight: 1.8,
+          paragraphGap: 1,
+          width: 720,
+          font: "inherit",
+          align: "start",
+        },
         readerPositions: {},
         libraryNavigation: { section: "home", query: "", selectedWorkId: null },
         fontSize: 17 as FontSize,
-        language: DEFAULT_APP_LANGUAGE as AppLanguage,
+        language: "ko" as AppLanguage,
         chatFontSize: 16,
         fontFamily: "",
         chatWidgetPreset: "default" as ChatWidgetPreset,
@@ -4158,6 +4170,12 @@ export const useUIStore = create<UIState>()(
         return {
           ...currentState,
           ...persisted,
+          readerPreferences: {
+            ...currentState.readerPreferences,
+            ...(persisted.readerPreferences && typeof persisted.readerPreferences === "object"
+              ? persisted.readerPreferences
+              : {}),
+          },
           mariWindowHeightRem: normalizeMariWindowHeightRem(persisted.mariWindowHeightRem),
           mariWindowWidthRem: normalizeMariWindowWidthRem(persisted.mariWindowWidthRem),
           omnibarWindowWidthRem: normalizeOmnibarWindowWidthRem(persisted.omnibarWindowWidthRem),

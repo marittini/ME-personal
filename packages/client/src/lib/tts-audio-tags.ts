@@ -32,8 +32,9 @@ export function hideTTSAudioCues(text: string): string {
     (match, _fence, cue: string | undefined) => {
       if (match.startsWith("<")) return "";
       if (!cue) return match;
-      return /\b(voice|delivery|whispering|whisper|laughs?|laughing|sighs?|pause|breathy|inhale|exhales?|chuckles?|shouts?|shouting|crying|angry|sad|annoyed|happy|sarcastic|excited|thoughtful|surprised|curious|mischievously|clears throat)\b/i.test(
-        cue,
+      // Match whole cue expressions, so a note such as [happy ending] remains visible.
+      return /^(?:(?:voice|delivery)\s*:[^\r\n]+|(?:whispering|whisper|laughs?|laughing|sighs?|pause|breathy|inhale|exhales?|chuckles?|shouts?|shouting|crying|angry|sad|annoyed|happy|sarcastic|excited|thoughtful|surprised|curious|mischievously|clears throat|sniffs?|sniffles?|sobbing|gasping|gasps?|giggles?|coughs?|yawns?|softly|nervously|calmly|속삭임|속삭이며|한숨|웃음|울음|흐느낌|화남|슬픔|기쁨|놀람)(?:[\s,;/+-]+(?:and|very|slightly|softly|quietly|loudly|slowly|whispering|laughing|crying|angry|sad|happy|sarcastic|excited|nervously|calmly|breathy|sighs?))*)$/i.test(
+        cue.trim(),
       )
         ? ""
         : match;

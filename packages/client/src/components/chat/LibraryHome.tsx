@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -30,7 +30,11 @@ import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
 
-type LibrarySection = "home" | "library" | "record";
+const LibrarySettingsHome = lazy(() =>
+  import("./LibrarySettingsHome").then((module) => ({ default: module.LibrarySettingsHome })),
+);
+
+type LibrarySection = "home" | "library" | "record" | "settings";
 
 type VirtualWork = {
   id: string;
@@ -88,9 +92,7 @@ function WorkCover({ work, className }: { work: VirtualWork; className?: string 
       ) : (
         <span className="flex h-full flex-col justify-between p-3">
           <span className="h-px w-8 bg-[var(--primary)]" />
-          <span className="line-clamp-4 font-serif text-sm font-semibold leading-snug text-[var(--foreground)]">
-            {work.title}
-          </span>
+          <span className="line-clamp-4 text-sm font-semibold leading-snug text-[var(--foreground)]">{work.title}</span>
           <span className="truncate text-[0.62rem] tracking-[0.08em] text-[var(--muted-foreground)]">
             {work.author}
           </span>
@@ -287,7 +289,7 @@ export function LibraryHome() {
     };
   }, []);
 
-  if (selectedWork) {
+  if (selectedWork && section !== "settings") {
     return (
       <main
         className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]"
@@ -314,9 +316,7 @@ export function LibraryHome() {
             <section className="grid grid-cols-[7.2rem_minmax(0,1fr)] gap-6 border-b border-[var(--border)] pb-8 pt-5 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-10 md:pb-10">
               <WorkCover work={selectedWork} className="aspect-[2/3] w-full" />
               <div className="flex min-w-0 flex-col justify-end">
-                <h1 className="font-serif text-2xl font-semibold tracking-[-0.03em] md:text-4xl">
-                  {selectedWork.title}
-                </h1>
+                <h1 className="text-2xl font-semibold tracking-[-0.03em] md:text-4xl">{selectedWork.title}</h1>
                 <p className="mt-5 text-xs text-[var(--muted-foreground)]">
                   {formatReadTime(selectedWork.lastMessageAt, locale, t("libraryShell.ready"))}
                 </p>
@@ -332,7 +332,7 @@ export function LibraryHome() {
 
             <section className="pt-8">
               <div className="flex items-center justify-between gap-4">
-                <h2 className="font-serif text-lg font-semibold">{t("libraryShell.work.records")}</h2>
+                <h2 className="text-lg font-semibold">{t("libraryShell.work.records")}</h2>
                 <button
                   type="button"
                   disabled={createChat.isPending}
@@ -420,12 +420,14 @@ export function LibraryHome() {
             <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
               {t("libraryShell.brand")}
             </p>
-            <h1 className="mt-1 font-serif text-[clamp(1.65rem,4vw,2.35rem)] font-semibold tracking-[-0.035em]">
+            <h1 className="mt-1 text-[clamp(1.65rem,4vw,2.35rem)] font-semibold tracking-[-0.035em]">
               {section === "home"
                 ? t("libraryShell.home.title")
-                : section === "library"
-                  ? t("libraryShell.library.title")
-                  : t("libraryShell.record.title")}
+                : section === "settings"
+                  ? t("settingsHub.title")
+                  : section === "library"
+                    ? t("libraryShell.library.title")
+                    : t("libraryShell.record.title")}
             </h1>
           </div>
           <button
@@ -442,7 +444,11 @@ export function LibraryHome() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-28 md:px-10 md:pb-24">
         <div className="mx-auto w-full max-w-5xl">
-          {loading ? (
+          {section === "settings" ? (
+            <Suspense fallback={<p role="status">{t("libraryShell.loading")}</p>}>
+              <LibrarySettingsHome />
+            </Suspense>
+          ) : loading ? (
             <div className="space-y-5 py-5" role="status" aria-label={t("libraryShell.loading")}>
               <div className="h-56 animate-pulse rounded-xl bg-[var(--secondary)]" />
               <div className="grid grid-cols-3 gap-4">
@@ -453,7 +459,7 @@ export function LibraryHome() {
             </div>
           ) : failed ? (
             <section className="border-t border-[var(--border)] py-10">
-              <h2 className="font-serif text-xl font-semibold">{t("libraryShell.error.title")}</h2>
+              <h2 className="text-xl font-semibold">{t("libraryShell.error.title")}</h2>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--muted-foreground)]">
                 {t("libraryShell.error.description")}
               </p>
@@ -471,7 +477,7 @@ export function LibraryHome() {
           ) : works.length === 0 ? (
             <section className="flex min-h-[55vh] flex-col items-start justify-center border-t border-[var(--border)]">
               <BookOpen size="1.5rem" className="text-[var(--muted-foreground)]" aria-hidden="true" />
-              <h2 className="mt-5 font-serif text-2xl font-semibold">{t("libraryShell.empty.title")}</h2>
+              <h2 className="mt-5 text-2xl font-semibold">{t("libraryShell.empty.title")}</h2>
               <p className="mt-2 max-w-sm text-sm leading-relaxed text-[var(--muted-foreground)]">
                 {t("libraryShell.empty.description")}
               </p>
@@ -495,7 +501,7 @@ export function LibraryHome() {
                   <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
                     {t("libraryShell.continue")}
                   </span>
-                  <span className="mt-2 line-clamp-2 font-serif text-xl font-semibold tracking-[-0.02em] md:text-3xl">
+                  <span className="mt-2 line-clamp-2 text-xl font-semibold tracking-[-0.02em] md:text-3xl">
                     {continueWork.title}
                   </span>
                   <span className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{continueWork.author}</span>
@@ -522,7 +528,7 @@ export function LibraryHome() {
 
               <section className="pt-8">
                 <div className="mb-4 flex items-center justify-between gap-4">
-                  <h2 className="font-serif text-lg font-semibold">{t("libraryShell.recent")}</h2>
+                  <h2 className="text-lg font-semibold">{t("libraryShell.recent")}</h2>
                   <button
                     type="button"
                     onClick={() => setSection("library")}
@@ -639,7 +645,8 @@ export function LibraryHome() {
           ))}
           <button
             type="button"
-            onClick={() => useUIStore.getState().openRightPanel("settings")}
+            onClick={() => setSection("settings")}
+            aria-current={section === "settings" ? "page" : undefined}
             className="flex min-h-16 flex-col items-center justify-center gap-1 text-[0.66rem] font-medium text-[var(--muted-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]"
           >
             <Settings size="1.1rem" strokeWidth={1.6} aria-hidden="true" />

@@ -14,7 +14,7 @@ os.networkInterfaces = () => ({});
 syncBuiltinESMExports();
 const { NaiRequestGuard, NaiRateLimitError, NaiGuardError, NaiOutputConversionError, setNaiRequestGuard } =
   await import("../../packages/server/src/services/image/nai-request-guard.js");
-const { toStoredWebp, migrateStoredPngs, webpPngTextChunks } =
+const { toStoredWebp, migrateStoredPngs, webpPngTextChunks, DEFAULT_STORED_WEBP_QUALITY } =
   await import("../../packages/server/src/services/image/webp-storage.js");
 const { getSharp } = await import("../../packages/server/src/services/image/sharp-runtime.js");
 const { generateImage } = await import("../../packages/server/src/services/image/image-generation.js");
@@ -37,11 +37,18 @@ try {
     .toBuffer();
   const webp = await toStoredWebp(png);
   assert.equal(webp.ext, "webp");
+  assert.equal(DEFAULT_STORED_WEBP_QUALITY, 95);
   assert.deepEqual(
-    await sharp(webp.buffer).raw().toBuffer(),
-    await sharp(png).raw().toBuffer(),
-    "lossless pixels/alpha",
+    webp.buffer,
+    await sharp(png).keepMetadata().webp({ quality: 95, alphaQuality: 100, effort: 3 }).toBuffer(),
+    "default conversion uses quality 95",
   );
+  assert.deepEqual(
+    await sharp(webp.buffer).extractChannel("alpha").raw().toBuffer(),
+    await sharp(png).extractChannel("alpha").raw().toBuffer(),
+    "transparency is retained exactly",
+  );
+  assert.equal((await toStoredWebp(webp.buffer)).buffer, webp.buffer, "existing WebP is not recompressed");
   await mkdir(join(data, "avatars"));
   await writeFile(join(data, "avatars", "old.png"), png);
   assert.equal((await migrateStoredPngs(data)).converted, 1);

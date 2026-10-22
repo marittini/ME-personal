@@ -29,7 +29,7 @@ export async function prepareAvatarUpload(path: string, body: unknown): Promise<
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Image conversion unavailable");
   context.drawImage(image, 0, 0);
-  const encoded = canvas.toDataURL("image/webp", 0.98);
+  const encoded = canvas.toDataURL("image/webp", 0.95);
   canvas.width = 0;
   canvas.height = 0;
   return encoded.startsWith("data:image/webp;") ? { ...body, [field]: encoded, filename: "image.webp" } : body;

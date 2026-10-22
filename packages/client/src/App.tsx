@@ -129,15 +129,11 @@ function formatRecoveryError(error: unknown) {
 }
 
 function getRecoveryChromeStyle(): CSSProperties {
-  const { appAccentColor, chatChromeTextColor, theme } = useUIStore.getState();
-  const defaultAccent = getDefaultAppAccentColor();
-  const accentSource = appAccentColor.trim() || defaultAccent;
-  const accent = getCssColorFallback(accentSource, getCssColorFallback(defaultAccent, "currentColor"));
-  const accentGradient = isCssGradient(accentSource) ? accentSource : getSolidAccentGradient(accent);
-  const textColor = chatChromeTextColor.trim();
-  const chromeText = textColor
-    ? getCssColorFallback(textColor, getDefaultChatChromeTextColor(theme))
-    : getDefaultChatChromeTextColor(theme);
+  const { theme } = useUIStore.getState();
+  const styles = getComputedStyle(document.documentElement);
+  const accent = styles.getPropertyValue("--primary").trim() || (theme === "light" ? "#936b4b" : "#c8a787");
+  const accentGradient = `linear-gradient(${accent}, ${accent})`;
+  const chromeText = styles.getPropertyValue("--foreground").trim() || (theme === "light" ? "#302a25" : "#eee8df");
 
   return {
     "--primary": accent,
@@ -633,7 +629,7 @@ export function App() {
       // chrome needs an opaque color, and sidebars retain the Home menu surface.
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 1;
-      const context = canvas.getContext("2d");
+      const context = root.dataset.productTheme === "reader" ? null : canvas.getContext("2d");
       // WebKit can refuse canvas reads under memory pressure (InvalidStateError);
       // keep the unflattened color then instead of crashing the app shell.
       if (context) {
@@ -713,7 +709,8 @@ export function App() {
     const animatedGradientStops = animatedAccentIsGradient
       ? getCssGradientColorStops(animatedAccentSource, animatedSolidAccent)
       : [animatedSolidAccent];
-    const accentAnimationEnabled = appAccentRgbMode || appAccentPulseMode;
+    // The reader product shell keeps a stable accent independent of legacy theme preferences.
+    const accentAnimationEnabled = false;
     const usesTimerDrivenAccentAnimation = accentAnimationEnabled;
 
     root.style.setProperty("--marinara-app-accent-static", solidAccent);

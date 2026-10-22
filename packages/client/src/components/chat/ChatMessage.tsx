@@ -1,3 +1,4 @@
+import { DialogueSpeechControls } from "./DialogueSpeechControls";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
 // ──────────────────────────────────────────────
 // Chat: Message — mode-aware rendering
@@ -90,6 +91,7 @@ import {
   ChevronRight,
   EyeOff,
   Shield,
+  ImagePlus,
 } from "lucide-react";
 import { decodeEncodedSpeakerTags, formatTextQuotes, type Message, type QuoteFormat } from "@marinara-engine/shared";
 import type { GameTurnStoryboard } from "@marinara-engine/shared";
@@ -1013,6 +1015,8 @@ interface ChatMessageProps {
   streamingOutputStarted?: boolean;
   /** Frame-throttled live content that receives the same formatter as committed messages. */
   streamingContent?: (renderText: (text: string) => ReactNode) => ReactNode;
+  onIllustrateMessage?: (messageId: string) => void | Promise<void>;
+  illustrationBusy?: boolean;
   onDelete?: (messageId: string) => void;
   onRegenerate?: (messageId: string) => void;
   onEdit?: (messageId: string, content: string) => void | Promise<void>;
@@ -1925,6 +1929,8 @@ export const ChatMessage = memo(function ChatMessage({
   streamingOutputStarted = false,
   streamingContent,
   onDelete,
+  onIllustrateMessage,
+  illustrationBusy,
   onRegenerate,
   onEdit,
   failedReply,
@@ -2809,7 +2815,9 @@ export const ChatMessage = memo(function ChatMessage({
     if (index !== undefined) onVisualNovelSpeechParagraph(index);
   }, [displayContent, message.id, onVisualNovelSpeechParagraph, ttsConfig, visualNovel, visualNovelSpeech]);
 
-  const displayName = isUser ? userName : charName;
+  const displayName = isUser
+    ? ((msgPersona ? msgPersona.name : personaInfo?.name) ?? localizeUi("reader.you"))
+    : (primaryCharInfo?.name ?? localizeUi("reader.assistant"));
   const avatarUrl = isUser
     ? msgPersona
       ? (msgPersona.avatarUrl ?? null)
@@ -3752,7 +3760,29 @@ export const ChatMessage = memo(function ChatMessage({
                 </>
               )}
             </div>
+            {onIllustrateMessage && !isStreaming && (
+              <button
+                type="button"
+                className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-md px-2 text-xs"
+                disabled={illustrationBusy}
+                onClick={() => void onIllustrateMessage(message.id)}
+              >
+                <ImagePlus size={16} />
+                {localizeUi("reader.illustrateMessage")}
+              </button>
+            )}
             {ttsEnabled && <div className="mt-2 flex flex-wrap items-center gap-2">{roleplayTtsControls}</div>}
+            {!isUser && !isSystem && !isStreaming && (
+              <DialogueSpeechControls
+                messageId={message.id}
+                chatId={message.chatId}
+                text={message.content}
+                characterId={message.characterId}
+                characterMap={characterMap}
+                personaInfo={personaInfo}
+                chatCharacterIds={chatCharacterIds}
+              />
+            )}
           </div>
         </div>
         {imageLightbox && (
@@ -4060,7 +4090,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <span
                   className={cn(
                     "mari-message-name text-[0.75rem] font-bold tracking-tight",
-                    !msgNameColor && !isMergedGroup && (isUser ? "text-neutral-300" : "rpg-char-name"),
+                    !msgNameColor && !isMergedGroup && (isUser ? "text-[var(--muted-foreground)]" : "rpg-char-name"),
                   )}
                   style={!isMergedGroup ? solidNameColorStyle(msgNameColor) : undefined}
                 >
@@ -4389,11 +4419,31 @@ export const ChatMessage = memo(function ChatMessage({
                 onClick={() => onDelete?.(message.id)}
                 title={localizeUi("lorebook.editor.batch.delete")}
               />
+              {isRoleplay && onIllustrateMessage && !isStreaming && (
+                <ActionBtn
+                  icon={<ImagePlus size={16} />}
+                  title={localizeUi("reader.illustrateMessage")}
+                  className="min-h-11 min-w-11"
+                  disabled={illustrationBusy}
+                  onClick={() => void onIllustrateMessage(message.id)}
+                />
+              )}
               {roleplayTtsControls}
             </div>
           </div>
         </div>
 
+        {!isUser && !isSystem && !isStreaming && (
+          <DialogueSpeechControls
+            messageId={message.id}
+            chatId={message.chatId}
+            text={message.content}
+            characterId={message.characterId}
+            characterMap={characterMap}
+            personaInfo={personaInfo}
+            chatCharacterIds={chatCharacterIds}
+          />
+        )}
         {/* Thinking modal */}
         {showThinking && showThinkingAction && (
           <MessageThinkingModal
