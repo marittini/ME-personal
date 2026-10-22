@@ -278,6 +278,83 @@ try {
   assert.equal(splitStatus.pending, 0);
   assert(splitStatus.state.batches.length > 1, "smaller models must split a commit automatically");
   assert.equal(splitStatus.state.job?.total, splitStatus.state.job?.completed);
+  const privateChat = await chats.create({ name: "Scoped episode", mode: "roleplay", characterIds: [] });
+  assert(privateChat);
+  await chats.createMessage({
+    chatId: privateChat.id,
+    role: "assistant",
+    characterId: null,
+    content: "비밀 약속",
+    extra: { hiddenFromAICharacterIds: ["bob"] },
+  });
+  await startCommittedMemory(db, privateChat.id);
+  await finished(privateChat.id);
+  const privateBatch = (await committedMemoryStatus(db, privateChat.id)).state.batches[0]!;
+  assert(privateBatch && !privateBatch.summary && !privateBatch.core);
+  await assert.rejects(
+    editCommittedMemory(db, privateChat.id, {
+      batchId: privateBatch.id,
+      expectedRevision: privateBatch.createdAt,
+      summary: "Publish private material",
+    }),
+    /Restricted/,
+  );
+  assert.equal((await committedMemoryForPrompt(db, privateChat.id, "비밀"))?.text, "");
+  const Fastify = (await import("../../packages/server/node_modules/fastify/fastify.js")).default;
+  const { registerCommittedMemoryRoutes } = await import("../../packages/server/src/routes/committed-memory.routes.js");
+  const app = Fastify();
+  app.decorate("db", db);
+  const activeGenerations = new Map<string, unknown>();
+  app.decorate("activeGenerations", activeGenerations);
+  await registerCommittedMemoryRoutes(app);
+  try {
+    const connectionResponse = await app.inject({ method: "GET", url: `/${smallChat.id}/committed-memory/connection` });
+    assert.equal(connectionResponse.statusCode, 200);
+    const diagnostics = connectionResponse.json();
+    assert(diagnostics.ok && diagnostics.model === "fixture");
+    assert(!("apiKey" in diagnostics) && !("provider" in diagnostics));
+    const savedBatch = splitStatus.state.batches[0]!;
+    const payload = {
+      batchId: savedBatch.id,
+      expectedRevision: savedBatch.revision ?? savedBatch.createdAt,
+      excluded: true,
+    };
+    const url = `/${smallChat.id}/committed-memory/record`;
+    assert.equal((await app.inject({ method: "PATCH", url, payload })).statusCode, 200);
+    assert.equal((await app.inject({ method: "PATCH", url, payload })).statusCode, 409);
+    assert.equal(
+      (await app.inject({ method: "PATCH", url, payload: { ...payload, sourceIds: ["forged"] } })).statusCode,
+      400,
+    );
+    assert.equal(
+      (await app.inject({ method: "PATCH", url: `/${chat.id}/committed-memory/record`, payload })).statusCode,
+      404,
+    );
+    assert.equal((await app.inject({ method: "GET", url: "/missing/committed-memory/connection" })).statusCode, 404);
+    activeGenerations.set(smallChat.id, true);
+    assert.equal(
+      (await app.inject({ method: "POST", url: `/${smallChat.id}/committed-memory/commit`, payload: {} })).statusCode,
+      409,
+    );
+    activeGenerations.clear();
+    await connections.update(conn.id, { isDefault: false });
+    const unconfigured = await chats.create({ name: "No connection", mode: "roleplay", characterIds: [] });
+    assert(unconfigured);
+    await chats.createMessage({
+      chatId: unconfigured.id,
+      role: "assistant",
+      characterId: null,
+      content: "Needs summary",
+    });
+    assert.equal(
+      (await app.inject({ method: "POST", url: `/${unconfigured.id}/committed-memory/commit`, payload: {} }))
+        .statusCode,
+      422,
+    );
+    assert.equal((await committedMemoryStatus(db, unconfigured.id)).state.job, undefined);
+  } finally {
+    await app.close();
+  }
   console.log(
     "Committed memory integration passed: explicit selected-swipe confirmation, duplicate/concurrent clicks, source changes, failed output, snapshot boundary, deletion, hidden messages, history and settings restoration.",
   );

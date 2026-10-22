@@ -7,6 +7,7 @@ import { useChat } from "../../hooks/use-chats";
 import { useChatStore } from "../../stores/chat.store";
 import { WindowBubble } from "../ui/WindowBubble";
 import { usePhoneBubbleBounds, useWindowBubbleBounds } from "../ui/FloatingWindow";
+import { BUBBLE_SNAP_GAP_PX } from "../../lib/window-bubble-snap";
 import { useMatchMedia } from "../../hooks/use-match-media";
 import {
   getPhoneBubbleSlot,
@@ -51,7 +52,12 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
     <WindowBubble
       id={ID}
       point={
-        saved ?? { ...(phone ? getPhoneBubbleSlot(bounds, 3, size) : getBubbleRowSlot(bounds, 3)), automatic: true }
+        saved ?? {
+          ...(phone
+            ? getPhoneBubbleSlot(bounds, 3, size)
+            : getBubbleRowSlot(bounds, 3, { size, gap: BUBBLE_SNAP_GAP_PX })),
+          automatic: true,
+        }
       }
       bounds={bounds}
       size={phone ? PHONE_BUBBLE_SIZE_PX : WINDOW_BUBBLE_SIZE_PX}

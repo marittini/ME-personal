@@ -117,6 +117,11 @@ assert(
   !selectCommittedMemory(withheld, "").text.includes("약속했다"),
   "excluding the newest fact must not revive its superseded value",
 );
+const staleNarrative = {
+  ...withheld,
+  batches: [{ ...batch, summary: "outdated promise must not leak" }, withheld.batches[1]!],
+};
+assert(!selectCommittedMemory(staleNarrative, "promise").text.includes("outdated promise"));
 const factExcluded = { ...state, batches: [{ ...batch, facts: batch.facts.map((f) => ({ ...f, excluded: true })) }] };
 assert.equal(
   selectCommittedMemory(factExcluded, "손수건").text,

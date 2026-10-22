@@ -101,8 +101,6 @@ export async function startCommittedMemory(db: DB, chatId: string, debugMode = f
   try {
     const { chat, messages, state } = await loadCommittedMemory(db, chatId);
     if (chat.mode !== "roleplay") throw new Error("Unified memory requires a Roleplay chat");
-    const connection = await committedMemoryConnectionStatus(db, chatId);
-    if (!connection.ok) throw Object.assign(new Error(connection.error), { statusCode: 422 });
     const batches: MemorySourceMessage[][] = [];
     let batch: MemorySourceMessage[] = [];
     let size = 0;
@@ -118,6 +116,10 @@ export async function startCommittedMemory(db: DB, chatId: string, debugMode = f
       size += length;
     }
     if (batch.length) batches.push(batch);
+    if (batches.length) {
+      const connection = await committedMemoryConnectionStatus(db, chatId);
+      if (!connection.ok) throw Object.assign(new Error(connection.error), { statusCode: 422 });
+    }
     await createChatsStorage(db).patchMetadata(chatId, (m) => ({
       committedMemory: {
         ...reconcileCommittedMemory(readCommittedMemory(m, chatId), messages),
@@ -332,7 +334,9 @@ export async function editCommittedMemory(db: DB, chatId: string, edit: Committe
   const storage = createChatsStorage(db);
   if (!(await storage.getById(chatId))) throw Object.assign(new Error("Chat not found"), { statusCode: 404 });
   await storage.patchMetadata(chatId, async (metadata) => {
-    const state = reconcileCommittedMemory(readCommittedMemory(metadata, chatId), await storage.listMessages(chatId));
+    if (jobs.has(chatId)) throw Object.assign(new Error("Memory processing is still running"), { statusCode: 409 });
+    const messages = await storage.listMessages(chatId);
+    const state = reconcileCommittedMemory(readCommittedMemory(metadata, chatId), messages);
     const batch = state.batches.find((b) => b.id === edit.batchId);
     if (!batch) throw Object.assign(new Error("Memory not found"), { statusCode: 404 });
     if (batch.invalidated || (batch.revision ?? batch.createdAt) !== edit.expectedRevision)
@@ -350,6 +354,16 @@ export async function editCommittedMemory(db: DB, chatId: string, edit: Committe
       }
       if (edit.excluded !== undefined) fact.excluded = edit.excluded;
     } else {
+      const restricted = messages.some(
+        (message) =>
+          batch.sources.some((source) => source.id === message.id) &&
+          (memoryExtra(message.extra).hiddenFromAICharacterIds as unknown[] | undefined)?.length,
+      );
+      if (restricted && (edit.summary?.trim() || edit.core?.trim()))
+        throw Object.assign(
+          new Error("Restricted episodes cannot have a public narrative; edit their scoped facts instead"),
+          { statusCode: 400 },
+        );
       if (edit.summary !== undefined) batch.summary = edit.summary;
       if (edit.core !== undefined) batch.core = edit.core;
       if (edit.excluded !== undefined) batch.excluded = edit.excluded;

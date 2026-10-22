@@ -150,6 +150,7 @@ function MemoryDetail({ chatId, entry, onBack }: { chatId: string; entry: Entry;
         <div className="flex flex-wrap gap-2">
           <button
             className={SETTINGS_BUTTON_CLASS}
+            disabled={!fact && !batch.summary && !batch.core}
             onClick={() => {
               setContent(fact?.content ?? batch.summary);
               setCore(batch.core);

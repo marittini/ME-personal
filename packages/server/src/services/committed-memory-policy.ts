@@ -142,9 +142,15 @@ export function selectCommittedMemory(
         sourceIds: f.sourceIds,
         score: (f.kind === "promise" ? 4 : 2) + relevance(f.content, query),
       });
+  const correctedKeys = new Set(
+    [...current.values()]
+      .filter((f) => f.excluded || f.edited)
+      .map((f) => `${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`),
+  );
   for (const b of valid) {
     // A corrected/withheld fact may still be repeated by the original narrative.
-    if (b.excluded || b.facts.some((f) => f.excluded || f.edited)) continue;
+    if (b.excluded || b.facts.some((f) => correctedKeys.has(`${f.kind}:${f.key.normalize("NFKC").toLowerCase()}`)))
+      continue;
     const recent = newest - b.turn < 30;
     const content = recent ? b.summary : b.core;
     if (!content) continue;
