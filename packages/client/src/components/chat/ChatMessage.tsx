@@ -2815,7 +2815,9 @@ export const ChatMessage = memo(function ChatMessage({
     if (index !== undefined) onVisualNovelSpeechParagraph(index);
   }, [displayContent, message.id, onVisualNovelSpeechParagraph, ttsConfig, visualNovel, visualNovelSpeech]);
 
-  const displayName = isUser ? userName : charName;
+  const displayName = isUser
+    ? ((msgPersona ? msgPersona.name : personaInfo?.name) ?? localizeUi("reader.you"))
+    : (primaryCharInfo?.name ?? localizeUi("reader.assistant"));
   const avatarUrl = isUser
     ? msgPersona
       ? (msgPersona.avatarUrl ?? null)
@@ -4088,7 +4090,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <span
                   className={cn(
                     "mari-message-name text-[0.75rem] font-bold tracking-tight",
-                    !msgNameColor && !isMergedGroup && (isUser ? "text-neutral-300" : "rpg-char-name"),
+                    !msgNameColor && !isMergedGroup && (isUser ? "text-[var(--muted-foreground)]" : "rpg-char-name"),
                   )}
                   style={!isMergedGroup ? solidNameColorStyle(msgNameColor) : undefined}
                 >

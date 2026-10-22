@@ -36,7 +36,19 @@ export function DialogueSpeechControls({
   const volume = useUIStore((s) => s.ttsLineVolume);
   const [playback, setPlayback] = useState(() => ({ state: ttsService.getState(), id: ttsService.getActiveId() }));
   const [regenerating, setRegenerating] = useState<number | null>(null);
-  useEffect(() => ttsService.subscribe((state, id) => setPlayback({ state, id })), []);
+  useEffect(
+    () =>
+      ttsService.subscribe((state, id) =>
+        setPlayback((previous) => {
+          const prefix = `${messageId}:dialogue:`;
+          return previous.id?.startsWith(prefix) || id?.startsWith(prefix) ? { state, id } : previous;
+        }),
+      ),
+    [messageId],
+  );
+  useEffect(() => {
+    if (playback.id?.startsWith(`${messageId}:dialogue:`)) ttsService.setCurrentPlaybackVolume(volume / 100);
+  }, [messageId, playback.id, volume]);
   const requests = useMemo(() => {
     if (!config?.enabled) return [];
     const characters = [...(characterMap ?? [])].filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id));

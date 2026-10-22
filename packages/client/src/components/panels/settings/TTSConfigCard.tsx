@@ -1011,9 +1011,9 @@ function NpcDefaultVoicePool({
 
 // ── Main card ─────────────────────────────────────
 
-export function TTSConfigCard() {
+export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: boolean } = {}) {
   const { t: localizeUi } = useUiTranslation();
-  const { data: savedConfig, isLoading } = useTTSConfig();
+  const { data: savedConfig, isLoading, isError, refetch } = useTTSConfig();
   const updateConfig = useUpdateTTSConfig();
   const { data: characters } = useCharacters();
   const { data: personas } = usePersonas();
@@ -1067,7 +1067,7 @@ export function TTSConfigCard() {
   const [callAutomaticVideoClipsEnabled, setCallAutomaticVideoClipsEnabled] = useState(false);
   const [callCustomVideoClipsEnabled, setCallCustomVideoClipsEnabled] = useState(false);
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1693,19 +1693,25 @@ export function TTSConfigCard() {
     }
   };
 
-  if (isLoading) return null;
+  if (isLoading) return <p role="status">{localizeUi("ui.panels.ttsconfigcard.loading")}</p>;
+  if (isError)
+    return (
+      <div role="alert">
+        <p>{localizeUi("reader.voiceLoadError")}</p>
+        <button type="button" className="min-h-11 px-3 text-sm" onClick={() => void refetch()}>
+          {localizeUi("libraryShell.retry")}
+        </button>
+      </div>
+    );
 
   return (
     <div
       data-component="TTSConfigCard"
-      className={cn(
-        "rounded-xl border border-sky-400/20 bg-gradient-to-br from-sky-400/5 to-blue-500/5 p-3 transition-all",
-        expanded && "border-sky-400/30",
-      )}
+      className={cn("rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 transition-colors")}
     >
       {/* ── Header ── */}
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-sm">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--secondary)] text-[var(--foreground)]">
           <Volume2 size="1rem" />
         </div>
 
@@ -1716,7 +1722,7 @@ export function TTSConfigCard() {
               ? localizeUi("tts.connection.missingOption")
               : enabled
                 ? localizeUi("ui.panels.ttsconfigcard.value1Value2Value3Value4Value5", {
-                    value1: selectedConnection?.name ?? selectedSource.label,
+                    value1: selectedConnection?.name ?? localizeUi(`reader.ttsSource.${source}`),
                     value2: model || selectedSource.model,
                     value3: selectedVoiceLabel,
                     value4: narratorVoiceEnabled
@@ -1727,7 +1733,7 @@ export function TTSConfigCard() {
                         ? ""
                         : localizeUi("ui.panels.ttsconfigcard.builtInVoices"),
                   })
-                : (selectedConnection?.name ?? selectedSource.idleText)}
+                : (selectedConnection?.name ?? localizeUi(`reader.ttsIdle.${source}`))}
           </div>
         </div>
 
@@ -1739,18 +1745,18 @@ export function TTSConfigCard() {
               setEnabled(checked);
               mark({ enabled: checked });
             }}
-            ariaLabel={enabled ? "Disable TTS" : "Enable TTS"}
+            ariaLabel={localizeUi(enabled ? "ui.panels.ttsconfigcard.disableTts" : "ui.panels.ttsconfigcard.enableTts")}
             title={
               enabled
                 ? localizeUi("ui.panels.ttsconfigcard.disableTts")
                 : localizeUi("ui.panels.ttsconfigcard.enableTts")
             }
-            className="rounded-lg p-1 hover:bg-[var(--secondary)]"
+            className="min-h-11 min-w-11 justify-center rounded-lg p-1 hover:bg-[var(--secondary)]"
           />
 
           <button
             onClick={() => setExpanded((v) => !v)}
-            className="mari-chrome-control mari-chrome-control--small h-8 min-h-0 w-8 p-0"
+            className="mari-chrome-control min-h-11 min-w-11 p-0"
             title={
               expanded ? localizeUi("ui.panels.ttsconfigcard.collapse") : localizeUi("ui.panels.ttsconfigcard.expand")
             }
@@ -1776,7 +1782,7 @@ export function TTSConfigCard() {
             >
               {TTS_SOURCE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {localizeUi(`reader.ttsSource.${option.value}`)}
                 </option>
               ))}
               {(audioConnectionOptions.length > 0 || connectionId) && (
@@ -1792,7 +1798,7 @@ export function TTSConfigCard() {
                     <option key={connection.id} value={`${CONNECTION_SOURCE_PREFIX}${connection.id}`}>
                       {localizeUi("ui.panels.ttsconfigcard.value1Value2", {
                         value1: connection.name,
-                        value2: TTS_SOURCE_DEFAULTS[connection.source].label,
+                        value2: localizeUi(`reader.ttsSource.${connection.source}`),
                       })}
                     </option>
                   ))}

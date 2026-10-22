@@ -114,6 +114,18 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
       await page.reload();
       await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
+      await expect(workspace).toHaveCSS("--reader-line-height", "1.9");
+      await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+      await page
+        .getByRole("dialog", { name: "읽기 설정", exact: true })
+        .getByRole("combobox", { name: "화면 테마", exact: true })
+        .selectOption("light");
+      await page.keyboard.press("Escape");
+      await expect(page.locator("html")).toHaveCSS("background-color", "rgb(251, 248, 243)");
+      expect(
+        await page.locator("html").evaluate((el) => getComputedStyle(el).getPropertyValue("--primary").trim()),
+      ).toBe("#936b4b");
+      await page.screenshot({ path: `.tmp/${mode}-reading-light.png` });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
     } finally {
       await request.delete(`/api/chats/${chat.id}?force=true`);
@@ -128,6 +140,10 @@ test("settings tab opens a function hub and native voice settings", async ({ pag
   await page.getByRole("button", { name: "음성·통화 설정", exact: true }).click();
   await expect(page.getByRole("heading", { name: "음성·통화 설정", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "마이페이지로 돌아가기", exact: true })).toBeVisible();
+  const voice = page.locator('[data-component="TTSConfigCard"]');
+  await expect(voice).toBeVisible();
+  await expect(voice.getByRole("checkbox", { name: "TTS 활성화", exact: true })).toBeVisible();
+  await expect(voice.getByRole("combobox").first()).toBeVisible();
   await page.screenshot({ path: ".tmp/settings-hub-voice.png" });
 });
 
@@ -159,7 +175,7 @@ test("message illustration sends its exact ID range and preserves the composer d
     const action = workspace.getByRole("button", { name: "이 메시지로 삽화 생성", exact: true });
     await action.click({ force: true });
     await expect.poll(() => requests.length).toBe(1);
-    expect(requests[0].illustratorMessageRange).toEqual([message.id, message.id]);
+    expect(requests[0]!.illustratorMessageRange).toEqual([message.id, message.id]);
     await expect(action).toBeDisabled();
     await expect(composer).toHaveValue("작성 중인 초안은 그대로");
     release();
@@ -222,7 +238,7 @@ test("NAI character prompt uses two raw requests, exposes copyable outputs and p
       "girl, long black hair, blue eyes",
     );
     expect(calls).toHaveLength(2);
-    expect(JSON.parse(calls[0].messages[1].content).source).toEqual({
+    expect(JSON.parse(calls[0]!.messages[1]!.content).source).toEqual({
       description: "A woman with blue eyes.",
       appearance: "long black hair",
     });

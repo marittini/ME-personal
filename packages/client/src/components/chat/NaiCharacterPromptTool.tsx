@@ -46,7 +46,10 @@ export function NaiCharacterPromptTool() {
           className={field}
           value={sourceKey}
           disabled={generate.isPending}
-          onChange={(event) => setSourceKey(event.target.value)}
+          onChange={(event) => {
+            setSourceKey(event.target.value);
+            setResult(null);
+          }}
         >
           <option value="">{t("naiPrompt.chooseSource")}</option>
           {sources.data?.map((source) => (

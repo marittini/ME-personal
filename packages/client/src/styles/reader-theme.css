@@ -59,6 +59,12 @@ html[data-product-theme="reader"] {
   --marinara-shell-surface: var(--card) !important;
   --marinara-topbar-surface: var(--card) !important;
   --glow-primary: transparent !important;
+  --glow-accent: transparent !important;
+  --glow-color-1: transparent !important;
+  --glow-color-2: transparent !important;
+  --glow-color-3: transparent !important;
+  --glow-sm-1: transparent !important;
+  --glow-sm-2: transparent !important;
   color-scheme: dark;
 }
 html[data-product-theme="reader"][data-theme="light"] { color-scheme: light; }
@@ -75,3 +81,9 @@ html[data-product-theme="reader"] :is(.y2k-star, .y2k-star-md, .y2k-star-lg) { d
 html[data-product-theme="reader"] [data-component="AppShell"] { background: var(--background) !important; }
 html[data-product-theme="reader"] [data-component="AppShell"]::before,
 html[data-product-theme="reader"] [data-component="AppShell"]::after { display: none !important; }
+
+html[data-product-theme="reader"] :is(button, input, select, textarea):not(:focus-visible) {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+html[data-product-theme="reader"] .rpg-char-name { color: var(--foreground); text-shadow: none; }

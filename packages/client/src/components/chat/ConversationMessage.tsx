@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { DialogueSpeechControls } from "./DialogueSpeechControls";
 import { hideTTSAudioCues } from "../../lib/tts-audio-tags";
 import { ConversationSceneInvitation } from "./ConversationSceneInvitation";
@@ -67,14 +68,14 @@ const EMPTY_CUSTOM_EMOJI_MAP = new Map<string, string>();
 const EMPTY_CUSTOM_STICKER_MAP = new Map<string, string>();
 const CONVERSATION_MESSAGE_CHROME_RING_CLASS = "ring-[var(--marinara-chat-chrome-focus-ring)]";
 
-function formatCallDuration(value: unknown): string | null {
+function formatCallDuration(value: unknown, t: TFunction): string | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   const seconds = Math.max(0, Math.round(value / 1000));
   const minutes = Math.floor(seconds / 60);
   const remaining = seconds % 60;
-  if (minutes <= 0) return `${remaining} seconds`;
-  if (minutes === 1) return remaining > 0 ? `1 minute ${remaining} seconds` : "1 minute";
-  return remaining > 0 ? `${minutes} minutes ${remaining} seconds` : `${minutes} minutes`;
+  return minutes <= 0
+    ? t("reader.callSeconds", { seconds: remaining })
+    : t("reader.callDuration", { minutes, seconds: remaining });
 }
 
 function formatCallTimestamp(value: unknown): string {
@@ -324,11 +325,11 @@ export const ConversationMessage = memo(function ConversationMessage({
     : getAvatarCropStyle(resolvedCharacterInfo?.avatarCrop);
   const displayName = isUser
     ? plainUserMessages
-      ? "You"
+      ? localizeUi("reader.you")
       : msgPersona
-        ? (msgPersona.name ?? "You")
-        : (personaInfo?.name ?? "You")
-    : (primaryCharInfo?.name ?? "Assistant");
+        ? (msgPersona.name ?? localizeUi("reader.you"))
+        : (personaInfo?.name ?? localizeUi("reader.you"))
+    : (primaryCharInfo?.name ?? localizeUi("reader.assistant"));
   const nameColor = isUser
     ? plainUserMessages
       ? undefined
@@ -547,8 +548,10 @@ export const ConversationMessage = memo(function ConversationMessage({
   // Resolve a reactor id to a display name for the chip tooltips.
   const resolveReactorName = useCallback(
     (reactorId: string) =>
-      reactorId === USER_REACTOR ? "You" : (scopedCharacterMap?.get(reactorId)?.name ?? "Someone"),
-    [scopedCharacterMap],
+      reactorId === USER_REACTOR
+        ? localizeUi("reader.you")
+        : (scopedCharacterMap?.get(reactorId)?.name ?? localizeUi("reader.someone")),
+    [scopedCharacterMap, localizeUi],
   );
 
   // Toggle the user's membership in an existing reaction entry (chip click) —
@@ -1054,18 +1057,18 @@ export const ConversationMessage = memo(function ConversationMessage({
   if (isSystem) {
     if (conversationCallEvent) {
       const status = typeof conversationCallEvent.status === "string" ? conversationCallEvent.status : "";
-      const duration = formatCallDuration(conversationCallEvent.durationMs);
+      const duration = formatCallDuration(conversationCallEvent.durationMs, localizeUi);
       const timestamp = formatCallTimestamp(message.createdAt);
       const title =
         status === "ended"
-          ? "Call Ended"
+          ? localizeUi("reader.call.ended")
           : status === "declined"
-            ? "Call Declined"
+            ? localizeUi("reader.call.declined")
             : status === "missed"
-              ? "Missed Call"
+              ? localizeUi("reader.call.missed")
               : status === "ringing"
-                ? "Incoming Call"
-                : "Call Started";
+                ? localizeUi("reader.call.ringing")
+                : localizeUi("reader.call.started");
       const subtitle =
         status === "ended" && duration
           ? `${duration}${timestamp ? ` - ${timestamp}` : ""}`

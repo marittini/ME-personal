@@ -4,7 +4,11 @@ import { useTranslation } from "react-i18next";
 import { useUIStore, type Panel } from "../../stores/ui.store";
 
 const Speech = lazy(() =>
-  import("../panels/settings/TTSConfigCard").then((module) => ({ default: module.TTSConfigCard })),
+  import("../panels/settings/TTSConfigCard").then((module) => ({
+    default: function SpeechSettings() {
+      return <module.TTSConfigCard defaultExpanded />;
+    },
+  })),
 );
 const Queue = lazy(() =>
   import("../panels/settings/NaiQueueSettings").then((module) => ({ default: module.NaiQueueSettings })),
