@@ -130,6 +130,20 @@ try {
     /unknown/,
   );
 
+  const mixedLanguage = parseCommittedMemoryOutput(
+    JSON.stringify({
+      ...modelResponse,
+      summary: "Alice met 김철수 at the station.",
+      summaryKo: "앨리스가 역에서 김철수를 만났다.",
+    }),
+    [first],
+    [known],
+  );
+  assert.equal(
+    mixedLanguage.summaryKo,
+    "앨리스가 역에서 김철수를 만났다.",
+    "Korean names must not discard a valid Korean display translation",
+  );
   const initialPrompt = await committedMemoryForPrompt(db, chat.id, "책");
   assert(initialPrompt?.text.includes("Alice"));
   assert(!initialPrompt?.text.includes("표시전용"));

@@ -81,12 +81,13 @@ export function parseCommittedMemoryOutput(
   const ids = new Set(sources.map((s) => s.id));
   if (parsed.facts.some((f) => f.sourceIds.some((id) => !ids.has(id))))
     throw new Error("Memory contains unsupported source references");
-  const hasKorean = (text: string) => /[\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f]/u.test(text);
-  if (hasKorean(parsed.summary)) delete parsed.summaryKo;
-  if (hasKorean(parsed.core)) delete parsed.coreKo;
+  // Like the reference vault, discard only redundant display copies. A Korean
+  // proper name inside an English sentence does not make the sentence Korean.
+  if (parsed.summaryKo === parsed.summary) delete parsed.summaryKo;
+  if (parsed.coreKo === parsed.core) delete parsed.coreKo;
   for (const fact of parsed.facts) {
-    if (hasKorean(fact.key)) delete fact.keyKo;
-    if (hasKorean(fact.content)) delete fact.contentKo;
+    if (fact.keyKo === fact.key) delete fact.keyKo;
+    if (fact.contentKo === fact.content) delete fact.contentKo;
   }
   const needsDisplay = (original: string) =>
     /\p{L}/u.test(original) && !/[\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f]/u.test(original);
