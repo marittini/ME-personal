@@ -41,6 +41,7 @@ export interface TTSSpeakRequest {
   cacheKey?: string;
   cacheAliases?: string[];
   activeId?: string | null;
+  audioConnectionId?: string;
 }
 
 export interface TTSSpeakSequenceOptions extends Pick<
@@ -584,6 +585,7 @@ class TTSService {
           speaker: request.speaker,
           tone: request.tone,
           voice: request.voice,
+          audioConnectionId: request.audioConnectionId,
           signal: abortController.signal,
           cacheKey: request.cacheKey,
           cacheAliases: request.cacheAliases,

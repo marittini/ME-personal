@@ -9,7 +9,7 @@ import { now } from "../../utils/id-generator.js";
 import { applyFeatureSettingsValue } from "../features/feature-settings.js";
 import { applyMediaQueueUiSettingsValue } from "../image/image-generation-queue.js";
 
-export function createAppSettingsStorage(db: DB) {
+export function createAppSettingsStorage(db: Pick<DB, "select" | "update" | "insert" | "delete">) {
   return {
     async get(key: string): Promise<string | null> {
       const rows = await db.select().from(appSettings).where(eq(appSettings.key, key));

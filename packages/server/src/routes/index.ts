@@ -47,6 +47,7 @@ import { docsRoutes } from "./docs.routes.js";
 import { uiLanguagesRoutes } from "./ui-languages.routes.js";
 import { themesRoutes } from "./themes.routes.js";
 import { appSettingsRoutes } from "./app-settings.routes.js";
+import { nativeIntegrationsRoutes } from "./native-integrations.routes.js";
 import { achievementsRoutes } from "./achievements.routes.js";
 
 import { gameAssetsRoutes } from "./game-assets.routes.js";
@@ -145,6 +146,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(uiLanguagesRoutes, { prefix: "/api/ui-languages" });
   await app.register(themesRoutes, { prefix: "/api/themes" });
   await app.register(appSettingsRoutes, { prefix: "/api/app-settings" });
+  await app.register(nativeIntegrationsRoutes, { prefix: "/api/native-integrations" });
   await app.register(naiRequestGuardRoutes, { prefix: "/api/nai-request-guard" });
   await app.register(achievementsRoutes, { prefix: "/api/achievements" });
   await app.register(multiplayerRoutes, { prefix: "/api/multiplayer", service: multiplayer });

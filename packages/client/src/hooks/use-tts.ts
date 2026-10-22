@@ -102,3 +102,12 @@ export function useTTSModels(source: TTSSource, baseUrl: string, enabled: boolea
 // ── Speak (fire-and-forget mutation used by tts-service) ─────────────────
 
 export { TTS_API_KEY_MASK };
+
+export function useUpdateTTSPersonaVoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { personaId: string; personaName: string; voice: string }) =>
+      api.put<void>("/tts/config/persona-voice-assignment", input),
+    onSuccess: () => invalidateTTSSettings(qc),
+  });
+}

@@ -1453,6 +1453,26 @@ export async function ttsRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
+  app.put("/config/persona-voice-assignment", async (req, reply) => {
+    const input = z
+      .object({
+        personaId: z.string().min(1).max(200),
+        personaName: z.string().max(200),
+        voice: z.string().max(TTS_VOICE_MAX_LENGTH),
+      })
+      .strict()
+      .parse(req.body);
+    const saved = await updateStoredConfig((existing) => ({
+      ...existing,
+      personaVoiceAssignments: [
+        ...(existing.personaVoiceAssignments ?? []).filter((row) => row.personaId !== input.personaId),
+        ...(input.voice.trim() ? [{ ...input, voice: input.voice.trim() }] : []),
+      ],
+    }));
+    if (!saved) return reply.status(409).send(UNREADABLE_SETTINGS);
+    return reply.status(204).send();
+  });
+
   /**
    * PUT /api/tts/config/voice-mode
    * Switches between one shared voice and a voice per character and leaves every other setting

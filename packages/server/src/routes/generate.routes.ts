@@ -325,6 +325,7 @@ import {
   type RoleplayCommand,
 } from "../services/generation/roleplay-commands.js";
 import { createPromptsStorage } from "../services/storage/prompts.storage.js";
+import { resolveIntegratedPreset, weatherInjection } from "../services/native-integrations.js";
 import { createCharactersStorage } from "../services/storage/characters.storage.js";
 import { resolveChatUserIdentity } from "../services/chat-user-identity.js";
 import { createAgentsStorage } from "../services/storage/agents.storage.js";
@@ -2527,7 +2528,7 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
       }
 
       // ── Assembler path: use the highest-priority prompt preset for this generation ──
-      const chatPromptPresetId = (chat.promptPresetId as string | null) ?? null;
+      const chatPromptPresetId = await resolveIntegratedPreset(app.db, chat);
       const presetCandidates = buildGenerationPromptPresetCandidates({
         chatMode,
         chatPromptPresetId,
@@ -6916,7 +6917,14 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
           ...entry,
           agentName: agentNameByType.get(entry.agentType) ?? entry.agentName,
         });
-        const reviewedAgentInjections: AgentInjection[] = input.agentInjectionOverrides
+        const nativeWeather = await weatherInjection(app.db, chat, input.impersonate || input.turnGameBots);
+        const injectionOverrides = nativeWeather
+          ? [
+              ...input.agentInjectionOverrides.filter((entry) => entry.agentType !== nativeWeather.agentType),
+              nativeWeather,
+            ]
+          : input.agentInjectionOverrides;
+        const reviewedAgentInjections: AgentInjection[] = injectionOverrides
           .map((entry) =>
             attachAgentName({ agentType: entry.agentType.trim(), agentName: entry.agentName, text: entry.text }),
           )

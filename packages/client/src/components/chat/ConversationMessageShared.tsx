@@ -462,9 +462,9 @@ export function MessageContent({
     <Fragment key={kp}>{renderMarkdownBlocks(text, renderInline)}</Fragment>
   );
   return (
-    <>
+    <span data-tts-conversation-content="">
       {stickerMap ? renderWithStickerBlocks(compacted, stickerMap, renderTextBlock) : renderTextBlock(compacted, "sc")}
-    </>
+    </span>
   );
 }
 

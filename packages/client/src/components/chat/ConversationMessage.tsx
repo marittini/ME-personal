@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { DialogueSpeechControls } from "./DialogueSpeechControls";
+import { MessageIntegrationTools } from "./MessageIntegrationTools";
 import { hideTTSAudioCues } from "../../lib/tts-audio-tags";
 import { ConversationSceneInvitation } from "./ConversationSceneInvitation";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
@@ -1168,7 +1168,9 @@ export const ConversationMessage = memo(function ConversationMessage({
       <>
         <ConversationMessageGrouped ctx={ctx} msgRef={msgRef} reactionRow={reactionRow} />
         {!isUser && !isSystem && !isStreaming && !editing && !isHiddenCollapsed && (
-          <DialogueSpeechControls
+          <MessageIntegrationTools
+            swipeIndex={message.activeSwipeIndex ?? 0}
+            translation={translatedText}
             messageId={message.id}
             chatId={message.chatId}
             text={originalContent ?? message.content}
@@ -1224,7 +1226,9 @@ export const ConversationMessage = memo(function ConversationMessage({
           </div>
 
           {!isUser && !isSystem && !isStreaming && !editing && !isHiddenCollapsed && (
-            <DialogueSpeechControls
+            <MessageIntegrationTools
+              swipeIndex={message.activeSwipeIndex ?? 0}
+              translation={translatedText}
               messageId={message.id}
               chatId={message.chatId}
               text={originalContent ?? message.content}

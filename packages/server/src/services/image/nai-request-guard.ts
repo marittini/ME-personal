@@ -108,8 +108,21 @@ export class NaiRequestGuard {
       if (data.version !== 1 || !Array.isArray(data.jobs) || !Array.isArray(data.groups))
         throw new Error("Invalid NAI queue state");
       for (const group of data.groups) {
-        group.automatic = false;
-        group.reason = "restart";
+        // Only interrupted work needs approval after a restart. Pausing an idle
+        // account also blocked every newly requested image, including SharedNAI.
+        // Explicit manual/rate-limit holds remain unchanged.
+        if (data.jobs.some((job) => job.groupId === group.id && ["QUEUED", "RUNNING"].includes(job.state))) {
+          group.automatic = false;
+          group.reason = "restart";
+        } else if (
+          group.reason === "restart" &&
+          !data.jobs.some((job) => job.groupId === group.id && ["HELD", "UNKNOWN"].includes(job.state))
+        ) {
+          // Repair idle accounts paused by older versions, without resending
+          // any interrupted or uncertain generation.
+          group.automatic = true;
+          group.reason = undefined;
+        }
       }
       for (const job of data.jobs) {
         if (

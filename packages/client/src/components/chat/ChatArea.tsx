@@ -3232,6 +3232,7 @@ const LocalChatArea = memo(function LocalChatArea({
           if (
             mode === "roleplay" &&
             cfg.roleplaySpeakerExtractorEnabled &&
+            chatMeta.ttsTaggedDialogue === true &&
             !/<audio_(?:character|persona)\b/i.test(message.content)
           ) {
             try {
@@ -3259,6 +3260,7 @@ const LocalChatArea = memo(function LocalChatArea({
                 message.characterId,
                 resolveTTSCharacterId,
                 participants,
+                chatMeta.ttsTaggedDialogue === true ? "tagged" : "native",
               );
             }
           } else {
@@ -3269,6 +3271,7 @@ const LocalChatArea = memo(function LocalChatArea({
               message.characterId,
               resolveTTSCharacterId,
               participants,
+              chatMeta.ttsTaggedDialogue === true ? "tagged" : "native",
             );
           }
           return visualNovel ? withRoleplayTTSParagraphs(requests, message.content, cfg) : requests;

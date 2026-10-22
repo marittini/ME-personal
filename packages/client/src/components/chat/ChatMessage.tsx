@@ -1,4 +1,4 @@
-import { DialogueSpeechControls } from "./DialogueSpeechControls";
+import { MessageIntegrationTools } from "./MessageIntegrationTools";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
 // ──────────────────────────────────────────────
 // Chat: Message — mode-aware rendering
@@ -109,7 +109,7 @@ import {
 } from "react";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { chatKeys, rememberRecentMessageContentEdit } from "../../hooks/use-chats";
+import { useChat, chatKeys, rememberRecentMessageContentEdit } from "../../hooks/use-chats";
 import { useShallow } from "zustand/react/shallow";
 import { createMessageMacroResolver } from "../../lib/chat-macros";
 import { useApplyRegex } from "../../hooks/use-apply-regex";
@@ -1293,6 +1293,7 @@ function highlightDialogue(
     result.push(
       <DialogueTag
         key={`d${key++}`}
+        data-tts-dialogue=""
         style={dialogueColor ? { color: dialogueColor } : undefined}
         className={!dialogueColor ? "text-black dark:text-white" : ownDialogueColor ? CHARACTER_COLOR_CLASS : undefined}
       >
@@ -2132,6 +2133,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   // TTS
   const { data: ttsConfig } = useTTSConfig();
+  const { data: ttsChat } = useChat(message.chatId);
   const ttsEnabled = ttsConfig?.enabled ?? false;
   const ttsSpeakerName =
     message.role === "narrator"
@@ -2154,23 +2156,29 @@ export const ChatMessage = memo(function ChatMessage({
       isUser && ttsConfig.voiceMode === "per-character"
         ? ttsConfig.personaVoiceAssignments?.find((row) => row.personaId === personaId)?.voice
         : undefined;
-    const requests = buildTTSVoiceRequests(
-      message.content,
-      personaVoice ? { ...ttsConfig, voiceMode: "single", voice: personaVoice } : ttsConfig,
-      ttsSpeakerName,
-      message.characterId,
-      resolveTTSCharacterId,
-      [
-        ...[...(characterMap ?? [])]
-          .filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id))
-          .map(([id, character]): TTSAudioParticipant => ({
-            kind: "character",
-            id,
-            name: character.name,
-          })),
-        ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
-      ],
-    );
+    let requests: ReturnType<typeof buildTTSVoiceRequests>;
+    try {
+      requests = buildTTSVoiceRequests(
+        message.content,
+        personaVoice ? { ...ttsConfig, voiceMode: "single", voice: personaVoice } : ttsConfig,
+        ttsSpeakerName,
+        message.characterId,
+        resolveTTSCharacterId,
+        [
+          ...[...(characterMap ?? [])]
+            .filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id))
+            .map(([id, character]): TTSAudioParticipant => ({
+              kind: "character",
+              id,
+              name: character.name,
+            })),
+          ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
+        ],
+        isUser ? undefined : ttsChat?.metadata.ttsTaggedDialogue === true ? "tagged" : "native",
+      );
+    } catch {
+      return [];
+    }
     return withTTSVoiceRequestCacheKeys(
       visualNovel || followSpeechParagraphs
         ? withRoleplayTTSParagraphs(requests, message.content, ttsConfig)
@@ -2193,6 +2201,7 @@ export const ChatMessage = memo(function ChatMessage({
     ttsSpeakerName,
     visualNovel,
     followSpeechParagraphs,
+    ttsChat?.metadata.ttsTaggedDialogue,
   ]);
   const hasTTSContent = ttsVoiceRequests.length > 0;
   const [ttsState, setTTSState] = useState(ttsService.getState());
@@ -3773,7 +3782,9 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             {ttsEnabled && <div className="mt-2 flex flex-wrap items-center gap-2">{roleplayTtsControls}</div>}
             {!isUser && !isSystem && !isStreaming && (
-              <DialogueSpeechControls
+              <MessageIntegrationTools
+                swipeIndex={message.activeSwipeIndex ?? 0}
+                translation={translatedText}
                 messageId={message.id}
                 chatId={message.chatId}
                 text={message.content}
@@ -4434,7 +4445,9 @@ export const ChatMessage = memo(function ChatMessage({
         </div>
 
         {!isUser && !isSystem && !isStreaming && (
-          <DialogueSpeechControls
+          <MessageIntegrationTools
+            swipeIndex={message.activeSwipeIndex ?? 0}
+            translation={translatedText}
             messageId={message.id}
             chatId={message.chatId}
             text={message.content}

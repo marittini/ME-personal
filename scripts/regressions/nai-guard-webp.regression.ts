@@ -126,11 +126,34 @@ try {
   await submit("other", "account-b");
   assert.equal(order.at(-1), "other");
   guard.close();
+  const legacySnapshot = JSON.parse(await readFile(join(data, "queue", "queue.json"), "utf8"));
+  const legacyIdle = legacySnapshot.groups.find((group: { id: string }) => group.id === "account-b");
+  legacyIdle.automatic = false;
+  legacyIdle.reason = "restart";
+  legacySnapshot.groups.push({ id: "interrupted-account", automatic: true, notBefore: 0 });
+  legacySnapshot.jobs.push({
+    id: "00000000-0000-4000-8000-000000000001",
+    groupId: "interrupted-account",
+    connectionId: "interrupted-account",
+    revision: 1,
+    createdAt: new Date().toISOString(),
+    state: "QUEUED",
+    source: "novelai",
+    baseUrl: "https://image.novelai.net",
+    serviceHint: "novelai",
+    request: { prompt: "never replay without approval" },
+    attempt: 0,
+  });
+  await writeFile(join(data, "queue", "queue.json"), JSON.stringify(legacySnapshot));
   guard = new NaiRequestGuard(options);
   const before = sent;
   await tick();
   assert.equal(sent, before);
-  assert.ok(guard.list().groups.every((g) => !g.automatic));
+  assert.equal(guard.detail("00000000-0000-4000-8000-000000000001")?.state, "HELD");
+  assert.equal(guard.list().groups.find((g) => g.id === "account-a")?.automatic, false, "manual holds survive restart");
+  assert.equal(guard.list().groups.find((g) => g.id === "account-b")?.automatic, true, "idle accounts stay available");
+  await submit("fresh request after restart", "account-b");
+  assert.equal(sent, before + 1, "new explicit work on a clean account runs without resuming old jobs");
   assert.equal(guard.detail(cancelled.id)?.state, "CANCELLED");
   guard.close();
   const conversionGuard = new NaiRequestGuard({ ...options, directory: join(data, "conversion") });

@@ -87,3 +87,18 @@ html[data-product-theme="reader"] :is(button, input, select, textarea):not(:focu
   text-shadow: none !important;
 }
 html[data-product-theme="reader"] .rpg-char-name { color: var(--foreground); text-shadow: none; }
+
+/* Convo keeps its message-bubble vocabulary, independently of RP's book page. */
+html[data-product-theme="reader"] [data-chat-mode="conversation"] .texting-bubble-user {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: none;
+}
+html[data-product-theme="reader"] [data-chat-mode="conversation"] .texting-bubble-other {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  box-shadow: none;
+}
+[data-reader-mode="conversation"] .mari-message-content {
+  text-align: start;
+}
