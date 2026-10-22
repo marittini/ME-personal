@@ -1,0 +1,77 @@
+/* Product shell tokens win over saved engine/add-on accent preferences.
+   Character art, media, syntax highlighting and functional state colors retain their roles. */
+html[data-product-theme="reader"] {
+  --background: #22211f !important;
+  --foreground: #eee8df !important;
+  --card: #292724 !important;
+  --card-foreground: #eee8df !important;
+  --popover: #292724 !important;
+  --popover-foreground: #eee8df !important;
+  --secondary: #34312d !important;
+  --secondary-foreground: #eee8df !important;
+  --muted: #34312d !important;
+  --muted-foreground: #b7ada0 !important;
+  --border: #484139 !important;
+  --input: #484139 !important;
+  --primary: #c8a787 !important;
+  --primary-foreground: #24211e !important;
+  --accent: #39322b !important;
+  --accent-foreground: #eee8df !important;
+  --ring: #c8a787 !important;
+  --sidebar: #292724 !important;
+  --sidebar-foreground: #eee8df !important;
+  --sidebar-accent: #39322b !important;
+  --sidebar-accent-foreground: #eee8df !important;
+}
+html[data-product-theme="reader"][data-theme="light"] {
+  --background: #fbf8f3 !important;
+  --foreground: #302a25 !important;
+  --card: #f3eee6 !important;
+  --card-foreground: #302a25 !important;
+  --popover: #fbf8f3 !important;
+  --popover-foreground: #302a25 !important;
+  --secondary: #ece5da !important;
+  --secondary-foreground: #302a25 !important;
+  --muted: #ece5da !important;
+  --muted-foreground: #776b5f !important;
+  --border: #dbd1c4 !important;
+  --input: #dbd1c4 !important;
+  --primary: #936b4b !important;
+  --primary-foreground: #fbf8f3 !important;
+  --accent: #eee3d6 !important;
+  --accent-foreground: #302a25 !important;
+  --ring: #936b4b !important;
+  --sidebar: #f3eee6 !important;
+  --sidebar-foreground: #302a25 !important;
+  --sidebar-accent: #eee3d6 !important;
+  --sidebar-accent-foreground: #302a25 !important;
+}
+html[data-product-theme="reader"] {
+  --marinara-app-background-paint: var(--background) !important;
+  --marinara-app-accent-solid: var(--primary) !important;
+  --marinara-app-accent-static: var(--primary) !important;
+  --marinara-app-accent-gradient: linear-gradient(var(--primary), var(--primary)) !important;
+  --marinara-app-accent-static-gradient: var(--marinara-app-accent-gradient) !important;
+  --marinara-chat-chrome-accent: var(--primary) !important;
+  --marinara-chat-chrome-accent-gradient: var(--marinara-app-accent-gradient) !important;
+  --marinara-chat-chrome-text: var(--foreground) !important;
+  --marinara-chat-chrome-panel-bg: var(--card) !important;
+  --marinara-shell-surface: var(--card) !important;
+  --marinara-topbar-surface: var(--card) !important;
+  --glow-primary: transparent !important;
+  color-scheme: dark;
+}
+html[data-product-theme="reader"][data-theme="light"] { color-scheme: light; }
+html[data-product-theme="reader"] :is(.glow-primary, .glow-sm, .mari-accent-animated, .mari-panel-gradient-surface, .mari-panel-gradient-button) {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  animation: none !important;
+}
+html[data-product-theme="reader"] :is(.mari-panel-gradient-surface, .mari-panel-gradient-button, [data-component="RightPanelHeaderIcon"]) {
+  background: var(--secondary) !important;
+  color: var(--foreground) !important;
+}
+html[data-product-theme="reader"] :is(.y2k-star, .y2k-star-md, .y2k-star-lg) { display: none !important; }
+html[data-product-theme="reader"] [data-component="AppShell"] { background: var(--background) !important; }
+html[data-product-theme="reader"] [data-component="AppShell"]::before,
+html[data-product-theme="reader"] [data-component="AppShell"]::after { display: none !important; }

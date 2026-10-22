@@ -713,7 +713,8 @@ export function App() {
     const animatedGradientStops = animatedAccentIsGradient
       ? getCssGradientColorStops(animatedAccentSource, animatedSolidAccent)
       : [animatedSolidAccent];
-    const accentAnimationEnabled = appAccentRgbMode || appAccentPulseMode;
+    // The reader product shell keeps a stable accent independent of legacy theme preferences.
+    const accentAnimationEnabled = false;
     const usesTimerDrivenAccentAnimation = accentAnimationEnabled;
 
     root.style.setProperty("--marinara-app-accent-static", solidAccent);

@@ -61,3 +61,6 @@ assert.equal(hideTTSAudioCues("```\n[sigh]\n```"), "```\n[sigh]\n```");
 assert.equal(hideTTSAudioCues("[Happy](https://example.com)"), "[Happy](https://example.com)");
 assert.match(roomTtsInstructions("roleplay", true, true, participants)!, /audio_character/);
 assert.match(roomTtsInstructions("roleplay", true, true, participants)!, /"id":"reader"/);
+
+assert.equal(hideTTSAudioCues("[sniff] Hello [gasping] there."), "Hello there.");
+assert.equal(hideTTSAudioCues("[sniff](https://example.com) and `[gasp]`"), "[sniff](https://example.com) and `[gasp]`");

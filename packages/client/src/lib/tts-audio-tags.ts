@@ -32,7 +32,7 @@ export function hideTTSAudioCues(text: string): string {
     (match, _fence, cue: string | undefined) => {
       if (match.startsWith("<")) return "";
       if (!cue) return match;
-      return /\b(voice|delivery|whispering|whisper|laughs?|laughing|sighs?|pause|breathy|inhale|exhales?|chuckles?|shouts?|shouting|crying|angry|sad|annoyed|happy|sarcastic|excited|thoughtful|surprised|curious|mischievously|clears throat)\b/i.test(
+      return /\b(voice|delivery|whispering|whisper|laughs?|laughing|sighs?|pause|breathy|inhale|exhales?|chuckles?|shouts?|shouting|crying|angry|sad|annoyed|happy|sarcastic|excited|thoughtful|surprised|curious|mischievously|clears throat|sniffs?|sniffles?|sobbing|gasping|gasps?|giggles?|coughs?|yawns?|softly|nervously|calmly)\b/i.test(
         cue,
       )
         ? ""

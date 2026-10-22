@@ -228,3 +228,7 @@ Conversation mode can use familiar message bubbles, but roleplay and game mode s
 - **Don't** build developer-only control panels that assume technical confidence. Advanced settings still need clear labels, forgiving defaults, and helpful validation.
 - **Don't** use colored side-stripe borders, decorative gradient text, nested cards, or glassmorphism as the default layout answer.
 - **Don't** rely on hover for important mobile actions.
+
+## ME-personal 전자책 UI 기준 (위 upstream 스타일보다 우선)
+
+긴 글을 휴대폰에서 읽는 사용자를 위해 조용하고 안정적인 밝은 종이/어두운 잉크 테마를 모두 제공한다. 포크의 승인된 방향은 전자책 목업이다. 발광·무지개·맥동·보라색 게임 콘솔 장식을 기본 UI에서 사용하지 않는다. 의미 토큰은 reader-theme.css에서 정의하고 저장된 순정/애드온 강조색과 독립시킨다. 엔진에서 선택한 글꼴을 상속하며 장식용 serif를 강제하지 않는다. 팝업도 같은 루트 토큰을 상속한다. 주요 모바일 조작은 최소 44px 터치 영역을 사용한다. 원본 목업 이미지와의 정밀 대조는 아직 미검증이다.

@@ -1,3 +1,4 @@
+import { DialogueSpeechControls } from "./DialogueSpeechControls";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
 // ──────────────────────────────────────────────
 // Chat: Message — mode-aware rendering
@@ -3753,6 +3754,17 @@ export const ChatMessage = memo(function ChatMessage({
               )}
             </div>
             {ttsEnabled && <div className="mt-2 flex flex-wrap items-center gap-2">{roleplayTtsControls}</div>}
+            {!isUser && !isSystem && !isStreaming && (
+              <DialogueSpeechControls
+                messageId={message.id}
+                chatId={message.chatId}
+                text={message.content}
+                characterId={message.characterId}
+                characterMap={characterMap}
+                personaInfo={personaInfo}
+                chatCharacterIds={chatCharacterIds}
+              />
+            )}
           </div>
         </div>
         {imageLightbox && (
@@ -4394,6 +4406,17 @@ export const ChatMessage = memo(function ChatMessage({
           </div>
         </div>
 
+        {!isUser && !isSystem && !isStreaming && (
+          <DialogueSpeechControls
+            messageId={message.id}
+            chatId={message.chatId}
+            text={message.content}
+            characterId={message.characterId}
+            characterMap={characterMap}
+            personaInfo={personaInfo}
+            chatCharacterIds={chatCharacterIds}
+          />
+        )}
         {/* Thinking modal */}
         {showThinking && showThinkingAction && (
           <MessageThinkingModal

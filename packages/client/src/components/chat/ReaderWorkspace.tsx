@@ -12,6 +12,7 @@ import { Modal } from "../ui/Modal";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
 import { toast } from "sonner";
+import { ReaderNumberSetting } from "./ReaderNumberSetting";
 
 export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNode; surfaceActive: boolean }) {
   const { t } = useTranslation();
@@ -71,9 +72,10 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       style={
         {
           "--reader-line-height": preferences.lineHeight,
+          "--reader-letter-spacing": `${preferences.letterSpacing}px`,
           "--reader-gap": `${preferences.paragraphGap}em`,
           "--reader-width": `${preferences.width}px`,
-          "--reader-font": preferences.font === "serif" ? "Georgia, 'Noto Serif KR', serif" : "inherit",
+          "--reader-font": "inherit",
           "--reader-align": preferences.align,
         } as CSSProperties
       }
@@ -203,18 +205,28 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               onChange={(event) => useUIStore.getState().setChatFontSize(Number(event.target.value))}
             />
           </label>
-          <label className="block text-sm">
-            {t("reader.lineHeight", { value: preferences.lineHeight })}
-            <input
-              className="mt-3 block w-full"
-              type="range"
-              min={1.3}
-              max={2.5}
-              step={0.1}
-              value={preferences.lineHeight}
-              onChange={(event) => patch({ lineHeight: Number(event.target.value) })}
-            />
-          </label>
+          <ReaderNumberSetting
+            label={t("reader.letterSpacingLabel")}
+            unit="px"
+            value={preferences.letterSpacing}
+            min={-1}
+            max={5}
+            onChange={(letterSpacing) => patch({ letterSpacing })}
+          />
+          <ReaderNumberSetting
+            label={t("reader.lineHeightLabel")}
+            unit={t("reader.multiplier")}
+            value={preferences.lineHeight}
+            min={1}
+            max={3}
+            onChange={(lineHeight) => patch({ lineHeight })}
+          />
+          <p
+            className="rounded-md border border-[var(--border)] p-3 text-sm"
+            style={{ lineHeight: preferences.lineHeight, letterSpacing: `${preferences.letterSpacing}px` }}
+          >
+            {t("reader.typographyPreview")}
+          </p>
           <label className="block text-sm">
             {t("reader.paragraphGap", { value: preferences.paragraphGap })}
             <input
@@ -238,17 +250,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               value={preferences.width}
               onChange={(event) => patch({ width: Number(event.target.value) })}
             />
-          </label>
-          <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
-            {t("reader.font")}
-            <select
-              className="min-h-11 bg-[var(--background)]"
-              value={preferences.font}
-              onChange={(event) => patch({ font: event.target.value as typeof preferences.font })}
-            >
-              <option value="inherit">{t("reader.fontDefault")}</option>
-              <option value="serif">{t("reader.fontSerif")}</option>
-            </select>
           </label>
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.alignment")}

@@ -1,3 +1,5 @@
+import { DialogueSpeechControls } from "./DialogueSpeechControls";
+import { hideTTSAudioCues } from "../../lib/tts-audio-tags";
 import { ConversationSceneInvitation } from "./ConversationSceneInvitation";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
 // ──────────────────────────────────────────────
@@ -457,8 +459,13 @@ export const ConversationMessage = memo(function ConversationMessage({
     !!translatedText &&
     !isTranslating &&
     (translationSource === renderedContent || translationSource === message.content);
-  const displayedContent = showTranslationOnly ? translatedText : renderedContent;
-  const displayedContentParts = showTranslationOnly ? null : renderedContentParts;
+  const visibleContent = showTranslationOnly ? translatedText : renderedContent;
+  const displayedContent = isUser || isSystem ? visibleContent : hideTTSAudioCues(visibleContent);
+  const displayedContentParts = showTranslationOnly
+    ? null
+    : isUser || isSystem
+      ? renderedContentParts
+      : (renderedContentParts?.map(hideTTSAudioCues) ?? null);
 
   // ── Attachment removal ──
   const qc = useQueryClient();
@@ -1157,6 +1164,17 @@ export const ConversationMessage = memo(function ConversationMessage({
     return (
       <>
         <ConversationMessageGrouped ctx={ctx} msgRef={msgRef} reactionRow={reactionRow} />
+        {!isUser && !isSystem && !isStreaming && !editing && !isHiddenCollapsed && (
+          <DialogueSpeechControls
+            messageId={message.id}
+            chatId={message.chatId}
+            text={originalContent ?? message.content}
+            characterId={message.characterId}
+            characterMap={characterMap}
+            personaInfo={personaInfo}
+            chatCharacterIds={chatCharacterIds}
+          />
+        )}
         <GenerationFallbackMarker fallback={fallback} className="flex w-fit px-4" />
         {replyCheckup && <div className="px-4">{replyCheckup}</div>}
         {sceneInvitation}
@@ -1202,6 +1220,17 @@ export const ConversationMessage = memo(function ConversationMessage({
             {isBubbleStyle ? <ConversationMessageBubble ctx={ctx} /> : <ConversationMessageLine ctx={ctx} />}
           </div>
 
+          {!isUser && !isSystem && !isStreaming && !editing && !isHiddenCollapsed && (
+            <DialogueSpeechControls
+              messageId={message.id}
+              chatId={message.chatId}
+              text={originalContent ?? message.content}
+              characterId={message.characterId}
+              characterMap={characterMap}
+              personaInfo={personaInfo}
+              chatCharacterIds={chatCharacterIds}
+            />
+          )}
           {sceneInvitation}
           <ConversationMessageSwipes ctx={ctx} />
         </div>

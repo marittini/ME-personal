@@ -2,7 +2,7 @@
 
 ## Register
 
-brand
+product
 
 ## Users
 
@@ -56,3 +56,9 @@ Marinara should not look like:
 ## Accessibility & Inclusion
 
 Marinara should prioritize mobile support and color-blind support. Core information should not rely on color alone; status, warnings, actions, and character states need labels, icons, contrast, or shape cues. Mobile layouts should preserve readable text, large enough tap targets, and controls that work without hover.
+
+## ME-personal 사용자 승인 기준 (우선 적용)
+
+전자책 서재 목업이 이 포크의 전체 앱 디자인 기준이다. 홈·목록·대화·설정·팝업을 차분한 종이/잉크 계열로 통일하며 기존 순정·애드온의 네온, 발광, 무지개, 강조 애니메이션을 유입시키지 않는다. 기존 위쪽의 upstream 게임 콘솔 브랜딩 지침보다 이 기준을 우선한다. 원래 첨부 목업 이미지의 정밀 비교는 별도 실제 화면 검증이 필요하며, 임의 재설계로 대체하지 않는다.
+
+한국어 기본 UI, 기존 선택 글꼴 보존, 0.1 단위 자간·행간, 모바일 조작성, 실제 기능 진입점을 갖춘 설정 마이페이지가 필수다. 생성·번역·음성·통화·저장 데이터와 이미 구현한 기능을 보존한다.

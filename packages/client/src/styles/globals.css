@@ -8687,6 +8687,7 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 }
 [data-reader-enabled="true"] .mari-message-content {
   line-height: var(--reader-line-height) !important;
+  letter-spacing: var(--reader-letter-spacing);
   font-family: var(--reader-font);
   text-align: var(--reader-align);
 }
