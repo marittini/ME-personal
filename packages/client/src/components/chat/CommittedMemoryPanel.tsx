@@ -16,6 +16,9 @@ import {
   useMemorySource,
   useMemoryConnection,
   useEditMemory,
+  useMemoryMaintenance,
+  useConfigureMemory,
+  useExportMemory,
 } from "../../hooks/use-committed-memory";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useConnections } from "../../hooks/use-connections";
@@ -28,14 +31,14 @@ import {
 import { NEUTRAL_SURFACE_VARIABLES } from "../ui/neutral-surface-styles";
 import "../../styles/memory-vault.css";
 
-function Source({ chatId, id }: { chatId: string; id: string }) {
+function Source({ chatId, id, position }: { chatId: string; id: string; position: number }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const source = useMemorySource(chatId, id, open);
   return (
     <details className="memory-vault__source" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
-        {t("chat.committedMemory.source")} · {id.slice(0, 8)}
+        {t("chat.committedMemory.source")} {position}
       </summary>
       {source.isLoading && <Loader2 className="motion-safe:animate-spin" size={16} />}
       {source.error && <p role="alert">{t("chat.committedMemory.sourceMissing")}</p>}
@@ -153,13 +156,6 @@ function MemoryDetail({
           )}
         </>
       )}
-      {fact && (
-        <p className="memory-vault__eyebrow">
-          {fact.audience === "shared"
-            ? t("chat.committedMemory.shared")
-            : t("chat.committedMemory.restrictedAudience", { audience: fact.audience.join(", ") })}
-        </p>
-      )}
       {!batch.invalidated && !fact?.invalidated && !editing && (
         <div className="flex flex-wrap gap-2">
           <button
@@ -236,15 +232,24 @@ function MemoryDetail({
           {edit.error.message}
         </p>
       )}
-      <section className="memory-vault__evidence">
+      <details className="memory-vault__evidence">
+        <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.details")}</summary>
+        {fact && (
+          <p className="memory-vault__eyebrow">
+            {fact.audience === "shared"
+              ? t("chat.committedMemory.shared")
+              : t("chat.committedMemory.restrictedAudience", { audience: fact.audience.join(", ") })}
+          </p>
+        )}
+
         <h5>
           <FileText size={14} />
           {t("chat.committedMemory.sources")}
         </h5>
-        {(fact?.sourceIds ?? batch.sources.map((s) => s.id)).map((id) => (
-          <Source key={id} chatId={chatId} id={id} />
+        {(fact?.sourceIds ?? batch.sources.map((s) => s.id)).map((id, index) => (
+          <Source key={id} chatId={chatId} id={id} position={index + 1} />
         ))}
-      </section>
+      </details>
     </article>
   );
 }
@@ -254,6 +259,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const status = useCommittedMemory(chatId);
   const commit = useCommitMemory(chatId);
   const toggle = useSetCommittedMemory(chatId);
+  const maintenance = useMemoryMaintenance(chatId);
+  const configure = useConfigureMemory(chatId);
+  const backup = useExportMemory(chatId);
   const connection = useMemoryConnection(chatId);
   const { data: chat } = useChat(chatId);
   const update = useUpdateChatMetadata({ serialize: true });
@@ -264,7 +272,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [recallQuery, setRecallQuery] = useState("");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("active");
   const [progressFilter, setProgressFilter] = useState("all");
   const preview = useMemoryPreview(chatId, search, tab === "receipt");
   const data = status.data;
@@ -281,7 +289,14 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
       },
     );
   const busy = commit.isPending || toggle.isPending || data?.state.job?.status === "running";
-  const error = status.error || commit.error || toggle.error || update.error;
+  const error =
+    status.error ||
+    commit.error ||
+    toggle.error ||
+    update.error ||
+    maintenance.error ||
+    configure.error ||
+    backup.error;
   const batches = [...(data?.state.batches ?? [])].reverse();
   const entries: Entry[] =
     tab === "story"
@@ -311,7 +326,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
     setTab(value);
     setSelected(null);
     setQuery("");
-    setFilter("all");
+    setFilter("active");
     setProgressFilter("all");
   };
   const textConnections = (connections ?? []).filter(
@@ -370,6 +385,15 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
           value={data.state.job.completed}
           max={Math.max(1, data.state.job.total)}
         />
+      )}
+      {data?.state.job?.status === "running" && (
+        <button
+          className={SETTINGS_BUTTON_CLASS}
+          disabled={maintenance.isPending}
+          onClick={() => maintenance.mutate("cancel")}
+        >
+          {t("chat.committedMemory.vault.stopJob")}
+        </button>
       )}
       {streaming && <p className="memory-vault__notice">{t("chat.committedMemory.waitForReply")}</p>}
       {(error || data?.state.job?.error) && (
@@ -440,7 +464,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                 }}
               >
                 <span className="line-clamp-3">
-                  {valid[0].summary || valid[0].core || t("chat.committedMemory.vault.privateSummary")}
+                  {display(valid[0].summary, valid[0].summaryKo) ||
+                    display(valid[0].core, valid[0].coreKo) ||
+                    t("chat.committedMemory.vault.privateSummary")}
                 </span>
                 <ChevronRight size={16} className="shrink-0" />
               </button>
@@ -556,9 +582,12 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
               <article key={item.id} className="memory-vault__receipt">
                 <span className="memory-vault__eyebrow">{t(`chat.committedMemory.reason.${item.reason}`)}</span>
                 <p className="memory-vault__prose">{displaySelection(item)}</p>
-                {item.sourceIds.map((id) => (
-                  <Source key={id} chatId={chatId} id={id} />
-                ))}
+                <details>
+                  <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.details")}</summary>
+                  {item.sourceIds.map((id, index) => (
+                    <Source key={id} chatId={chatId} id={id} position={index + 1} />
+                  ))}
+                </details>
               </article>
             ))}
           </section>
@@ -585,13 +614,21 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             {preview.data && (
               <>
                 <p className="memory-vault__hint">
-                  {t("chat.committedMemory.budget", { used: preview.data.usedBytes, total: preview.data.budgetBytes })}
+                  {preview.data.budgetTokens
+                    ? t("chat.committedMemory.vault.tokenUsage", {
+                        used: preview.data.usedTokens,
+                        total: preview.data.budgetTokens,
+                      })
+                    : t("chat.committedMemory.budget", {
+                        used: preview.data.usedBytes,
+                        total: preview.data.budgetBytes,
+                      })}
                 </p>
                 <progress
                   className="w-full"
                   aria-label={t("chat.committedMemory.preview")}
-                  value={preview.data.usedBytes}
-                  max={preview.data.budgetBytes}
+                  value={preview.data.budgetTokens ? preview.data.usedTokens : preview.data.usedBytes}
+                  max={preview.data.budgetTokens ?? preview.data.budgetBytes}
                 />
                 {preview.data.selected.map((item) => (
                   <p key={item.id} className="memory-vault__receipt whitespace-pre-wrap">
@@ -619,185 +656,270 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             disabled={update.isPending}
             onChange={(checked) => saveSettings({ committedMemoryDisplayKorean: checked })}
           />
-          <label className="block text-sm">
-            {t("chat.committedMemory.vault.sourceMode")}
-            <select
-              className={`${field} mt-2`}
-              disabled={busy || update.isPending}
-              value={String(metadata?.committedMemorySourceMode ?? "pending")}
-              onChange={(e) =>
-                saveSettings({
-                  committedMemorySourceMode: e.target.value,
-                  ...(e.target.value === "range"
-                    ? {
-                        committedMemoryRangeStart: Number(metadata?.committedMemoryRangeStart ?? 1),
-                        committedMemoryRangeEnd: Number(metadata?.committedMemoryRangeEnd ?? data.totalMessages ?? 1),
-                      }
-                    : {}),
-                })
-              }
-            >
-              {["pending", "last", "range"].map((value) => (
-                <option key={value} value={value}>
-                  {t(`chat.committedMemory.vault.sourceMode.${value}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {metadata?.committedMemorySourceMode === "last" && (
-            <>
-              <label className="block text-sm">
-                {t("chat.committedMemory.vault.contextSize")}
-                <input
-                  type="number"
-                  className={`${field} mt-2`}
-                  min={5}
-                  max={500}
-                  defaultValue={Number(metadata?.summaryContextSize ?? 50)}
-                  key={`context:${metadata?.summaryContextSize}`}
-                  disabled={busy || update.isPending}
-                  onBlur={(e) => {
-                    const n = Number(e.target.value);
-                    if (Number.isInteger(n) && n >= 5 && n <= 500) saveSettings({ summaryContextSize: n });
-                  }}
-                />
-              </label>
-            </>
-          )}
-          {metadata?.committedMemorySourceMode === "range" && (
-            <div className="grid grid-cols-2 gap-3">
-              {(["Start", "End"] as const).map((edge) => (
-                <label key={edge} className="text-sm">
-                  {t(`chat.committedMemory.vault.range${edge}`)}
+          <section className="space-y-3">
+            <h4>{t("chat.committedMemory.vault.recallSettings")}</h4>
+            <p className="memory-vault__hint">{t("chat.committedMemory.vault.recallHelp")}</p>
+            <ToggleSetting
+              label={t("chat.committedMemory.vault.semantic")}
+              checked={data.state.recall?.semanticEnabled !== false}
+              disabled={configure.isPending}
+              onChange={(semanticEnabled) => configure.mutate({ semanticEnabled })}
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["tokenBudget", 256, 32000, 2000],
+                  ["recentMessages", 0, 1000, 30],
+                  ["longTermMessages", 0, 10000, 300],
+                  ["topK", 1, 100, 20],
+                ] as const
+              ).map(([key, min, max, fallback]) => (
+                <label key={key} className="block text-sm">
+                  {t(`chat.committedMemory.vault.${key}`)}
                   <input
-                    className={`${field} mt-2`}
                     type="number"
-                    min={1}
-                    max={Math.max(1, data.totalMessages ?? 1)}
-                    key={`${edge}:${metadata?.[`committedMemoryRange${edge}`]}`}
-                    defaultValue={Number(
-                      metadata?.[`committedMemoryRange${edge}`] ?? (edge === "Start" ? 1 : (data.totalMessages ?? 1)),
-                    )}
-                    disabled={busy || update.isPending}
+                    className={`${field} mt-2`}
+                    min={min}
+                    max={max}
+                    key={`${key}:${data.state.recall?.[key]}`}
+                    defaultValue={data.state.recall?.[key] ?? (key === "tokenBudget" ? "" : fallback)}
+                    placeholder={key === "tokenBudget" ? t("chat.committedMemory.vault.legacyBudget") : undefined}
+                    disabled={configure.isPending}
                     onBlur={(e) => {
                       const n = Number(e.target.value);
-                      if (Number.isInteger(n) && n >= 1) saveSettings({ [`committedMemoryRange${edge}`]: n });
+                      if (
+                        e.target.value.trim() &&
+                        Number.isInteger(n) &&
+                        n >= min &&
+                        n <= max &&
+                        n !== data.state.recall?.[key]
+                      )
+                        configure.mutate({ [key]: n });
                     }}
                   />
                 </label>
               ))}
             </div>
-          )}
-          <p className="memory-vault__hint">{t("chat.committedMemory.vault.rangeHelp")}</p>
-          {data.selectionError && (
-            <p role="alert" className="text-[var(--destructive)]">
-              {t("chat.committedMemory.vault.rangeInvalid")}
-            </p>
-          )}
-          <ToggleSetting
-            label={t("chat.committedMemory.vault.hideSummarised")}
-            help={t("chat.committedMemory.vault.hideHelp")}
-            checked={metadata?.hideSummarisedMessages === true}
-            disabled={busy || update.isPending}
-            onChange={(checked) => saveSettings({ hideSummarisedMessages: checked })}
-          />
-          <label className="block text-sm">
-            {t("chat.committedMemory.vault.tail")}
-            <input
-              className={`${field} mt-2`}
-              type="number"
-              min={0}
-              defaultValue={Number(metadata?.summaryTailMessages ?? 10)}
-              key={`tail:${metadata?.summaryTailMessages}`}
-              disabled={busy || update.isPending}
-              onBlur={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isInteger(n) && n >= 0) saveSettings({ summaryTailMessages: n });
-              }}
-            />
-          </label>
-          <ToggleSetting
-            label={t("chat.committedMemory.vault.floating")}
-            help={t("chat.committedMemory.vault.floatingHelp")}
-            checked={metadata?.committedMemoryFloatingButton !== false}
-            disabled={update.isPending}
-            onChange={(checked) => update.mutate({ id: chatId, committedMemoryFloatingButton: checked })}
-          />
-          <label className="block text-sm">
-            {t("chat.committedMemory.vault.connection")}
-            <select
-              className={`${field} mt-2`}
-              disabled={update.isPending || busy}
-              value={typeof metadata?.summaryConnectionId === "string" ? metadata.summaryConnectionId : ""}
-              onChange={(e) =>
-                update.mutate(
-                  { id: chatId, summaryConnectionId: e.target.value || null },
-                  {
-                    onSuccess: () => {
-                      void connection.refetch();
-                    },
-                  },
-                )
-              }
-            >
-              <option value="">{t("chat.committedMemory.vault.connectionDefault")}</option>
-              {textConnections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} · {c.model}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="memory-vault__connection" role="status">
-            {connection.isLoading ? (
-              <Loader2 size={16} className="motion-safe:animate-spin" />
-            ) : connection.data?.ok ? (
+          </section>
+          <details className="space-y-3">
+            <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.maintenance")}</summary>
+            <p className="memory-vault__hint">{t("chat.committedMemory.vault.maintenanceHelp")}</p>
+            <div className="flex flex-wrap gap-2">
+              <button className={SETTINGS_BUTTON_CLASS} disabled={backup.isPending} onClick={() => backup.mutate()}>
+                {t("chat.committedMemory.vault.export")}
+              </button>
+              <button
+                className={SETTINGS_BUTTON_CLASS}
+                disabled={busy || maintenance.isPending || !connection.data?.ok}
+                onClick={() => maintenance.mutate("enrich")}
+              >
+                {t("chat.committedMemory.vault.enrich")}
+              </button>
+              <button
+                className={SETTINGS_BUTTON_CLASS}
+                disabled={busy || maintenance.isPending}
+                onClick={() => maintenance.mutate("rebuild")}
+              >
+                {t("chat.committedMemory.vault.rebuild")}
+              </button>
+              <button
+                className={`${SETTINGS_BUTTON_CLASS} text-[var(--destructive)]`}
+                disabled={streaming || maintenance.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(t("chat.committedMemory.vault.resetConfirm", { count: data.state.batches.length }))
+                  ) {
+                    setSelected(null);
+                    maintenance.mutate("reset");
+                  }
+                }}
+              >
+                {t("chat.committedMemory.vault.reset")}
+              </button>
+            </div>
+          </details>
+          <details className="space-y-5">
+            <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.advanced")}</summary>
+            <label className="block text-sm">
+              {t("chat.committedMemory.vault.sourceMode")}
+              <select
+                className={`${field} mt-2`}
+                disabled={busy || update.isPending}
+                value={String(metadata?.committedMemorySourceMode ?? "pending")}
+                onChange={(e) =>
+                  saveSettings({
+                    committedMemorySourceMode: e.target.value,
+                    ...(e.target.value === "range"
+                      ? {
+                          committedMemoryRangeStart: Number(metadata?.committedMemoryRangeStart ?? 1),
+                          committedMemoryRangeEnd: Number(metadata?.committedMemoryRangeEnd ?? data.totalMessages ?? 1),
+                        }
+                      : {}),
+                  })
+                }
+              >
+                {["pending", "last", "range"].map((value) => (
+                  <option key={value} value={value}>
+                    {t(`chat.committedMemory.vault.sourceMode.${value}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {metadata?.committedMemorySourceMode === "last" && (
               <>
-                <Check size={16} />
-                <span>
-                  {t("chat.committedMemory.vault.resolved", { model: connection.data.model })}
-                  <small className="block text-[var(--muted-foreground)]">
-                    {textConnections.find((c) => c.id === connection.data?.connectionId)?.name ??
-                      connection.data.connectionId}
-                  </small>
-                </span>
+                <label className="block text-sm">
+                  {t("chat.committedMemory.vault.contextSize")}
+                  <input
+                    type="number"
+                    className={`${field} mt-2`}
+                    min={5}
+                    max={500}
+                    defaultValue={Number(metadata?.summaryContextSize ?? 50)}
+                    key={`context:${metadata?.summaryContextSize}`}
+                    disabled={busy || update.isPending}
+                    onBlur={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isInteger(n) && n >= 5 && n <= 500) saveSettings({ summaryContextSize: n });
+                    }}
+                  />
+                </label>
               </>
-            ) : (
-              <span>{t("chat.committedMemory.vault.connectionMissing")}</span>
             )}
-          </div>
-          {connection.error && <p role="alert">{connection.error.message}</p>}
-          {connection.data?.warnings.map((warning) => (
-            <p key={warning} className="memory-vault__hint">
-              {warning}
-            </p>
-          ))}
-          <p className="memory-vault__hint">{t("chat.committedMemory.vault.connectionHelp")}</p>
-          <label className="block text-sm">
-            {t("chat.committedMemory.vault.outputTokens")}
-            <input
-              type="number"
-              className={`${field} mt-2`}
-              min={CHAT_SUMMARY_OUTPUT_TOKENS.MIN}
-              max={CHAT_SUMMARY_OUTPUT_TOKENS.MAX}
-              defaultValue={
-                typeof metadata?.summaryMaxTokens === "number"
-                  ? metadata.summaryMaxTokens
-                  : CHAT_SUMMARY_OUTPUT_TOKENS.DEFAULT
-              }
-              key={String(metadata?.summaryMaxTokens)}
+            {metadata?.committedMemorySourceMode === "range" && (
+              <div className="grid grid-cols-2 gap-3">
+                {(["Start", "End"] as const).map((edge) => (
+                  <label key={edge} className="text-sm">
+                    {t(`chat.committedMemory.vault.range${edge}`)}
+                    <input
+                      className={`${field} mt-2`}
+                      type="number"
+                      min={1}
+                      max={Math.max(1, data.totalMessages ?? 1)}
+                      key={`${edge}:${metadata?.[`committedMemoryRange${edge}`]}`}
+                      defaultValue={Number(
+                        metadata?.[`committedMemoryRange${edge}`] ?? (edge === "Start" ? 1 : (data.totalMessages ?? 1)),
+                      )}
+                      disabled={busy || update.isPending}
+                      onBlur={(e) => {
+                        const n = Number(e.target.value);
+                        if (Number.isInteger(n) && n >= 1) saveSettings({ [`committedMemoryRange${edge}`]: n });
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="memory-vault__hint">{t("chat.committedMemory.vault.rangeHelp")}</p>
+            {data.selectionError && (
+              <p role="alert" className="text-[var(--destructive)]">
+                {t("chat.committedMemory.vault.rangeInvalid")}
+              </p>
+            )}
+            <ToggleSetting
+              label={t("chat.committedMemory.vault.hideSummarised")}
+              help={t("chat.committedMemory.vault.hideHelp")}
+              checked={metadata?.hideSummarisedMessages === true}
               disabled={busy || update.isPending}
-              onBlur={(e) => {
-                const value = Number(e.target.value);
-                if (
-                  Number.isInteger(value) &&
-                  value >= CHAT_SUMMARY_OUTPUT_TOKENS.MIN &&
-                  value <= CHAT_SUMMARY_OUTPUT_TOKENS.MAX
-                )
-                  update.mutate({ id: chatId, summaryMaxTokens: value });
-              }}
+              onChange={(checked) => saveSettings({ hideSummarisedMessages: checked })}
             />
-          </label>
+            <label className="block text-sm">
+              {t("chat.committedMemory.vault.tail")}
+              <input
+                className={`${field} mt-2`}
+                type="number"
+                min={0}
+                defaultValue={Number(metadata?.summaryTailMessages ?? 10)}
+                key={`tail:${metadata?.summaryTailMessages}`}
+                disabled={busy || update.isPending}
+                onBlur={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isInteger(n) && n >= 0) saveSettings({ summaryTailMessages: n });
+                }}
+              />
+            </label>
+            <ToggleSetting
+              label={t("chat.committedMemory.vault.floating")}
+              help={t("chat.committedMemory.vault.floatingHelp")}
+              checked={metadata?.committedMemoryFloatingButton !== false}
+              disabled={update.isPending}
+              onChange={(checked) => update.mutate({ id: chatId, committedMemoryFloatingButton: checked })}
+            />
+            <label className="block text-sm">
+              {t("chat.committedMemory.vault.connection")}
+              <select
+                className={`${field} mt-2`}
+                disabled={update.isPending || busy}
+                value={typeof metadata?.summaryConnectionId === "string" ? metadata.summaryConnectionId : ""}
+                onChange={(e) =>
+                  update.mutate(
+                    { id: chatId, summaryConnectionId: e.target.value || null },
+                    {
+                      onSuccess: () => {
+                        void connection.refetch();
+                      },
+                    },
+                  )
+                }
+              >
+                <option value="">{t("chat.committedMemory.vault.connectionDefault")}</option>
+                {textConnections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.model}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="memory-vault__connection" role="status">
+              {connection.isLoading ? (
+                <Loader2 size={16} className="motion-safe:animate-spin" />
+              ) : connection.data?.ok ? (
+                <>
+                  <Check size={16} />
+                  <span>
+                    {t("chat.committedMemory.vault.resolved", { model: connection.data.model })}
+                    <small className="block text-[var(--muted-foreground)]">
+                      {textConnections.find((c) => c.id === connection.data?.connectionId)?.name ??
+                        connection.data.connectionId}
+                    </small>
+                  </span>
+                </>
+              ) : (
+                <span>{t("chat.committedMemory.vault.connectionMissing")}</span>
+              )}
+            </div>
+            {connection.error && <p role="alert">{connection.error.message}</p>}
+            {connection.data?.warnings.map((warning) => (
+              <p key={warning} className="memory-vault__hint">
+                {warning}
+              </p>
+            ))}
+            <p className="memory-vault__hint">{t("chat.committedMemory.vault.connectionHelp")}</p>
+            <label className="block text-sm">
+              {t("chat.committedMemory.vault.outputTokens")}
+              <input
+                type="number"
+                className={`${field} mt-2`}
+                min={CHAT_SUMMARY_OUTPUT_TOKENS.MIN}
+                max={CHAT_SUMMARY_OUTPUT_TOKENS.MAX}
+                defaultValue={
+                  typeof metadata?.summaryMaxTokens === "number"
+                    ? metadata.summaryMaxTokens
+                    : CHAT_SUMMARY_OUTPUT_TOKENS.DEFAULT
+                }
+                key={String(metadata?.summaryMaxTokens)}
+                disabled={busy || update.isPending}
+                onBlur={(e) => {
+                  const value = Number(e.target.value);
+                  if (
+                    Number.isInteger(value) &&
+                    value >= CHAT_SUMMARY_OUTPUT_TOKENS.MIN &&
+                    value <= CHAT_SUMMARY_OUTPUT_TOKENS.MAX
+                  )
+                    update.mutate({ id: chatId, summaryMaxTokens: value });
+                }}
+              />
+            </label>
+          </details>
         </div>
       )}
     </section>

@@ -10852,6 +10852,7 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
             }
             if ((chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled) {
               const sentText = finalPromptSent.map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
+              extraUpdate.committedMemoryEpoch = (chatMeta.committedMemory as { epoch?: string }).epoch;
               extraUpdate.committedMemoryReceipt = committedMemorySelection.filter((item) =>
                 sentText.includes(item.content),
               );

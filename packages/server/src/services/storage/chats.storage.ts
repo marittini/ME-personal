@@ -1,3 +1,4 @@
+import { clearCommittedMemoryIndex } from "../committed-memory-index.js";
 import { currentRoomGeneration, resolveRoomGenerationPolicy } from "../multiplayer/generation-policy.js";
 // ──────────────────────────────────────────────
 // Storage: Chats
@@ -1571,6 +1572,7 @@ export function createChatsStorage(db: DB) {
   }
 
   async function cleanupDeletedChatFiles(chatId: string, galleryFilePaths: string[]): Promise<void> {
+    await clearCommittedMemoryIndex(chatId);
     for (const filePath of galleryFilePaths) {
       try {
         await unlinkGalleryFileIfUnreferenced({ db, filePath });
@@ -2242,6 +2244,7 @@ export function createChatsStorage(db: DB) {
       }
 
       await db.delete(chats).where(eq(chats.groupId, groupId));
+      for (const chat of groupChats) await clearCommittedMemoryIndex(chat.id);
     },
 
     // ── Messages ──

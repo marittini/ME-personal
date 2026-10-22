@@ -32,6 +32,7 @@ test("unified memory preserves the legacy summary view until enabled", async ({ 
     const bubble = page.locator("[data-memory-commit]");
     await expect(bubble).toBeVisible();
     await memory.getByRole("button", { name: "Settings", exact: true }).click();
+    await memory.getByText("Advanced summary and connection settings", { exact: true }).click();
     const floating = memory.getByRole("checkbox", { name: "Show one-click summary button" });
     await floating.uncheck();
     await expect(bubble).toHaveCount(0);
@@ -142,6 +143,12 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     await testInfo.attach("memory-vault-progress", { body: await vault.screenshot(), contentType: "image/png" });
     await vault.locator(".memory-vault__row").click();
     await expect(vault.locator(".memory-vault__prose").first()).toHaveText("앨리스가 여행을 준비하고 있다.");
+    const evidence = vault.locator("details.memory-vault__evidence");
+    await expect(evidence).not.toHaveAttribute("open", "");
+    await expect(evidence.locator(".memory-vault__source")).not.toBeVisible();
+    await evidence.locator(":scope > summary").click();
+    await expect(evidence.locator(".memory-vault__source")).toBeVisible();
+    await expect(evidence.locator(".memory-vault__source summary")).not.toContainText(message.id.slice(0, 8));
     await vault.getByLabel("Promise progress", { exact: true }).selectOption("completed");
     await vault.getByRole("button", { name: "Completed", exact: true }).click();
     await expect(vault.locator(".memory-vault__row")).toHaveCount(2);
