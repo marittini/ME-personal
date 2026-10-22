@@ -5,6 +5,8 @@ import { getSharp } from "./sharp-runtime.js";
 import { isAllowedImageBuffer } from "../../utils/security.js";
 import { logger } from "../../lib/logger.js";
 
+export const DEFAULT_STORED_WEBP_QUALITY = 95;
+
 /** Original PNG text/card/provenance chunks, without a duplicate of the pixels. */
 function pngTextChunks(input: Buffer) {
   const chunks: Buffer[] = [];
@@ -40,7 +42,7 @@ export async function toStoredWebp(input: Buffer): Promise<{ buffer: Buffer; ext
       offset += input.readUInt32BE(offset) + 12;
     }
   const sharp = await getSharp();
-  const output = await sharp(input, { animated: true }).keepMetadata().webp({ lossless: true, effort: 3 }).toBuffer();
+  const output = await sharp(input, { animated: true }).keepMetadata().webp({ quality: DEFAULT_STORED_WEBP_QUALITY, alphaQuality: 100, effort: 3 }).toBuffer();
   const text = pngTextChunks(input);
   let buffer: Buffer = output;
   if (text.length) {
