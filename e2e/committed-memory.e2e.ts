@@ -32,6 +32,15 @@ test("unified memory preserves the legacy summary view until enabled", async ({ 
     const bubble = page.locator("[data-memory-commit]");
     await expect(bubble).toBeVisible();
     await memory.getByRole("button", { name: "Settings", exact: true }).click();
+    const batchSize = memory.getByRole("spinbutton", { name: "Messages per summary", exact: true });
+    await batchSize.fill("7");
+    await batchSize.press("Tab");
+    await expect
+      .poll(async () => {
+        const saved = await (await request.get(`/api/chats/${id}`)).json();
+        return saved.metadata.committedMemoryBatchSize;
+      })
+      .toBe(7);
     await memory.getByText("Advanced summary and connection settings", { exact: true }).click();
     const floating = memory.getByRole("checkbox", { name: "Show one-click summary button" });
     await floating.uncheck();
