@@ -18,6 +18,7 @@ const {
   committedMemoryForPrompt,
   compactCommittedHistory,
   editCommittedMemory,
+  parseCommittedMemoryOutput,
 } = await import("../../packages/server/src/services/committed-memory.js");
 const { summaryHidingPatch } = await import("../../packages/server/src/routes/generate/generate-route-utils.js");
 const db = await getDB();
@@ -102,6 +103,33 @@ try {
   assert.equal(calls, 1, "the initial response contains both languages without a translation call");
   assert(status.state.batches[0]?.summaryKo?.includes("표시전용"));
   knownId = status.state.batches[0]!.facts[0]!.id;
+  const known = status.state.batches[0]!.facts[0]!;
+  const modelResponse = {
+    summary: "A public event.",
+    core: "A book promise.",
+    summaryKo: "공개된 사건",
+    coreKo: "책 반환 약속",
+    facts: [{ ...known, existingId: known.id }],
+  };
+  assert.throws(
+    () =>
+      parseCommittedMemoryOutput(
+        JSON.stringify({ ...modelResponse, facts: [{ ...modelResponse.facts[0], audience: ["alice"] }] }),
+        [first],
+        [known],
+      ),
+    /differently scoped/,
+  );
+  assert.throws(
+    () =>
+      parseCommittedMemoryOutput(
+        JSON.stringify({ ...modelResponse, facts: [{ ...modelResponse.facts[0], existingId: "another-chat-fact" }] }),
+        [first],
+        [known],
+      ),
+    /unknown/,
+  );
+
   const initialPrompt = await committedMemoryForPrompt(db, chat.id, "책");
   assert(initialPrompt?.text.includes("Alice"));
   assert(!initialPrompt?.text.includes("표시전용"));
