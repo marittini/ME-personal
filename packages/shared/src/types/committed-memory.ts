@@ -106,6 +106,7 @@ export interface CommittedMemoryConnectionStatus {
 }
 
 export interface CommittedMemoryCommitOptions {
+  batchSize?: number;
   sourceMode?: "pending" | "last" | "range";
   contextSize?: number;
   rangeStartIndex?: number;

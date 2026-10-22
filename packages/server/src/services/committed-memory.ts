@@ -51,6 +51,29 @@ import {
   selectRollingSummaryMessages,
 } from "../routes/generate/generate-route-utils.js";
 import { clampRoleplaySummaryContextSize } from "./generation/roleplay-summary-runtime.js";
+/** Some models put lifecycle values in status. Normalize only unambiguous aliases. */
+function normalizeMemoryFactStatus(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const fact = value as Record<string, unknown>;
+  const status = fact.status;
+  if (status !== "pending" && status !== "in_progress" && status !== "completed" && status !== "cancelled")
+    return value;
+  if (fact.kind === "promise" && fact.progress !== undefined && fact.progress !== status) return value;
+  return {
+    ...fact,
+    status: status === "completed" || status === "cancelled" ? "resolved" : "current",
+    ...(fact.kind === "promise" ? { progress: status } : {}),
+  };
+}
+export function resolveCommittedMemoryBatchSize(
+  metadata: Record<string, unknown>,
+  options: CommittedMemoryCommitOptions = {},
+) {
+  const value = Number(options.batchSize ?? metadata.committedMemoryBatchSize ?? metadata.summaryContextSize ?? 20);
+  if (!Number.isInteger(value) || value < 1 || value > 500)
+    throw Object.assign(new Error("Summary batch size must be a whole number from 1 to 500"), { statusCode: 400 });
+  return value;
+}
 const extractionSchema = z.object({
   summary: z.string().trim().min(1).max(12000),
   core: z.string().trim().min(1).max(2500),
@@ -61,19 +84,22 @@ const extractionSchema = z.object({
   keywords: z.array(z.string().trim().min(1).max(100)).max(24).optional(),
   facts: z
     .array(
-      z.object({
-        kind: z.enum(["fact", "promise", "event", "relationship", "belief"]),
-        key: z.string().trim().min(1).max(200),
-        content: z.string().trim().min(1).max(1500),
-        keyKo: z.string().trim().max(400).optional(),
-        contentKo: z.string().trim().max(3000).optional(),
-        status: z.enum(["current", "resolved", "uncertain"]),
-        progress: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
-        existingId: z.string().optional(),
-        keywords: z.array(z.string().trim().min(1).max(100)).max(24).optional(),
-        audience: z.union([z.literal("shared"), z.array(z.string()).max(100)]),
-        sourceIds: z.array(z.string()).min(1).max(20),
-      }),
+      z.preprocess(
+        normalizeMemoryFactStatus,
+        z.object({
+          kind: z.enum(["fact", "promise", "event", "relationship", "belief"]),
+          key: z.string().trim().min(1).max(200),
+          content: z.string().trim().min(1).max(1500),
+          keyKo: z.string().trim().max(400).optional(),
+          contentKo: z.string().trim().max(3000).optional(),
+          status: z.enum(["current", "resolved", "uncertain"]),
+          progress: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
+          existingId: z.string().optional(),
+          keywords: z.array(z.string().trim().min(1).max(100)).max(24).optional(),
+          audience: z.union([z.literal("shared"), z.array(z.string()).max(100)]),
+          sourceIds: z.array(z.string()).min(1).max(500),
+        }),
+      ),
     )
     .max(40),
 });
@@ -219,13 +245,14 @@ export async function startCommittedMemory(
   try {
     const { chat, messages, state } = await loadCommittedMemory(db, chatId);
     if (chat.mode !== "roleplay") throw new Error("Unified memory requires a Roleplay chat");
+    const batchSize = resolveCommittedMemoryBatchSize(memoryExtra(chat.metadata), options);
     const batches: MemorySourceMessage[][] = [];
     let batch: MemorySourceMessage[] = [];
     let size = 0;
     for (const m of selectCommitSources(state, messages, memoryExtra(chat.metadata), options)) {
       const length = estimateChatSummaryTokens(m.content);
       if (length > 16000) throw new Error("A message exceeds the memory input limit. Shorten it before committing.");
-      if (batch.length && (batch.length >= 20 || size + length > 16000)) {
+      if (batch.length && (batch.length >= batchSize || size + length > 16000)) {
         batches.push(batch);
         batch = [];
         size = 0;
@@ -331,20 +358,42 @@ async function runCommittedMemory(
         index--;
         continue;
       }
-      logDebugOverride(debugMode, "[committed-memory] %s %s", system, input);
-      const result = await connection.provider.chatComplete(
-        [
-          { role: "system", content: system },
-          { role: "user", content: input },
-        ],
-        {
-          model: connection.model,
-          ...resolveChatSummaryTemperatureOptions(connection),
-          maxTokens,
-          signal: AbortSignal.any([signal, AbortSignal.timeout(180000)]),
-        },
-      );
-      if (result.finishReason === "length") {
+      let extracted: ReturnType<typeof parseCommittedMemoryOutput> | undefined;
+      let truncated = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        signal.throwIfAborted();
+        const requestSystem =
+          attempt === 0
+            ? system
+            : `${system}\nThe previous response violated the JSON/schema contract. Return exactly one complete valid JSON object, without prose or fences. Escape quotes and newlines inside strings. Fact status must be current/resolved/uncertain; lifecycle values belong in progress. Use the original transcript only.`;
+        logDebugOverride(debugMode, "[committed-memory] attempt=%d %s %s", attempt + 1, requestSystem, input);
+        const result = await connection.provider.chatComplete(
+          [
+            { role: "system", content: requestSystem },
+            { role: "user", content: input },
+          ],
+          {
+            model: connection.model,
+            ...resolveChatSummaryTemperatureOptions(connection),
+            maxTokens,
+            signal: AbortSignal.any([signal, AbortSignal.timeout(180000)]),
+          },
+        );
+        signal.throwIfAborted();
+        if (result.finishReason === "length") {
+          truncated = true;
+          break;
+        }
+        try {
+          extracted = parseCommittedMemoryOutput(result.content ?? "", sources, knownFacts);
+          break;
+        } catch (error) {
+          if (!(error instanceof SyntaxError || error instanceof z.ZodError)) throw error;
+          logger.debug(error, "[committed-memory] Invalid JSON/schema response, attempt %d", attempt + 1);
+          if (attempt === 1) throw new Error("MEMORY_OUTPUT_INVALID", { cause: error });
+        }
+      }
+      if (truncated) {
         if (sources.length < 2)
           throw new Error("Memory output was truncated. Increase the summary maximum output tokens.");
         const midpoint = Math.ceil(sources.length / 2);
@@ -352,8 +401,7 @@ async function runCommittedMemory(
         index--;
         continue;
       }
-      signal.throwIfAborted();
-      const extracted = parseCommittedMemoryOutput(result.content ?? "", sources, knownFacts);
+      if (!extracted) throw new Error("MEMORY_OUTPUT_INVALID");
       const refs = sources.map((m) => ({ id: m.id, fingerprint: memoryFingerprint(m) }));
       const restricted = sources.some((m) => {
         const ids = memoryExtra(m.extra).hiddenFromAICharacterIds;

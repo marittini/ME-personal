@@ -42,7 +42,11 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
     const job = data?.state.job;
     const key = job ? `${job.id}:${job.status}` : undefined;
     if (lastJob.current && key !== lastJob.current && job?.status === "failed")
-      toast.error(job.error ?? t("chat.committedMemory.job.failed"));
+      toast.error(
+        job.error === "MEMORY_OUTPUT_INVALID"
+          ? t("chat.committedMemory.outputInvalid")
+          : (job.error ?? t("chat.committedMemory.job.failed")),
+      );
     if (lastJob.current && key !== lastJob.current && job?.status === "complete")
       toast.success(t("chat.committedMemory.job.complete"));
     lastJob.current = key;

@@ -337,6 +337,8 @@ export interface ChatMetadata {
   committedMemoryRangeStart?: number;
   committedMemoryRangeEnd?: number;
   committedMemoryDisplayKorean?: boolean;
+  /** Maximum selected messages per confirmed summary, before model-capacity splits. */
+  committedMemoryBatchSize?: number;
   /** Recent message count used by manual rolling summary generation and automatic summaries. */
   summaryContextSize?: number;
   /** User-message cadence for the automated roleplay summary updater. */

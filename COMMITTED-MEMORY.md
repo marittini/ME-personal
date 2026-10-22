@@ -98,3 +98,26 @@ source, lexical recall continues.
 Three detail tiers select summary/core/gist at retrieval time. This does not
 repeatedly rewrite canonical memory, merge unrelated events or erase old evidence.
 If a gist is missing or is not shorter than the core, retrieval keeps the core.
+
+## Summary grouping and malformed model output
+
+**Messages per summary** is separate from the total source window. For example,
+25 selected messages with a grouping of 7 produce requests of 7, 7, 7 and 4.
+The vault forwards its current grouping explicitly; the floating action uses the
+saved per-chat grouping. Pending metadata saves use the Engine’s existing save
+barrier. The request override wins over `committedMemoryBatchSize`, then existing
+native `summaryContextSize`, then the legacy default of 20. Values are whole
+numbers from 1 to 500. Context/input limits and provider output truncation may
+split a group further; successfully confirmed source versions are never repeated
+just because the grouping changes.
+
+Models sometimes put lifecycle values in fact `status`. Unambiguous
+pending/in_progress/completed/cancelled values are mapped to current/resolved and,
+for promises, the corresponding progress. Contradictory explicit lifecycle fields
+and unknown values still fail validation. Uncertainty remains distinct from completion.
+
+Malformed JSON or schema output receives one fresh generation attempt using the
+same source snapshot. The application does not repair incomplete JSON or accept
+partial facts. If both attempts fail, a localized error is shown and that group
+stays unconfirmed; earlier successful groups remain available and retry skips them.
+Evidence, audience, existing-ID and bilingual-display checks remain in force.

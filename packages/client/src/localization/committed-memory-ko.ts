@@ -131,4 +131,10 @@ export const committedMemoryKoreanMessages: Record<string, string> = {
   "chat.committedMemory.vault.tokenBudget": "기억 토큰 예산 (추정치)",
   "chat.committedMemory.vault.tokenUsage": "추정 토큰: {{used}} / {{total}}",
   "chat.committedMemory.job.cancelled": "중단됨",
+  "chat.committedMemory.vault.batchSize": "요약당 메시지 수",
+  "chat.committedMemory.vault.batchSizeHelp":
+    "선택한 전체 범위와 별도로 1–500개씩 묶습니다. 예: 대상 40개를 10개씩 묶으면 요약 4개가 생성됩니다. 모델 입력·출력 한도를 넘으면 더 작게 분할합니다. 저장한 값은 보관함과 플로팅 버튼에 함께 적용됩니다.",
+  "chat.committedMemory.vault.batchSizeInvalid": "1–500 사이의 정수를 입력하세요.",
+  "chat.committedMemory.outputInvalid":
+    "요약 API가 올바르지 않은 JSON 또는 지원하지 않는 필드를 두 번 반환해 이 묶음을 저장하지 않았습니다. 다시 실행하거나 요약당 메시지 수를 줄이고 최대 출력 토큰을 확인하세요.",
 };
