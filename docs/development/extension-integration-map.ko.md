@@ -13,7 +13,7 @@
 | 대상 | 확인한 기능과 구현 경계 | 다음 연결 위치 |
 | --- | --- | --- |
 | Rmroffj/key_save v1.1.4 | 마스터 암호·PBKDF2 200,000회·암호화 키 보관 및 그룹 관리. 원본은 연결 화면의 React 내부 트리와 입력창을 탐색한다. 저장 키·비밀번호는 저장소에 커밋하지 않는다. | 연결 편집기와 마이페이지에 네이티브 키 보관함 연결. 원본 라이선스 메타데이터 없음. |
-| you2-use/NovelAI-Metadata-Importer v1.0.0 | PNG tEXt/zTXt/iTXt·stealth alpha, WebP EXIF UserComment. 선택한 항목만 비교·적용. 생성 설정 적용 시 seed=-1, UC preset=0. 썸네일은 별도 즉시 저장. | 기존 png-parser 및 연결 편집기의 실제 초안 상태에 연결. 원본 전체 body MutationObserver 대신 네이티브 이벤트 사용. 원본 라이선스 메타데이터 없음. |
+| you2-use/NovelAI-Metadata-Importer v1.0.0 | PNG tEXt/zTXt/iTXt·stealth alpha, WebP EXIF UserComment. 선택한 항목만 비교·적용. 생성 설정 적용 시 seed=-1, UC preset=0. 썸네일은 별도 즉시 저장. | 기존 png-parser 및 연결 편집기의 실제 초안 상태에 연결. 엔진이 WebP의 MARI 청크에 보존한 PNG 텍스트 메타데이터도 읽어야 한다. 원본 전체 body MutationObserver 대신 네이티브 이벤트 사용. 원본 라이선스 메타데이터 없음. |
 | ai-frontend-ddini/marinara-global-preset v2.9.4 | 전역 따르기·개별 고정·명시적 없음·일괄 변경·삭제 프리셋 계열 매칭·최근 300건 이력·옵션 선택 알림. 기본 대상 RP, 연결 프리셋이 우선. 새 방은 마법사 완료 뒤 적용 선택. schema2 및 v1 pins 이관. | use-chats/use-presets 및 채팅 설정의 상태·변이 경로에 연결. 300ms 폴링과 React 내부 트리 탐색은 가져오지 않는다. MIT. |
 | boricha417/marinara-excerpt-studio v1.0.0 | 선택 문장 발췌 PNG. 강조·밑줄·가림·교체·인용 색·질감/줄/격자/이미지 배경·제목/작성자·너비·높이·모서리. 폰트는 /api/fonts 및 엔진 선택을 따를 것. | 메시지 선택/발췌 작업 및 마이페이지 스튜디오. 원본 라이선스 메타데이터 없음. |
 | 번역 프리셋·단어장 1.6.4 첨부 | 번역 프리셋, 대화별 단어장·말투, 문단별 번역·원문 대조·편집, 자동 추출, 백업. 약 303KB 단일 확장. 원본은 fetch 패치·body 감시·250ms 채팅 폴링 사용. | use-translate, 번역 설정 및 메시지 렌더러에 네이티브 연결. 원문/기존 번역 저장과 제공자 설정 보존. |
