@@ -6,8 +6,8 @@ export function splitMessageParagraphs(text: string): string[] {
   let htmlBlock: string | null = null;
   let fence: { marker: string; length: number } | null = null;
   const flush = () => {
-    const value = current.join("\n").trim();
-    if (value) result.push(value);
+    const value = current.join("\n").replace(/^\n+|\n+$/g, "");
+    if (value.trim()) result.push(value);
     current = [];
   };
   for (let i = 0; i < lines.length; i++) {

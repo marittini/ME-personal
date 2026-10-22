@@ -47,7 +47,7 @@ test("native tools save weather room settings and encrypted keys", async ({ page
     await page.getByLabel("키 이름", { exact: true }).fill("모바일 키");
     await page.getByLabel("비밀 키", { exact: true }).fill("sk-browser-fixture");
     await page.getByRole("button", { name: "키 저장", exact: true }).click();
-    await expect(page.getByText("모바일 키", { exact: true })).toBeVisible();
+    await expect(page.getByText(/(?:^|· )모바일 키$/)).toBeVisible();
     expect(await page.locator("body").innerText()).not.toContain("sk-browser-fixture");
     await page.getByRole("button", { name: "잠그기", exact: true }).click();
     await expect(page.getByLabel("마스터 비밀번호 (4자 이상)", { exact: true })).toHaveValue("");

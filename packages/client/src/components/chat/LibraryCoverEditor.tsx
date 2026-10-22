@@ -56,6 +56,8 @@ export function LibraryCoverEditor({
   const save = () => {
     if (!draft || !crop) return;
     useUIStore.setState((state) => ({ libraryCovers: { ...state.libraryCovers, [workId]: { ...draft, crop } } }));
+    setDirty(false);
+    onDirtyChange?.(false);
     onClose();
   };
   const button = "min-h-11 rounded-md border border-[var(--border)] px-4 text-sm disabled:opacity-40";
@@ -149,6 +151,8 @@ export function LibraryCoverEditor({
                 delete covers[workId];
                 return { libraryCovers: covers };
               });
+              setDirty(false);
+              onDirtyChange?.(false);
               onClose();
             }}
           >

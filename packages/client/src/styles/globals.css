@@ -8759,3 +8759,17 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
   background: color-mix(in srgb, var(--primary) 24%, transparent);
   color: inherit;
 }
+
+[data-reader-enabled="true"] .mari-message-content [data-reader-prose] {
+  display: block;
+  text-indent: var(--reader-indent, 0em);
+}
+[data-reader-enabled="true"] .mari-message-content [data-reader-gap] {
+  display: none;
+}
+[data-reader-enabled="true"] .mari-message-content [data-reader-gap] + [data-reader-prose] {
+  margin-block-start: var(--reader-gap);
+}
+[data-reader-enabled="true"] [data-conversation-paragraphs] {
+  row-gap: var(--reader-gap);
+}

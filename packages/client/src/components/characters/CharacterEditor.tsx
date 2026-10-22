@@ -703,8 +703,20 @@ export function CharacterEditor() {
 
   useEditorLeaveSave(
     `characterDetailId:${characterId}`,
-    dirty,
-    handleSave,
+    dirty || libraryDirty,
+    async () => {
+      if (
+        libraryDirty &&
+        !(await showConfirmDialog({
+          title: localizeUi("reader.cancel"),
+          message: localizeUi("libraryCustomization.discardDraft"),
+          confirmLabel: localizeUi("reader.cancel"),
+          cancelLabel: localizeUi("libraryCustomization.keepEditing"),
+        }))
+      )
+        return false;
+      return dirty ? handleSave() : true;
+    },
     saving || avatarUploading || lorebookEmbedding,
   );
 

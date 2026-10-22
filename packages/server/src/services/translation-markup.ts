@@ -7,7 +7,7 @@ export function protectTranslationMarkup(text: string) {
   const values: string[] = [];
   let inAudio = false;
   const protectedText = text.replace(
-    /(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|`[^`\n]*`|(?:&(?:amp;)?lt;|&#0*60;|&#x0*3c;|〈|＜)\/?audio_(?:character|persona)\b[^\r\n]{0,1000}?(?:&(?:amp;)?gt;|&#0*62;|&#x0*3e;|〉|＞)|<\/?audio_(?:character|persona)\b[^>]*>|\[[^\]\r\n]{1,160}\](?!\s*[(:])/gi,
+    /(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\1|$)|`[^`\n]*`|(?:&(?:amp;)?lt;|&#0*60;|&#x0*3c;|〈|＜)\/?audio_(?:character|persona)\b[^\r\n]{0,1000}?(?:&(?:amp;)?gt;|&#0*62;|&#x0*3e;|〉|＞)|<\/?audio_(?:character|persona)\b[^>]*>|\[[^\]\r\n]{1,160}\](?!\s*[(:])/gi,
     (value) => {
       const wrapper = value.match(/^(?:<|&(?:amp;)?lt;|&#0*60;|&#x0*3c;|〈|＜)(\/?)audio_/i);
       if (wrapper) inAudio = wrapper[1] !== "/";

@@ -59,9 +59,9 @@ for (const grouped of [false, true]) {
       await expect(bubbles.first()).toContainText("첫 문단입니다.");
       await expect(bubbles.nth(1)).toContainText("둘째 문단입니다.");
       expect(
-        (await (await request.get(`/api/chats/${chat.id}/messages`)).json()).messages?.find(
+        (await (await request.get(`/api/chats/${chat.id}/messages`)).json()).find(
           (m: { id: string }) => m.id === message.id,
-        )?.content ?? content,
+        )?.content,
       ).toBe(content);
       await request.patch(`/api/chats/${chat.id}/messages/${message.id}/extra`, {
         data: { translation: "문단 수가 다른 전체 번역", translationSource: content },
@@ -135,10 +135,20 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await page.keyboard.press("Escape");
     await page.reload();
     await expect(page.locator('[data-component="ReaderWorkspace"]')).toHaveCSS("--reader-indent", "1.5em");
+    await expect(source.locator("[data-reader-prose]").first()).toHaveCSS("font-family", /Georgia/);
+    expect(
+      await source
+        .locator("[data-reader-prose]")
+        .first()
+        .evaluate((node) => Number.parseFloat(getComputedStyle(node).textIndent)),
+    ).toBeGreaterThan(0);
     await page.getByRole("button", { name: "저장한 발췌", exact: true }).click();
     await expect(page.getByText("수정한 발췌", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "삭제", exact: true }).click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "삭제", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "삭제", exact: true })
+      .getByRole("button", { name: "삭제", exact: true })
+      .click();
     await expect
       .poll(async () => (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata.readerExcerpts?.length)
       .toBe(0);
@@ -249,8 +259,74 @@ test("character customization saves display overrides separately and editor alig
     await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
     await expect(detail).toContainText("서재 별명");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(async (id) => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().openCharacterDetail(id);
+    }, character.id);
+    await custom.locator("summary").click();
+    await custom.getByRole("textbox", { name: "작품 제목", exact: true }).fill("저장하지 않은 제목");
+    await page.evaluate(async () => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().closeCharacterDetail();
+    });
+    await page
+      .getByRole("dialog", { name: "취소", exact: true })
+      .getByRole("button", { name: "계속 편집", exact: true })
+      .click();
+    await expect(custom.getByRole("textbox", { name: "작품 제목", exact: true })).toHaveValue("저장하지 않은 제목");
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
     await request.delete(`/api/characters/${character.id}`);
+  }
+});
+test("reading index retains order and opens the stored work in both themes", async ({ page, request }) => {
+  const rooms: { id: string; name: string; messageId: string }[] = [];
+  try {
+    for (const [index, name] of ["첫 번째 기록", "두 번째 기록", "세 번째 기록"].entries()) {
+      const chat = await (
+        await request.post("/api/chats", { data: { name, mode: "roleplay", characterIds: [] } })
+      ).json();
+      const message = await (
+        await request.post(`/api/chats/${chat.id}/messages`, {
+          data: { role: "assistant", content: `기록 본문 ${index}` },
+        })
+      ).json();
+      rooms.push({ ...chat, messageId: message.id });
+    }
+    await open(page, rooms[0]!.id);
+    await page.evaluate(async (rows) => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.setState({
+        readerPositions: Object.fromEntries(
+          rows.map((row, index) => [
+            row.id,
+            { messageId: row.messageId, messageNumber: 1, offset: 0, updatedAt: `2026-10-22T0${index + 1}:00:00.000Z` },
+          ]),
+        ),
+      });
+    }, rooms);
+    await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
+    await page.getByRole("button", { name: "서재로 돌아가기", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "서재 탐색" })
+      .getByRole("button", { name: "기록", exact: true })
+      .click();
+    const index = page.getByRole("region", { name: "읽은 순서", exact: true });
+    await expect(index.getByRole("button")).toHaveCount(3);
+    await expect(index.getByRole("button").first()).toContainText("세 번째 기록");
+    await expect(index.getByRole("button").first()).toContainText("01");
+    for (const theme of ["light", "dark"] as const) {
+      await page.evaluate(async (theme) => {
+        const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+        useUIStore.getState().setTheme(theme);
+      }, theme);
+      await page.screenshot({ path: `.tmp/handoff-index-${theme}-${test.info().project.name}.png`, fullPage: true });
+    }
+    await index.getByRole("button").first().click();
+    await expect(page.getByRole("heading", { name: "세 번째 기록", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "이어 읽기", exact: true }).click();
+    await expect(page.locator('[data-component="ReaderWorkspace"]')).toContainText("기록 본문 2");
+  } finally {
+    for (const room of rooms) await request.delete(`/api/chats/${room.id}?force=true`);
   }
 });

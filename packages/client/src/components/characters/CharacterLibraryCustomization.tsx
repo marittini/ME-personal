@@ -1,5 +1,5 @@
 import { LibraryCustomizationFields } from "./LibraryCustomizationFields";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { showConfirmDialog } from "../../lib/app-dialogs";
 import { useChats } from "../../hooks/use-chats";
@@ -21,10 +21,10 @@ export function CharacterLibraryCustomization({
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const dirty = useRef(false);
   const close = async () => {
     if (
-      dirty &&
+      dirty.current &&
       !(await showConfirmDialog({
         title: t("reader.cancel"),
         message: t("libraryCustomization.discardDraft"),
@@ -33,7 +33,7 @@ export function CharacterLibraryCustomization({
       }))
     )
       return;
-    setDirty(false);
+    dirty.current = false;
     onDirtyChange?.(false);
     setOpen(false);
   };
@@ -62,7 +62,7 @@ export function CharacterLibraryCustomization({
           characterName={characterName}
           onClose={() => void close()}
           onDirtyChange={(value) => {
-            setDirty(value);
+            dirty.current = value;
             onDirtyChange?.(value);
           }}
         />

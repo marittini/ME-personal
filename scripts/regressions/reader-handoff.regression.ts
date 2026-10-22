@@ -50,3 +50,31 @@ assert.equal(
 );
 assert.equal(readerExcerptsSchema.parse([]).length, 0);
 console.log("reader handoff regressions passed");
+
+// Reader paragraph controls must preserve parsed inline content and one TTS anchor per utterance.
+const { createRequire } = await import("node:module");
+const clientRequire = createRequire(new URL("../../packages/client/package.json", import.meta.url));
+const React = clientRequire("react");
+Object.assign(globalThis, { React });
+const { renderToStaticMarkup } = clientRequire("react-dom/server");
+const { renderProseParagraphs } = await import("../../packages/client/src/lib/prose-paragraphs");
+const prose = renderToStaticMarkup(
+  React.createElement("div", null, renderProseParagraphs("한국어\n한 줄\n\n日本語 English", "proof")),
+);
+assert.equal(prose.replace(/<[^>]*>/g, ""), "한국어\n한 줄\n\n日本語 English");
+assert.equal((prose.match(/data-reader-prose/g) ?? []).length, 2);
+const dialogue = renderToStaticMarkup(
+  React.createElement(
+    "div",
+    null,
+    renderProseParagraphs(React.createElement("strong", { "data-tts-dialogue": "" }, "First\n\nsecond"), "speech"),
+  ),
+);
+assert.equal((dialogue.match(/data-tts-dialogue/g) ?? []).length, 1);
+const { normalizeReaderPreferences } = await import("../../packages/client/src/lib/reader-preferences");
+assert.equal(normalizeReaderPreferences({ font: "serif" }).font, "@serif");
+assert.equal(normalizeReaderPreferences({ indent: NaN }).indent, 0);
+assert.equal(normalizeReaderPreferences({ indent: 100 }).indent, 4);
+
+assert.deepEqual(splitMessageParagraphs("    code\n\n    more\n\n다음"), ["    code\n\n    more", "다음"]);
+assert.equal(hideTTSAudioCues("```html\n" + encoded), "```html\n" + encoded);

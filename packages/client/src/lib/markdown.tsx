@@ -1,3 +1,4 @@
+import { renderProseParagraphs } from "./prose-paragraphs";
 // ──────────────────────────────────────────────
 // Shared Markdown rendering utilities
 // ──────────────────────────────────────────────
@@ -444,7 +445,11 @@ export function renderMarkdownBlocks(
     }
     const joined = textBuffer.join("\n");
     if (joined.trim()) {
-      segments.push(<span key={`${keyBase}t${key++}`}>{renderInline(joined, `${keyBase}t${key}`)}</span>);
+      segments.push(
+        <span key={`${keyBase}t${key++}`}>
+          {renderProseParagraphs(renderInline(joined, `${keyBase}t${key}`), `${keyBase}prose${key}`)}
+        </span>,
+      );
     } else {
       // Preserve blank-line spacing
       segments.push(<span key={`${keyBase}t${key++}`}>{joined}</span>);

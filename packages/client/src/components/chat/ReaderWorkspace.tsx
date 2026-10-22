@@ -130,6 +130,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       {enabled && (
         <header
           className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--background)] px-2 pt-[env(safe-area-inset-top)] text-[var(--foreground)]"
+          data-chat-window-top-obstacle=""
           aria-label={t("reader.navigation")}
         >
           <button className={control} onClick={back} aria-label={t("reader.back")}>
