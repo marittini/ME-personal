@@ -42,7 +42,10 @@ export async function toStoredWebp(input: Buffer): Promise<{ buffer: Buffer; ext
       offset += input.readUInt32BE(offset) + 12;
     }
   const sharp = await getSharp();
-  const output = await sharp(input, { animated: true }).keepMetadata().webp({ quality: DEFAULT_STORED_WEBP_QUALITY, alphaQuality: 100, effort: 3 }).toBuffer();
+  const output = await sharp(input, { animated: true })
+    .keepMetadata()
+    .webp({ quality: DEFAULT_STORED_WEBP_QUALITY, alphaQuality: 100, effort: 3 })
+    .toBuffer();
   const text = pngTextChunks(input);
   let buffer: Buffer = output;
   if (text.length) {

@@ -91,6 +91,7 @@ import {
   ChevronRight,
   EyeOff,
   Shield,
+  ImagePlus,
 } from "lucide-react";
 import { decodeEncodedSpeakerTags, formatTextQuotes, type Message, type QuoteFormat } from "@marinara-engine/shared";
 import type { GameTurnStoryboard } from "@marinara-engine/shared";
@@ -1014,6 +1015,8 @@ interface ChatMessageProps {
   streamingOutputStarted?: boolean;
   /** Frame-throttled live content that receives the same formatter as committed messages. */
   streamingContent?: (renderText: (text: string) => ReactNode) => ReactNode;
+  onIllustrateMessage?: (messageId: string) => void | Promise<void>;
+  illustrationBusy?: boolean;
   onDelete?: (messageId: string) => void;
   onRegenerate?: (messageId: string) => void;
   onEdit?: (messageId: string, content: string) => void | Promise<void>;
@@ -1926,6 +1929,8 @@ export const ChatMessage = memo(function ChatMessage({
   streamingOutputStarted = false,
   streamingContent,
   onDelete,
+  onIllustrateMessage,
+  illustrationBusy,
   onRegenerate,
   onEdit,
   failedReply,
@@ -3753,6 +3758,17 @@ export const ChatMessage = memo(function ChatMessage({
                 </>
               )}
             </div>
+            {onIllustrateMessage && !isStreaming && (
+              <button
+                type="button"
+                className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-md px-2 text-xs"
+                disabled={illustrationBusy}
+                onClick={() => void onIllustrateMessage(message.id)}
+              >
+                <ImagePlus size={16} />
+                {localizeUi("reader.illustrateMessage")}
+              </button>
+            )}
             {ttsEnabled && <div className="mt-2 flex flex-wrap items-center gap-2">{roleplayTtsControls}</div>}
             {!isUser && !isSystem && !isStreaming && (
               <DialogueSpeechControls
@@ -4401,6 +4417,15 @@ export const ChatMessage = memo(function ChatMessage({
                 onClick={() => onDelete?.(message.id)}
                 title={localizeUi("lorebook.editor.batch.delete")}
               />
+              {isRoleplay && onIllustrateMessage && !isStreaming && (
+                <ActionBtn
+                  icon={<ImagePlus size={16} />}
+                  title={localizeUi("reader.illustrateMessage")}
+                  className="min-h-11 min-w-11"
+                  disabled={illustrationBusy}
+                  onClick={() => void onIllustrateMessage(message.id)}
+                />
+              )}
               {roleplayTtsControls}
             </div>
           </div>

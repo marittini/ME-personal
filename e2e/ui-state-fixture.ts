@@ -89,6 +89,7 @@ export async function seedUIState(
     {
       ...UI_PERSISTENCE,
       state: {
+        language: "en",
         chibiProfessorMariEnabled: false,
         chatWindowIntroDismissed: true,
         seasonalThemesDisabled: true,

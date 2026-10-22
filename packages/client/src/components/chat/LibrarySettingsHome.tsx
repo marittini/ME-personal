@@ -14,7 +14,10 @@ const Extensions = lazy(() =>
     default: module.PersonalExtensionsSettings,
   })),
 );
-const FEATURES = { speech: Speech, queue: Queue, extensions: Extensions };
+const NaiPrompt = lazy(() =>
+  import("./NaiCharacterPromptTool").then((module) => ({ default: module.NaiCharacterPromptTool })),
+);
+const FEATURES = { speech: Speech, queue: Queue, extensions: Extensions, naiPrompt: NaiPrompt };
 type Feature = keyof typeof FEATURES;
 
 export function LibrarySettingsHome() {

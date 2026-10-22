@@ -103,4 +103,23 @@ export const readerKoreanMessages: Record<string, string> = {
   "settingsHub.generations": "이미지·텍스트 생성",
   "settingsHub.import": "가져오기·백업",
   "settingsHub.advanced": "고급·저장소",
+  "settingsHub.naiPrompt": "NovelAI 캐릭터 프롬프트",
+  "naiPrompt.help":
+    "캐릭터·페르소나의 설명과 외형에서 긍정·부정 프롬프트를 만듭니다. 언어 모델을 두 번 호출합니다. 캐릭터 카드와 이미지 설정은 변경하지 않습니다.",
+  "naiPrompt.source": "캐릭터·페르소나",
+  "naiPrompt.chooseSource": "대상 선택",
+  "naiPrompt.character": "캐릭터",
+  "naiPrompt.persona": "페르소나",
+  "naiPrompt.connection": "언어 모델 연결",
+  "naiPrompt.chooseConnection": "연결 선택",
+  "naiPrompt.generate": "프롬프트 생성",
+  "naiPrompt.generating": "분석·검토 중…",
+  "naiPrompt.loadError": "대상이나 연결을 불러오지 못했습니다.",
+  "naiPrompt.generateError":
+    "프롬프트를 생성하지 못했습니다. 대상의 설명·외형과 모델 연결을 확인하세요. 모델은 원문 근거가 있는 결과를 반환해야 합니다.",
+  "naiPrompt.prompt": "긍정 프롬프트",
+  "naiPrompt.negative": "부정 프롬프트",
+  "naiPrompt.copy": "복사",
+  "reader.illustrateMessage": "이 메시지로 삽화 생성",
+  "reader.illustrationError": "삽화를 생성하지 못했습니다. 이미지 연결과 에이전트 설정을 확인하세요.",
 };

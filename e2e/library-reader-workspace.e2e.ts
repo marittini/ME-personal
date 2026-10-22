@@ -51,8 +51,8 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await expect(composer).toBeVisible();
       await workspace.getByRole("button", { name: "Reading settings", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
-      await dialog.getByRole("combobox", { name: "Typeface", exact: true }).selectOption("serif");
-      await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("font-family", /Georgia/);
+      await dialog.getByRole("spinbutton", { name: "Letter spacing (px)", exact: true }).fill("0.7");
+      await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
       await page.keyboard.press("Escape");
       await workspace.locator("[data-chat-scroll]").evaluate((area) => {
         area.scrollTop = area.scrollHeight / 3;
@@ -64,7 +64,7 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await detail.getByRole("button", { name: "Continue reading", exact: true }).click();
       await expect(workspace).toHaveAttribute("data-reader-enabled", "true");
       await page.reload();
-      await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("font-family", /Georgia/);
+      await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
       await workspace.getByRole("button", { name: "Back to work information", exact: true }).click();
       await expect(detail).toBeVisible();
       await detail.getByRole("button", { name: `Rename Reader proof ${mode}`, exact: true }).click();

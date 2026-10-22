@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { CommittedMemoryBubble } from "./CommittedMemoryBubble";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { normalizeSemanticSummaryRetrievalSettings } from "@marinara-engine/shared";
@@ -972,6 +973,24 @@ export function ChatRoleplaySurface({
   const isMobileToolbarViewport = useIsMobileToolbarViewport();
   const streamedMessageId = useChatStore((s) => s.streamedMessageIds.get(activeChatId) ?? null);
   const hasMobileDraftInput = useChatStore((s) => isMobileToolbarViewport && s.hasCurrentInput);
+  const illustrationPendingRef = useRef(false);
+  const [illustrationPending, setIllustrationPending] = useState(false);
+  const illustrateMessage = useCallback(
+    async (messageId: string) => {
+      if (!onIllustrate || isStreaming || agentProcessing || illustrationPendingRef.current) return;
+      illustrationPendingRef.current = true;
+      setIllustrationPending(true);
+      try {
+        await onIllustrate(undefined, [messageId, messageId]);
+      } catch {
+        toast.error(t("reader.illustrationError"));
+      } finally {
+        illustrationPendingRef.current = false;
+        setIllustrationPending(false);
+      }
+    },
+    [onIllustrate, isStreaming, agentProcessing, t],
+  );
   const hasLiveStream = isStreaming;
   const linkedChatName = chat?.connectedChatId
     ? getConnectedChatDisplayName(allChats?.find((c) => c.id === chat.connectedChatId))
@@ -1820,6 +1839,8 @@ export function ChatRoleplaySurface({
                       ) : (
                         <ChatMessage
                           message={msg}
+                          onIllustrateMessage={onIllustrate ? illustrateMessage : undefined}
+                          illustrationBusy={isStreaming || agentProcessing || illustrationPending}
                           followSpeechParagraphs={visualNovel}
                           isStreaming={false}
                           onDelete={onDelete}
@@ -1963,6 +1984,8 @@ export function ChatRoleplaySurface({
                             <ChatMessage
                               key={`${activeChatId}:${activeVnMessage.id}:${activeVnMessage.activeSwipeIndex}`}
                               message={activeVnMessage}
+                              onIllustrateMessage={onIllustrate ? illustrateMessage : undefined}
+                              illustrationBusy={isStreaming || agentProcessing || illustrationPending}
                               memoryStartCharacterIds={memoryContextStarts.get(activeVnMessage.id)}
                               failedReply={activeVnMessage.id === failedReplyMessageId}
                               failedReplyReason={failedReplyReason}
