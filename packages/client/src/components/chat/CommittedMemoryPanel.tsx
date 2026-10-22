@@ -257,13 +257,21 @@ function MemoryDetail({
 export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const { t } = useTranslation();
   const status = useCommittedMemory(chatId);
-  const commit = useCommitMemory(chatId);
+  const { data: chat } = useChat(chatId);
+  const metadata = chat?.metadata as Record<string, unknown> | undefined;
+  const [batchDraft, setBatchDraft] = useState<{ chatId: string; value: string } | null>(null);
+  const batchValue =
+    batchDraft?.chatId === chatId
+      ? batchDraft.value
+      : String(metadata?.committedMemoryBatchSize ?? metadata?.summaryContextSize ?? 20);
+  const batchSize = Number(batchValue);
+  const validBatchSize = batchValue.trim() !== "" && Number.isInteger(batchSize) && batchSize >= 1 && batchSize <= 500;
+  const commit = useCommitMemory(chatId, validBatchSize ? batchSize : undefined);
   const toggle = useSetCommittedMemory(chatId);
   const maintenance = useMemoryMaintenance(chatId);
   const configure = useConfigureMemory(chatId);
   const backup = useExportMemory(chatId);
   const connection = useMemoryConnection(chatId);
-  const { data: chat } = useChat(chatId);
   const update = useUpdateChatMetadata({ serialize: true });
   const { data: connections } = useConnections();
   const streaming = useChatStore((s) => s.streamingChatId === chatId && s.isStreaming);
@@ -276,7 +284,6 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const [progressFilter, setProgressFilter] = useState("all");
   const preview = useMemoryPreview(chatId, search, tab === "receipt");
   const data = status.data;
-  const metadata = chat?.metadata as Record<string, unknown> | undefined;
   const korean = metadata?.committedMemoryDisplayKorean !== false;
   const display = (original: string, ko?: string) => (korean && ko?.trim() ? ko : original);
   const saveSettings = (settings: Record<string, unknown>) =>
@@ -358,7 +365,12 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
         <button
           className={SETTINGS_PRIMARY_BUTTON_CLASS}
           disabled={
-            busy || update.isPending || streaming || !(data?.selectedPending ?? data?.pending) || !connection.data?.ok
+            busy ||
+            update.isPending ||
+            !validBatchSize ||
+            streaming ||
+            !(data?.selectedPending ?? data?.pending) ||
+            !connection.data?.ok
           }
           onClick={() => commit.mutate()}
         >
@@ -398,7 +410,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
       {streaming && <p className="memory-vault__notice">{t("chat.committedMemory.waitForReply")}</p>}
       {(error || data?.state.job?.error) && (
         <p role="alert" className="memory-vault__notice text-[var(--destructive)]">
-          {error?.message || data?.state.job?.error}
+          {data?.state.job?.error === "MEMORY_OUTPUT_INVALID" && !error
+            ? t("chat.committedMemory.outputInvalid")
+            : error?.message || data?.state.job?.error}
         </p>
       )}
       {connection.data && !connection.data.ok && (
@@ -649,6 +663,25 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             disabled={busy || streaming}
             onChange={(enabled) => toggle.mutate(enabled)}
           />
+          <label className="block text-sm">
+            {t("chat.committedMemory.vault.batchSize")}
+            <input
+              type="number"
+              className={`${field} mt-2`}
+              min={1}
+              max={500}
+              step={1}
+              value={batchValue}
+              disabled={busy || update.isPending}
+              onChange={(e) => setBatchDraft({ chatId, value: e.target.value })}
+              onBlur={() => {
+                if (validBatchSize && batchSize !== metadata?.committedMemoryBatchSize)
+                  saveSettings({ committedMemoryBatchSize: batchSize });
+              }}
+            />
+            <p className="memory-vault__hint">{t("chat.committedMemory.vault.batchSizeHelp")}</p>
+            {!validBatchSize && <p role="alert">{t("chat.committedMemory.vault.batchSizeInvalid")}</p>}
+          </label>
           <ToggleSetting
             label={t("chat.committedMemory.vault.koreanDisplay")}
             help={t("chat.committedMemory.vault.koreanDisplayHelp")}

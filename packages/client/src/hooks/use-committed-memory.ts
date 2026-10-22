@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CommittedMemoryStatus, CommittedMemorySelection } from "@marinara-engine/shared";
 import { api } from "../lib/api-client";
 import { chatKeys } from "./use-chats";
+import { waitForPendingChatMetadataSaves } from "../lib/chat-metadata-save-barrier";
 export function useCommittedMemory(chatId: string) {
   return useQuery({
     queryKey: ["committed-memory", chatId],
@@ -9,10 +10,16 @@ export function useCommittedMemory(chatId: string) {
     refetchInterval: 5000,
   });
 }
-export function useCommitMemory(chatId: string) {
+export function useCommitMemory(chatId: string, batchSize?: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<CommittedMemoryStatus>(`/chats/${chatId}/committed-memory/commit`, {}),
+    mutationFn: async () => {
+      await waitForPendingChatMetadataSaves(chatId);
+      return api.post<CommittedMemoryStatus>(
+        `/chats/${chatId}/committed-memory/commit`,
+        batchSize === undefined ? {} : { batchSize },
+      );
+    },
     onSuccess: (data) => {
       qc.setQueryData(["committed-memory", chatId], data);
       void qc.invalidateQueries({ queryKey: chatKeys.detail(chatId) });
