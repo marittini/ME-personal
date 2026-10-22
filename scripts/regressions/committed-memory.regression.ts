@@ -46,6 +46,7 @@ const provider = createServer(async (req, res) => {
     ? "broken output"
     : JSON.stringify({
         summary: source.map((m) => m.content).join(" "),
+        summaryKo: "한국어 표시용 요약",
         core: "손수건을 맡겼다.",
         facts: [
           {

@@ -128,6 +128,29 @@ assert.equal(
   "",
   "excluded facts must not leak through summary/core",
 );
+const chronology = selectCommittedMemory(
+  {
+    ...state,
+    batches: [
+      { ...batch, id: "early", turn: 1, core: "lantern", facts: [] },
+      {
+        ...batch,
+        id: "late",
+        turn: 100,
+        summary: "lantern shines",
+        facts: [],
+        sources: [{ id: "late-source", fingerprint: "late" }],
+      },
+    ],
+  },
+  "lantern",
+);
+assert.deepEqual(
+  chronology.selected.filter((item) => item.reason !== "current").map((item) => item.id),
+  ["early", "late"],
+  "priority selection must not scramble chronology",
+);
+assert(chronology.usedBytes <= chronology.budgetBytes);
 console.log(
   "Committed memory policy passed: provenance, ownership, audience intersection, aging, obligations, conflicts, multilingual/semantic ranking and budget.",
 );

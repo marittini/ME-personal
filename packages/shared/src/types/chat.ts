@@ -330,6 +330,10 @@ export interface ChatMetadata {
   summaryEntries?: ChatSummaryEntry[];
   committedMemory?: CommittedMemoryState;
   committedMemoryFloatingButton?: boolean;
+  committedMemorySourceMode?: "pending" | "last" | "range";
+  committedMemoryRangeStart?: number;
+  committedMemoryRangeEnd?: number;
+  committedMemoryDisplayKorean?: boolean;
   /** Recent message count used by manual rolling summary generation and automatic summaries. */
   summaryContextSize?: number;
   /** User-message cadence for the automated roleplay summary updater. */
