@@ -262,6 +262,16 @@ try {
     (await compactCommittedHistory(db, ranged.id, history)).map((m) => m.id),
     history.filter((_, i) => i !== 2 && i !== 3).map((m) => m.id),
   );
+  assert.equal(
+    (await compactCommittedHistory(db, ranged.id, history, messages[3]!.id)).length,
+    8,
+    "a future-dependent episode cannot hide earlier regeneration context",
+  );
+  assert.equal(
+    (await compactCommittedHistory(db, ranged.id, history.slice(0, 3))).length,
+    3,
+    "a partially present episode cannot replace raw history",
+  );
   await chats.patchMetadata(ranged.id, { summaryTailMessages: 6 });
   assert.equal(
     (await compactCommittedHistory(db, ranged.id, history)).length,

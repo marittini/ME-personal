@@ -442,11 +442,21 @@ export async function compactCommittedHistory<T extends MemorySourceMessage>(
   history: T[],
   targetId?: string | null,
 ): Promise<T[]> {
-  const { state, chat } = await loadCommittedMemory(db, chatId);
+  const { state, chat, messages } = await loadCommittedMemory(db, chatId);
   const metadata = memoryExtra(chat.metadata);
   if (!state.enabled || metadata.hideSummarisedMessages !== true) return history;
+  const inHistory = new Set(history.map((message) => message.id));
+  const target = targetId ? messages.findIndex((message) => message.id === targetId) : -1;
+  const beforeTarget = target >= 0 ? new Set(messages.slice(0, target).map((message) => message.id)) : null;
   const covered = new Set(
-    state.batches.filter((b) => !b.invalidated && b.summary).flatMap((b) => b.sources.map((s) => s.id)),
+    state.batches
+      .filter(
+        (batch) =>
+          !batch.invalidated &&
+          batch.summary &&
+          batch.sources.every((source) => inHistory.has(source.id) && (!beforeTarget || beforeTarget.has(source.id))),
+      )
+      .flatMap((batch) => batch.sources.map((source) => source.id)),
   );
   const hidden = new Set(
     computeSummaryHideIds({
