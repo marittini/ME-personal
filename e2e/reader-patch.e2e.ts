@@ -173,7 +173,11 @@ test("message illustration sends its exact ID range and preserves the composer d
     const composer = workspace.locator("textarea").last();
     await composer.fill("작성 중인 초안은 그대로");
     const action = workspace.getByRole("button", { name: "이 메시지로 삽화 생성", exact: true });
-    await action.click({ force: true });
+    await workspace.locator(".mari-message-content").filter({ hasText: "삽화로 남길 장면입니다." }).first().click();
+    const target = await action.boundingBox();
+    expect(target?.width).toBeGreaterThanOrEqual(44);
+    expect(target?.height).toBeGreaterThanOrEqual(44);
+    await action.click();
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0]!.illustratorMessageRange).toEqual([message.id, message.id]);
     await expect(action).toBeDisabled();
