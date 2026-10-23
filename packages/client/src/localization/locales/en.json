@@ -4847,6 +4847,7 @@
   "reader.viewerSaveFailed": "Could not save the viewer setting.",
   "reader.voiceGenerate": "Generate voice",
   "reader.voiceLoadError": "Could not load voice settings. Retry before making changes.",
+  "reader.voiceMissing": "Choose a voice for this speaker in voice settings first.",
   "reader.voiceRegenerate": "Regenerate voice",
   "reader.voiceRegenerateConfirm": "Generate this message's voice again? It uses your voice provider's quota.",
   "reader.voiceReplay": "Replay",
