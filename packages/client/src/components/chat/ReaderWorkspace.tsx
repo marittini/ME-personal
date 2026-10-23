@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, BookOpen, NotebookPen, PencilLine, Settings2 } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronLeft, NotebookPen, PencilLine, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
@@ -62,6 +62,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   }, [chat?.metadata.readerHighlights]);
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
+  const conversation = chat?.mode === "conversation";
   useReaderHighlights(root, excerpts, enabled && surfaceActive, highlights);
   const saveHighlights = (next: ReaderHighlight[], onSuccess?: () => void) => {
     if (!chatId) return;
@@ -164,6 +165,42 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     useUIStore.setState((state) => ({ readerPreferences: { ...state.readerPreferences, ...value } }));
   const control =
     "min-h-11 min-w-11 inline-flex items-center justify-center rounded-md px-2 hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]";
+  const actions = (
+    <>
+      <button
+        className={control}
+        onClick={() => setExcerptList(true)}
+        aria-label={t("readerNotes.title")}
+        title={t("readerNotes.title")}
+      >
+        <NotebookPen size={18} />
+      </button>
+      <button
+        className={control}
+        onClick={() => setFocus(!focus)}
+        aria-pressed={focus}
+        aria-label={focus ? t("reader.write") : t("reader.focus")}
+        title={focus ? t("reader.write") : t("reader.focus")}
+      >
+        {focus ? (
+          <>
+            <PencilLine size={18} />
+            <span className="ml-1 text-xs">{t("reader.write")}</span>
+          </>
+        ) : (
+          <BookOpen size={20} />
+        )}
+      </button>
+      <button
+        className={control}
+        onClick={() => setSettings(true)}
+        aria-label={t("reader.settings")}
+        title={t("reader.settings")}
+      >
+        <Settings2 size={20} />
+      </button>
+    </>
+  );
   return (
     <div
       ref={root}
@@ -173,6 +210,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       data-reader-mode={enabled ? chat?.mode : undefined}
       data-reader-focus={(enabled && focus) || undefined}
       data-reader-streaming={streaming || undefined}
+      data-reader-bubble-scope={conversation ? preferences.bubbleScope : undefined}
       style={
         {
           "--reader-line-height": preferences.lineHeight,
@@ -183,51 +221,54 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
             getChatWidgetFontFamily(preferences.font === "serif" ? "@serif" : preferences.font) ?? "inherit",
           "--reader-indent": `${Number.isFinite(preferences.indent) ? Math.max(0, Math.min(4, preferences.indent)) : 0}em`,
           "--reader-align": preferences.align,
+          "--reader-body-size": `${fontSize}px`,
+          "--reader-translation-offset": `${preferences.translationSizeOffset ?? 0}px`,
+          ...(preferences.bubbleCharacterBg ? { "--reader-bubble-character-bg": preferences.bubbleCharacterBg } : {}),
+          ...(preferences.bubbleCharacterText
+            ? { "--reader-bubble-character-text": preferences.bubbleCharacterText }
+            : {}),
+          ...(preferences.bubblePersonaBg ? { "--reader-bubble-persona-bg": preferences.bubblePersonaBg } : {}),
+          ...(preferences.bubblePersonaText ? { "--reader-bubble-persona-text": preferences.bubblePersonaText } : {}),
         } as CSSProperties
       }
     >
       {enabled && (
         <header
-          className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--background)] px-2 pt-[env(safe-area-inset-top)] text-[var(--foreground)]"
+          className={
+            conversation
+              ? "grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-1 border-b border-[var(--border)] bg-[var(--background)]/90 px-2 pb-1.5 pt-[calc(env(safe-area-inset-top)+0.375rem)] text-[var(--foreground)] backdrop-blur"
+              : "flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--background)] px-2 pt-[env(safe-area-inset-top)] text-[var(--foreground)]"
+          }
           data-chat-window-top-obstacle=""
+          data-reader-header={conversation ? "messenger" : "book"}
           aria-label={t("reader.navigation")}
         >
-          <button className={control} onClick={back} aria-label={t("reader.back")}>
-            <ArrowLeft size={20} />
-          </button>
-          <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
-          <button
-            className={control}
-            onClick={() => setExcerptList(true)}
-            aria-label={t("readerNotes.title")}
-            title={t("readerNotes.title")}
-          >
-            <NotebookPen size={18} />
-          </button>
-          <button
-            className={control}
-            onClick={() => setFocus(!focus)}
-            aria-pressed={focus}
-            aria-label={focus ? t("reader.write") : t("reader.focus")}
-            title={focus ? t("reader.write") : t("reader.focus")}
-          >
-            {focus ? (
-              <>
-                <PencilLine size={18} />
-                <span className="ml-1 text-xs">{t("reader.write")}</span>
-              </>
-            ) : (
-              <BookOpen size={20} />
-            )}
-          </button>
-          <button
-            className={control}
-            onClick={() => setSettings(true)}
-            aria-label={t("reader.settings")}
-            title={t("reader.settings")}
-          >
-            <Settings2 size={20} />
-          </button>
+          {conversation ? (
+            <>
+              <div className="flex min-w-0 items-center">
+                <button className={control} onClick={back} aria-label={t("reader.back")}>
+                  <ChevronLeft size={26} className="text-[var(--primary)]" />
+                </button>
+              </div>
+              {/* iMessage-style contact, centered: Convo moves its own presence card (avatar, name, status menu)
+                  into this slot; the chat name shows until it arrives. */}
+              <div className="flex min-w-0 max-w-[50vw] flex-col items-center" data-reader-contact="">
+                <div data-reader-contact-slot="" className="flex min-w-0 max-w-full justify-center" />
+                <span data-reader-contact-fallback="" className="max-w-full truncate text-xs font-medium">
+                  {chat?.name}
+                </span>
+              </div>
+              <div className="flex min-w-0 items-center justify-end">{actions}</div>
+            </>
+          ) : (
+            <>
+              <button className={control} onClick={back} aria-label={t("reader.back")}>
+                <ArrowLeft size={20} />
+              </button>
+              <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
+              {actions}
+            </>
+          )}
         </header>
       )}
       {children}
@@ -427,6 +468,60 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               </select>
             </label>
           )}
+          {conversation && (
+            <fieldset className="space-y-2" data-reader-bubble-colors="">
+              <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+                {t("reader.bubbleColors")}
+                <select
+                  className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
+                  value={preferences.bubbleScope}
+                  onChange={(event) => patch({ bubbleScope: event.target.value as "card" | "global" })}
+                >
+                  <option value="card">{t("reader.bubbleColorsCard")}</option>
+                  <option value="global">{t("reader.bubbleColorsGlobal")}</option>
+                </select>
+              </label>
+              {preferences.bubbleScope === "global" && (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {(
+                    [
+                      ["bubbleCharacterBg", "reader.bubbleCharacterBg", "var(--secondary)"],
+                      ["bubbleCharacterText", "reader.bubbleCharacterText", "var(--secondary-foreground)"],
+                      ["bubblePersonaBg", "reader.bubblePersonaBg", "var(--primary)"],
+                      ["bubblePersonaText", "reader.bubblePersonaText", "var(--primary-foreground)"],
+                    ] as const
+                  ).map(([key, label, theme]) => (
+                    <label
+                      key={key}
+                      className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-[var(--border)] px-2"
+                    >
+                      <span>{t(label)}</span>
+                      <span className="flex items-center gap-1">
+                        <input
+                          type="color"
+                          aria-label={t(label)}
+                          className="h-8 w-10 cursor-pointer rounded border-0 bg-transparent"
+                          value={preferences[key] || "#888888"}
+                          style={preferences[key] ? undefined : { outline: `2px dashed ${theme}` }}
+                          onChange={(event) => patch({ [key]: event.target.value })}
+                        />
+                        {preferences[key] && (
+                          <button
+                            type="button"
+                            className="min-h-8 rounded px-1.5 text-[0.6875rem] underline"
+                            onClick={() => patch({ [key]: "" })}
+                          >
+                            {t("reader.bubbleColorReset")}
+                          </button>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-[var(--muted-foreground)]">{t("reader.bubbleColorsHelp")}</p>
+            </fieldset>
+          )}
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.speech")}
             <input
@@ -539,6 +634,14 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
             min={0}
             max={4}
             onChange={(indent) => patch({ indent })}
+          />
+          <ReaderNumberSetting
+            label={t("reader.translationSizeOffset")}
+            unit="px"
+            value={preferences.translationSizeOffset ?? 0}
+            min={0}
+            max={8}
+            onChange={(translationSizeOffset) => patch({ translationSizeOffset })}
           />
           <ReaderNumberSetting
             label={t("reader.letterSpacingLabel")}

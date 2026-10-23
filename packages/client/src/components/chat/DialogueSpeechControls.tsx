@@ -56,7 +56,9 @@ export function DialogueSpeechControls({
   const [busy, setBusy] = useState<number | null>(null);
   const [playback, setPlayback] = useState(() => ({ state: ttsService.getState(), id: ttsService.getActiveId() }));
   const prefix = `${chatId}:${messageId}:${swipeIndex}:dialogue:`;
-  const enabled = !!config?.enabled && chat?.metadata.ttsDialogueButtonsEnabled !== false;
+  // Conversation mode speaks whole messages from the message actions instead (ConversationSpeech).
+  const enabled =
+    !!config?.enabled && chat?.mode !== "conversation" && chat?.metadata.ttsDialogueButtonsEnabled !== false;
   const result = useMemo(() => {
     if (!enabled || !config) return { groups: [] };
     const participants: TTSAudioParticipant[] = [...(characterMap ?? [])]

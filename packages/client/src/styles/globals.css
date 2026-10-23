@@ -8880,3 +8880,22 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
     grid-row: 2;
   }
 }
+
+/* A translation shown under the original can be set a few px smaller than the message text (reader settings). */
+[data-reader-enabled="true"] .translation-text {
+  font-size: max(0.625rem, calc(var(--reader-body-size, 1rem) - var(--reader-translation-offset, 0px)));
+}
+
+/* Convo bubble colors chosen once for every character and persona (reader settings, "전역"). Unset colors keep
+   the theme; "카드별" leaves each card's own look (card CSS) untouched. */
+[data-reader-bubble-scope="global"] [data-chat-mode="conversation"] .texting-bubble-other {
+  background: var(--reader-bubble-character-bg, var(--secondary)) !important;
+  color: var(--reader-bubble-character-text, var(--secondary-foreground)) !important;
+}
+[data-reader-bubble-scope="global"] [data-chat-mode="conversation"] .texting-bubble-user {
+  background: var(--reader-bubble-persona-bg, var(--primary)) !important;
+  color: var(--reader-bubble-persona-text, var(--primary-foreground)) !important;
+}
+[data-reader-contact-slot]:not(:empty) ~ [data-reader-contact-fallback] {
+  display: none;
+}

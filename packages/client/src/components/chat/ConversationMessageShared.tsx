@@ -95,6 +95,9 @@ export function diceRollReplacesMessageContent(role: string, diceRollResult: unk
 
 /** Everything the layout sub-components (Bubble, Line, Grouped) need, pre-resolved by the shell. */
 export interface MessageRenderContext {
+  /** Conversation TTS (extension style): "음성 생성" for the action bar, "다시 듣기" once a voice is saved. */
+  speechAction?: ReactNode;
+  speechReplay?: ReactNode;
   // raw
   message: MessageData;
   extra: MessageData["extra"];
@@ -652,24 +655,32 @@ export function ConversationMessageAttachments({
   );
 }
 
-/** Translation display block. */
+/** Translation display block, with the same inline markdown as the message (*italic*, **bold**). */
 export function ConversationMessageTranslation({
   translatedText,
   isTranslating,
+  outside = false,
 }: {
   translatedText?: string | null;
   isTranslating: boolean;
+  /** Under a bubble rather than inside it: no divider, aligned with the bubble text. */
+  outside?: boolean;
 }) {
   const { t: localizeUi } = useUiTranslation();
   if (!translatedText && !isTranslating) return null;
   return (
-    <div className="mt-1.5 border-t border-[var(--border)] pt-1.5">
+    <div
+      className={outside ? "mt-1 max-w-full px-3.5" : "mt-1.5 border-t border-[var(--border)] pt-1.5"}
+      data-conversation-translation={outside ? "outside" : "inside"}
+    >
       {isTranslating ? (
         <span className="text-[0.75rem] italic text-[var(--muted-foreground)]">
           {localizeUi("ui.chat.chatmessage.translating")}
         </span>
       ) : (
-        <div className="translation-text whitespace-pre-wrap">{hideTTSAudioCues(translatedText ?? "")}</div>
+        <div className="translation-text whitespace-pre-wrap break-words">
+          {renderMarkdownBlocks(hideTTSAudioCues(translatedText ?? ""), applyInlineMarkdown)}
+        </div>
       )}
     </div>
   );
@@ -770,12 +781,18 @@ export function ConversationParagraphs({
   return (
     <div className="flex min-w-0 flex-col gap-1.5" data-conversation-paragraphs="">
       {splitMessageParagraphs(content).map((paragraph, index) => (
-        <div key={index} className={bubbleClass} style={style} data-conversation-paragraph="">
-          <MessageContent {...props} content={paragraph} />
-          {translations?.[index] && (
-            <ConversationMessageTranslation translatedText={translations[index]} isTranslating={false} />
+        <Fragment key={index}>
+          <div className={bubbleClass} style={style} data-conversation-paragraph="">
+            <MessageContent {...props} content={paragraph} />
+            {translations?.[index] && !bubbleClass && (
+              <ConversationMessageTranslation translatedText={translations[index]} isTranslating={false} />
+            )}
+          </div>
+          {/* In bubbles the translation sits under its bubble, never inside the bubble background. */}
+          {translations?.[index] && bubbleClass && (
+            <ConversationMessageTranslation translatedText={translations[index]} isTranslating={false} outside />
           )}
-        </div>
+        </Fragment>
       ))}
     </div>
   );

@@ -81,7 +81,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
   return (
     <>
       {/* Inner row: avatar + body — swipes live outside so avatar never drifts */}
-      <div className={cn("flex w-full min-w-0 max-w-full items-end gap-2", isUser ? "justify-end" : "justify-start")}>
+      <div className={cn("flex w-full min-w-0 max-w-full items-start gap-2", isUser ? "justify-end" : "justify-start")}>
         {/* Multi-select checkbox */}
         {multiSelectMode && (
           <div className="flex items-center flex-shrink-0">
@@ -181,7 +181,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
           )}
         >
           {/* Header — name + timestamp for first in group */}
-          {!isGrouped && (!isUser || hiddenFromAIHeader) && (
+          {!isGrouped && (!isUser || hiddenFromAIHeader || ctx.speechReplay) && (
             <div
               className={cn(
                 "mari-message-meta mb-0.5 flex items-baseline gap-2",
@@ -201,6 +201,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                   {formatTimestamp(message.createdAt)}
                 </span>
               )}
+              {ctx.speechReplay}
             </div>
           )}
 
@@ -254,29 +255,32 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                 }
 
                 return displayLines.map((line, lineIndex) => (
-                  <div
-                    key={`${grp.start}-${i}-${lineIndex}`}
-                    className="mari-message-content mari-chat-style-text mari-message-bubble mari-chat-style-conversation texting-bubble texting-bubble-other relative rounded-2xl rounded-tl-md px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap shadow-sm animate-[fadeSlideIn_0.25s_ease-out]"
-                    style={messageTextStyle}
-                  >
+                  <div key={`${grp.start}-${i}-${lineIndex}`} className="flex min-w-0 flex-col items-start">
                     <div
-                      className="mb-0.5 text-[0.75rem] font-semibold leading-tight opacity-90"
-                      style={nameColorStyle(segChar?.nameColor)}
+                      className="mari-message-content mari-chat-style-text mari-message-bubble mari-chat-style-conversation texting-bubble texting-bubble-other relative rounded-2xl rounded-tl-md px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap shadow-sm animate-[fadeSlideIn_0.25s_ease-out]"
+                      style={messageTextStyle}
                     >
-                      {segName}
+                      <div
+                        className="mb-0.5 text-[0.75rem] font-semibold leading-tight opacity-90"
+                        style={nameColorStyle(segChar?.nameColor)}
+                      >
+                        {segName}
+                      </div>
+                      <MessageContent
+                        content={line}
+                        mentionNames={mentionNames}
+                        emojiMap={emojiMap}
+                        stickerMap={stickerMap}
+                        onImageOpen={(url) => onImageOpen(url)}
+                        selfCharacterId={segSelfId}
+                        galleryIndex={galleryIndex}
+                      />
                     </div>
-                    <MessageContent
-                      content={line}
-                      mentionNames={mentionNames}
-                      emojiMap={emojiMap}
-                      stickerMap={stickerMap}
-                      onImageOpen={(url) => onImageOpen(url)}
-                      selfCharacterId={segSelfId}
-                      galleryIndex={galleryIndex}
-                    />
+                    {/* A shown translation sits under the bubble, never inside its background. */}
                     <ConversationMessageTranslation
                       translatedText={paragraphTranslations?.[translationOffset + lineIndex]}
                       isTranslating={false}
+                      outside
                     />
                   </div>
                 ));
@@ -347,6 +351,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
               <ConversationMessageTranslation
                 translatedText={ctx.showTranslationOnly || paragraphTranslations ? null : translatedText}
                 isTranslating={isTranslating}
+                outside
               />
               <ConversationMessageAttachments
                 attachments={extra.attachments ?? []}

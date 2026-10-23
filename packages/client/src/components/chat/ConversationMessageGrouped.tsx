@@ -263,7 +263,7 @@ export function ConversationMessageGrouped({
                   {...cardCssProps}
                   className={["animate-[fadeSlideIn_0.4s_ease-out]", i > 0 && "mt-2"].filter(Boolean).join(" ")}
                 >
-                  <div className="flex items-end gap-2">
+                  <div className="flex items-start gap-2">
                     <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-[var(--accent)]">
                       {segAvatar ? (
                         <img
@@ -289,6 +289,7 @@ export function ConversationMessageGrouped({
                             {formatTimestamp(message.createdAt)}
                           </span>
                         )}
+                        {isFirst && ctx.speechReplay}
                         {segAddButton}
                       </div>
                       <div
@@ -366,6 +367,7 @@ export function ConversationMessageGrouped({
                           {formatTimestamp(message.createdAt)}
                         </span>
                       )}
+                      {isFirst && ctx.speechReplay}
                       {segAddButton}
                     </div>
                     <div
@@ -456,6 +458,7 @@ export function ConversationMessageGrouped({
       {/* Action bar */}
       {(!hideActions || hasReasoning) && (
         <ConversationMessageActions
+          speech={ctx.speechAction}
           message={message}
           name={ctx.displayName}
           isUser={false}

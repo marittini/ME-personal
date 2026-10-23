@@ -614,3 +614,65 @@ test("reading index retains order and opens the stored work in both themes", asy
     for (const room of rooms) await request.delete(`/api/chats/${room.id}?force=true`);
   }
 });
+test("convo: messenger header, avatar on top, translations outside bubbles with markdown, size offset and bubble colors", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "하나" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "메신저 검증", mode: "conversation", characterIds: [card.id] } })
+  ).json();
+  try {
+    const content = "첫 줄입니다.\n\n둘째 줄입니다.";
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", content, characterId: card.id },
+      })
+    ).json();
+    await request.patch(`/api/chats/${chat.id}/messages/${message.id}/extra`, {
+      data: { translation: "*First* line.\n\n**Second** line.", translationSource: content, translationHidden: false },
+    });
+    await open(page, chat.id);
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const header = workspace.locator('header[data-reader-header="messenger"]');
+    // The Convo identity (avatar, name, status menu) moves into the header instead of a second bar.
+    await expect(header.locator("[data-reader-contact] [data-conversation-header-identity]")).toContainText("하나");
+    await expect(page.locator("[data-conversation-header-identity]")).toHaveCount(1);
+    const row = workspace.locator(`[data-message-id="${message.id}"]`);
+    const bubbles = row.locator(".texting-bubble");
+    await expect(bubbles).toHaveCount(2);
+    // Translations sit under each bubble, outside its background, and keep markdown.
+    const translations = row.locator('[data-conversation-translation="outside"]');
+    await expect(translations).toHaveCount(2);
+    await expect(row.locator(".texting-bubble [data-conversation-translation]")).toHaveCount(0);
+    await expect(translations.first().locator("em")).toHaveText("First");
+    await expect(translations.nth(1).locator("strong")).toHaveText("Second");
+    // The avatar lines up with the top of the message, not its last bubble.
+    const avatar = await row.locator(".mari-message-avatar").boundingBox();
+    const body = await row.locator(".mari-message-body").boundingBox();
+    expect(Math.abs(avatar!.y - body!.y)).toBeLessThan(4);
+
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await dialog.getByRole("spinbutton", { name: "번역문 글자 크기 (본문보다 작게) (px)", exact: true }).fill("3");
+    await dialog.getByRole("combobox", { name: "말풍선 색", exact: true }).selectOption("global");
+    await dialog.getByLabel("캐릭터 말풍선", { exact: true }).fill("#336699");
+    await page.screenshot({ path: ".tmp/convo-reader-settings.png" });
+    await page.keyboard.press("Escape");
+    const bodySize = await bubbles
+      .first()
+      .locator(".mari-message-content")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const translationSize = await translations
+      .first()
+      .locator(".translation-text")
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(bodySize - translationSize).toBeCloseTo(3, 0);
+    await expect(bubbles.first()).toHaveCSS("background-color", "rgb(51, 102, 153)");
+    await page.screenshot({ path: ".tmp/convo-messenger.png" });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});

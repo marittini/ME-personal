@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import { MessageIntegrationTools } from "./MessageIntegrationTools";
+import { ConversationSpeechAction, ConversationSpeechReplay, useConversationSpeech } from "./ConversationSpeech";
 import { hideTTSAudioCues } from "../../lib/tts-audio-tags";
 import { ConversationSceneInvitation } from "./ConversationSceneInvitation";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
@@ -887,7 +888,21 @@ export const ConversationMessage = memo(function ConversationMessage({
         })
     : undefined;
 
+  const speech = useConversationSpeech({
+    chatId: message.chatId,
+    messageId: message.id,
+    swipeIndex: message.activeSwipeIndex ?? 0,
+    text: originalContent ?? message.content,
+    speaker: isUser ? (personaInfo?.name ?? "") : headerDisplayName,
+    characterId: message.characterId,
+    personaId: personaInfo?.id,
+    isUser,
+  });
+  const showSpeech = !isSystem && !isStreaming && !editing && !isHiddenCollapsed;
   const ctx: MessageRenderContext = {
+    speechAction: showSpeech ? <ConversationSpeechAction speech={speech} /> : undefined,
+    speechReplay:
+      showSpeech && speech.available && speech.saved ? <ConversationSpeechReplay speech={speech} /> : undefined,
     message,
     extra,
     isUser,
@@ -1296,6 +1311,7 @@ export const ConversationMessage = memo(function ConversationMessage({
               onShowGenerationReplay={() => setShowGenerationReplay(true)}
               onShowThinking={() => setShowThinking(true)}
               onPickReaction={handleToggleReaction}
+              speech={ctx.speechAction}
             />
           )}
         </div>

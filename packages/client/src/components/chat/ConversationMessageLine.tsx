@@ -174,6 +174,7 @@ export function ConversationMessageLine({ ctx }: { ctx: MessageRenderContext }) 
                 {formatTimestamp(message.createdAt)}
               </span>
             )}
+            {ctx.speechReplay}
           </div>
         )}
 

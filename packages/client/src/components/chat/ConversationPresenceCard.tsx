@@ -69,6 +69,8 @@ type ConversationPresenceCardProps = {
   messages?: Message[];
   onOpenSettings: (event?: ReactMouseEvent<HTMLElement>, options?: OpenSettingsOptions) => void;
   onOpenScheduleEditor?: (characterId: string, options?: { initialDay?: string | null }) => void;
+  /** "stacked" puts the avatar above the name, for the reader's messenger header. */
+  layout?: "pill" | "stacked";
 };
 
 const STATUS_OPTIONS: Array<{ status: ConversationPresenceStatus; label: string }> = [
@@ -139,7 +141,9 @@ export function ConversationPresenceCard({
   messages,
   onOpenSettings,
   onOpenScheduleEditor,
+  layout = "pill",
 }: ConversationPresenceCardProps) {
+  const stacked = layout === "stacked";
   const { t: localizeUi } = useUiTranslation();
   const [open, setOpen] = useState(false);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
@@ -406,17 +410,21 @@ export function ConversationPresenceCard({
 
   if (characters.length === 0) return <div />;
 
-  const identityPillClass = getChatToolbarButtonClass({
-    compact: true,
-    open,
-    sizeClassName: CHAT_TOOLBAR_IDENTITY_PILL_SIZE_CLASS,
-    className:
-      "min-w-[8.5rem] max-w-[min(20rem,calc(100vw-8rem))] justify-start gap-2 px-2.5 text-[var(--foreground)]/80 hover:text-[var(--foreground)]/90 max-md:min-w-[7.5rem] max-md:max-w-[calc(100vw-5.75rem)]",
-  });
-  const avatarShellClass =
-    "relative block h-5 w-5 overflow-hidden rounded-full ring-1 ring-[var(--border)]/80 max-md:h-6 max-md:w-6";
-  const avatarFallbackClass =
-    "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--foreground)]/10 text-[0.5rem] font-bold text-[var(--foreground)]/70 ring-1 ring-[var(--border)]/80 max-md:h-6 max-md:w-6 max-md:text-[0.5625rem]";
+  const identityPillClass = stacked
+    ? "flex max-w-[min(16rem,50vw)] flex-col items-center gap-0.5 rounded-lg px-2 py-0.5 text-[var(--foreground)] hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+    : getChatToolbarButtonClass({
+        compact: true,
+        open,
+        sizeClassName: CHAT_TOOLBAR_IDENTITY_PILL_SIZE_CLASS,
+        className:
+          "min-w-[8.5rem] max-w-[min(20rem,calc(100vw-8rem))] justify-start gap-2 px-2.5 text-[var(--foreground)]/80 hover:text-[var(--foreground)]/90 max-md:min-w-[7.5rem] max-md:max-w-[calc(100vw-5.75rem)]",
+      });
+  const avatarShellClass = stacked
+    ? "relative block h-9 w-9 overflow-hidden rounded-full ring-2 ring-[var(--background)]"
+    : "relative block h-5 w-5 overflow-hidden rounded-full ring-1 ring-[var(--border)]/80 max-md:h-6 max-md:w-6";
+  const avatarFallbackClass = stacked
+    ? "flex h-9 w-9 items-center justify-center rounded-full bg-[var(--secondary)] text-sm font-semibold text-[var(--muted-foreground)] ring-2 ring-[var(--background)]"
+    : "flex h-5 w-5 items-center justify-center rounded-full bg-[var(--foreground)]/10 text-[0.5rem] font-bold text-[var(--foreground)]/70 ring-1 ring-[var(--border)]/80 max-md:h-6 max-md:w-6 max-md:text-[0.5625rem]";
   const title = characters.map((c) => `${c.name}: ${c.activity || statusLabel(c.status)}`).join(", ");
 
   const saveOverride = async (
@@ -597,7 +605,12 @@ export function ConversationPresenceCard({
                 )}
               />
             </div>
-            <div className="flex min-w-0 flex-1 flex-col items-start text-left leading-tight">
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 flex-col leading-tight",
+                stacked ? "max-w-full items-center text-center" : "items-start text-left",
+              )}
+            >
               <span className="truncate text-[0.75rem] font-semibold text-[var(--foreground)]/90">
                 {characters[0].name}
               </span>
@@ -610,10 +623,14 @@ export function ConversationPresenceCard({
           <>
             <div
               className="relative flex-shrink-0"
-              style={{ width: `${Math.min(characters.length, 3) * 12 + 8}px`, height: 20 }}
+              style={
+                stacked
+                  ? { width: `${Math.min(characters.length, 3) * 24 + 12}px`, height: 36 }
+                  : { width: `${Math.min(characters.length, 3) * 12 + 8}px`, height: 20 }
+              }
             >
               {characters.slice(0, 3).map((character, index) => (
-                <div key={character.id} className="absolute top-0" style={{ left: index * 12 }}>
+                <div key={character.id} className="absolute top-0" style={{ left: index * (stacked ? 24 : 12) }}>
                   {character.avatarUrl ? (
                     <span className={avatarShellClass}>
                       <img
