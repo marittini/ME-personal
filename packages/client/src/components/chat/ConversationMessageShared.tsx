@@ -21,6 +21,7 @@ import { applyInlineMarkdown, renderMarkdownBlocks } from "../../lib/markdown";
 import { RemoteImageGate } from "../../lib/remote-image-placeholder";
 import { resolveSelfCardAssets, type ChatGalleryIndex } from "../../lib/card-asset-links";
 import { renderInlineWithCustomEmojis } from "../../lib/custom-emoji-render";
+import { markQuotedDialogue } from "../../lib/dialogue-render";
 import { renderWithStickerBlocks } from "../../lib/sticker-render";
 import { applyTextareaQuoteFormat } from "../../lib/textarea-quotes";
 import { ImagePromptPanel } from "./ImagePromptPanel";
@@ -461,8 +462,11 @@ export function MessageContent({
   const baseInline = mentionNames?.length
     ? (text: string, kp: string) => highlightMentions(applyInlineMarkdown(text, kp), mentionNames, kp)
     : applyInlineMarkdown;
+  // Quotes get style-neutral TTS anchors so per-line speech controls sit beside each spoken line.
   const renderInline = (text: string, kp: string) =>
-    renderInlineWithCustomEmojis(text, kp, emojiMap ?? EMPTY_INLINE_EMOJI_MAP, baseInline);
+    markQuotedDialogue(text, kp, (segment, key) =>
+      renderInlineWithCustomEmojis(segment, key, emojiMap ?? EMPTY_INLINE_EMOJI_MAP, baseInline),
+    );
   const renderTextBlock = (text: string, kp: string) => (
     <Fragment key={kp}>{renderMarkdownBlocks(text, renderInline)}</Fragment>
   );

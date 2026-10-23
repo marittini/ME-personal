@@ -81,8 +81,8 @@ for (const mode of ["roleplay", "conversation"] as const) {
       ).not.toBe("#ff00ff");
       const speech = workspace.locator(`[data-message-id="${message.id}"]`);
       await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
-      if (mode === "roleplay")
-        await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+      // Each control must sit inside its own spoken line in both modes, never in a row under the message.
+      await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
       await speech.getByRole("button", { name: "1번 대사 음성 생성", exact: true }).click();
       await expect.poll(() => calls.length).toBe(1);
       expect(calls[0]).toContain("First line.");
@@ -130,6 +130,63 @@ for (const mode of ["roleplay", "conversation"] as const) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
     } finally {
       await request.delete(`/api/chats/${chat.id}?force=true`);
+    }
+  });
+}
+for (const mode of ["roleplay", "conversation"] as const) {
+  test(`${mode}: tagged character/persona lines hide wrappers and cues and keep controls beside each line`, async ({
+    page,
+    request,
+  }) => {
+    const card = await (await request.post("/api/characters", { data: { data: { name: "IV" } } })).json();
+    const persona = await (await request.post("/api/characters/personas", { data: { name: "세코" } })).json();
+    const chat = await (
+      await request.post("/api/chats", {
+        data: { name: `태그 검증 ${mode}`, mode, characterIds: [card.id], personaId: persona.id },
+      })
+    ).json();
+    try {
+      await request.patch(`/api/chats/${chat.id}/metadata`, { data: { ttsTaggedDialogue: true } });
+      const content = [
+        "세코는 열쇠를 바라보았다.",
+        `<audio_persona id="${persona.id}">"[calm, flat] ……마음대로 해."</audio_persona>`,
+        "IV는 손목을 놓았다.",
+        `<audio_character id="${card.id}">"[flustered, gruff] ……간다."</audio_character>`,
+      ].join("\n\n");
+      const message = await (
+        await request.post(`/api/chats/${chat.id}/messages`, {
+          data: { role: "assistant", content, characterId: card.id },
+        })
+      ).json();
+      const config = await (await request.get("/api/tts/config")).json();
+      await page.route("**/api/tts/config", (route) =>
+        route.fulfill({
+          json: {
+            ...config,
+            source: "openai",
+            voice: "alloy",
+            enabled: true,
+            voiceAssignments: [{ characterId: card.id, characterName: "IV", voice: "char-voice" }],
+            personaVoiceAssignments: [{ personaId: persona.id, personaName: "세코", voice: "persona-voice" }],
+          },
+        }),
+      );
+      await quiet(page, chat.id);
+      await page.goto("/");
+      const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+      await expect(speech).toContainText("마음대로 해.");
+      await expect(speech).toContainText("간다.");
+      for (const hidden of ["audio_persona", "audio_character", "[calm, flat]", "[flustered, gruff]", persona.id])
+        await expect(speech).not.toContainText(hidden);
+      await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+      await expect(speech.locator("[data-tts-dialogue]").first()).toContainText("마음대로 해.");
+      await page.screenshot({ path: `.tmp/${mode}-tagged-dialogue.png` });
+      const stored = await (await request.get(`/api/chats/${chat.id}/messages`)).json();
+      expect(JSON.stringify(stored)).toContain("[calm, flat]");
+    } finally {
+      await request.delete(`/api/chats/${chat.id}?force=true`);
+      await request.delete(`/api/characters/personas/${persona.id}`);
+      await request.delete(`/api/characters/${card.id}`);
     }
   });
 }

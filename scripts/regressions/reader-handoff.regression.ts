@@ -78,3 +78,10 @@ assert.equal(normalizeReaderPreferences({ indent: 100 }).indent, 4);
 
 assert.deepEqual(splitMessageParagraphs("    code\n\n    more\n\n다음"), ["    code\n\n    more", "다음"]);
 assert.equal(hideTTSAudioCues("```html\n" + encoded), "```html\n" + encoded);
+
+// Quoted references are text, not audio cues; open-vocabulary cues stay hidden when they stand apart.
+assert.equal(hideTTSAudioCues("“[문서 3쪽]을 펼쳐.”"), "“[문서 3쪽]을 펼쳐.”");
+assert.equal(hideTTSAudioCues("“[참조]를 봐.”"), "“[참조]를 봐.”");
+assert.equal(hideTTSAudioCues('"[calm, flat] ……마음대로 해."'), '"……마음대로 해."');
+assert.equal(hideTTSAudioCues('"[flustered, gruff]……간다."'), '"……간다."');
+assert.equal(hideTTSAudioCues('<audio_persona id="p">"[calm, flat]마음대로 해."</audio_persona>'), '"마음대로 해."');
