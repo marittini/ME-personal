@@ -24,8 +24,9 @@ const { backupRoutes, sanitizeProfileTableRows } = await import("../../packages/
 const { importSTChat } = await import("../../packages/server/src/services/import/st-chat.importer.js");
 const { createChatPresetsStorage } = await import("../../packages/server/src/services/storage/chat-presets.storage.js");
 const { createAppSettingsStorage } = await import("../../packages/server/src/services/storage/app-settings.storage.js");
-const { getChatTranslationConfig, TRANSLATOR_DEFAULTS_SETTINGS_KEY } =
-  await import("../../packages/shared/src/index.js");
+const { getChatTranslationConfig, TRANSLATOR_DEFAULTS_SETTINGS_KEY } = await import(
+  "../../packages/shared/src/index.js"
+);
 const schema = await import("../../packages/server/src/db/schema/index.js");
 const { eq } = await import("../../packages/server/src/db/file-query.js");
 
@@ -62,8 +63,7 @@ const assertNoDestinations = (metadata: Row | undefined, where: string) => {
 const assertSettingsKept = (metadata: Row | undefined, where: string) => {
   for (const [key, value] of Object.entries(settings)) assert.equal(metadata?.[key], value, `${where} keeps ${key}`);
 };
-const chatRow = async (id: string) =>
-  ((await db.select().from(schema.chats).where(eq(schema.chats.id, id))) as Row[])[0];
+const chatRow = async (id: string) => ((await db.select().from(schema.chats).where(eq(schema.chats.id, id))) as Row[])[0];
 const chatMeta = async (id: string) => JSON.parse(String((await chatRow(id))?.metadata ?? "{}")) as Row;
 const presetRow = async (id: string) =>
   ((await db.select().from(schema.chatPresets).where(eq(schema.chatPresets.id, id))) as Row[])[0];

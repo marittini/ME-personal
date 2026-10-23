@@ -18,10 +18,7 @@ const entry = (overrides: Record<string, unknown>) => ({
   ...overrides,
 });
 const [byContent, byName] = buildOmnibarLorebookEntryResults({
-  entries: [
-    entry({}),
-    entry({ id: "entry-2", name: "Tide Clock", keys: ["tide"], content: "A brass clock." }),
-  ] as never,
+  entries: [entry({}), entry({ id: "entry-2", name: "Tide Clock", keys: ["tide"], content: "A brass clock." })] as never,
   lorebookNameById: new Map([["book-1", "Port Notes"]]),
   query: "bell",
   t,
@@ -68,9 +65,7 @@ const chatRow = (characterIds: string[]) =>
     connectionById: new Map(),
     personaById: new Map(),
     chatModeLabels: { roleplay: "Roleplay", conversation: "Conversation", game: "Game" } as never,
-    latestMessageByChatId: new Map([
-      ["chat-1", { role: "assistant", content: "We ride out.", characterId: "ayla" }],
-    ]) as never,
+    latestMessageByChatId: new Map([["chat-1", { role: "assistant", content: "We ride out.", characterId: "ayla" }]]) as never,
     t,
     now: Date.parse("2026-01-10T12:05:00.000Z"),
   })[0]!;

@@ -41,14 +41,11 @@ assert.equal(normalizeCardAssetImageSyntax("(portrait)[card://]"), "(portrait)[c
 
 assert.equal(
   extractJannyAstroCharacterProps(
-    `${'<astro-island data-x="x"></astro-island>'.repeat(20_000)}<astro-island props=\"wanted\" component-export=\"CharacterButtons\"></astro-island>`,
+    `${"<astro-island data-x=\"x\"></astro-island>".repeat(20_000)}<astro-island props=\"wanted\" component-export=\"CharacterButtons\"></astro-island>`,
   ),
   "wanted",
 );
-assert.equal(
-  extractJannyAstroCharacterProps('<astro-island props="character fallback"></astro-island>'),
-  "character fallback",
-);
+assert.equal(extractJannyAstroCharacterProps('<astro-island props="character fallback"></astro-island>'), "character fallback");
 assert.equal(
   extractJannyAstroCharacterProps(
     '<astro-island data-props="stale" props="wanted" component-export="CharacterButtons"></astro-island>',
@@ -71,10 +68,13 @@ assert.deepEqual(parseLorebookWriteApprovalText("### Heading only\nBody text"), 
 assert.deepEqual(parseLorebookWriteApprovalText("### Keys only\nKeys: one, two\n\nBody text"), [
   { action: "append", name: "Keys only", content: "Body text", keys: ["one", "two"], tag: "" },
 ]);
-assert.deepEqual(parseLorebookWriteApprovalText("### First\nFirst body\n\n### Second\nKeys: two\n\nSecond body"), [
-  { action: "append", name: "First", content: "First body", keys: [], tag: "" },
-  { action: "append", name: "Second", content: "Second body", keys: ["two"], tag: "" },
-]);
+assert.deepEqual(
+  parseLorebookWriteApprovalText("### First\nFirst body\n\n### Second\nKeys: two\n\nSecond body"),
+  [
+    { action: "append", name: "First", content: "First body", keys: [], tag: "" },
+    { action: "append", name: "Second", content: "Second body", keys: ["two"], tag: "" },
+  ],
+);
 
 const wrappedMessages = [
   { content: `${"\n".repeat(50_000)}  ## Last Message  \nOld` },
@@ -123,10 +123,7 @@ assert.equal(stripGmCommandTags('[map_update: {"a": 1}\nVisible'), "Visible");
 assert.equal(stripGmCommandTags("[map_update:x"), "");
 assert.equal(stripGmCommandTags("[map_update:"), "");
 assert.equal(stripGmCommandTags("[party-turn]A[party-chat]B"), "AB");
-assert.equal(
-  stripGmCommandTags("[note: remember the key]\n[book: chapter text]"),
-  "[note: remember the key]\n[book: chapter text]",
-);
+assert.equal(stripGmCommandTags("[note: remember the key]\n[book: chapter text]"), "[note: remember the key]\n[book: chapter text]");
 assert.equal(
   applySegmentEdits('Narration before   [Miko] [main] [smile]: "Hello"   Narration after', {
     1: { content: "Edited" },
@@ -166,7 +163,10 @@ assert.equal(
   resolveMacros('[\n{{#if {{char}} == "Miko"}}Miko{{else}}Dottore{{/if}} greets Mari.\n]', groupMacroContext),
   "[\nMiko greets Mari.\n]\n[\nDottore greets Mari.\n]",
 );
-assert.equal(resolveMacros("[\n{{group}}\n]", groupMacroContext), "[\nDottore\n]\n[\nMiko\n]");
+assert.equal(
+  resolveMacros("[\n{{group}}\n]", groupMacroContext),
+  "[\nDottore\n]\n[\nMiko\n]",
+);
 assert.equal(resolveMacros("[\n{{ char }}\n]", groupMacroContext), "[\nMiko\n]\n[\nDottore\n]");
 assert.equal(
   resolveMacros(
@@ -184,7 +184,10 @@ assert.ok(
 );
 const nestedCharacterCondition = `[\n{{#if ${"(".repeat(8_000)}char == "Miko"${")".repeat(8_000)}}}Miko{{else}}Dottore{{/if}}\n]`;
 const nestedCharacterStartedAt = performance.now();
-assert.equal(resolveMacros(nestedCharacterCondition, groupMacroContext), "[\nMiko\n]\n[\nDottore\n]");
+assert.equal(
+  resolveMacros(nestedCharacterCondition, groupMacroContext),
+  "[\nMiko\n]\n[\nDottore\n]",
+);
 assert.ok(
   performance.now() - nestedCharacterStartedAt < 1_000,
   "deeply wrapped character conditions should complete within one second",
@@ -212,14 +215,7 @@ assert.equal(
   "F",
   "malformed adjacent operands should not trigger character deferral",
 );
-for (const condition of [
-  "(false))",
-  "(false)))",
-  "(false)) && true",
-  "()false",
-  "char && ()false",
-  "false || ()false",
-]) {
+for (const condition of ["(false))", "(false)))", "(false)) && true", "()false", "char && ()false", "false || ()false"]) {
   assert.equal(
     resolveMacros(`{{#if ${condition}}}T{{else}}F{{/if}}`, groupMacroContext),
     "T",
@@ -244,12 +240,12 @@ const recoveredConditional = resolveMacros(
 );
 const unresolvedMalformedBlock = `${malformedMacroPrefix}{{#if char == "Miko"}}M{{else}}D{{/if}}`;
 assert.equal(recoveredConditional, `[\n${unresolvedMalformedBlock}\n]\n[\n${unresolvedMalformedBlock}\n]`);
-assert.ok(performance.now() - malformedMacroStartedAt < 1_000, "malformed macro prefixes should be scanned only once");
-const unbalancedConditional = '[\n{{#if broken {{#if char == "Miko"}}M{{else}}D{{/if}}\n]';
-assert.equal(
-  resolveMacros(unbalancedConditional, groupMacroContext),
-  `${unbalancedConditional}\n${unbalancedConditional}`,
+assert.ok(
+  performance.now() - malformedMacroStartedAt < 1_000,
+  "malformed macro prefixes should be scanned only once",
 );
+const unbalancedConditional = '[\n{{#if broken {{#if char == "Miko"}}M{{else}}D{{/if}}\n]';
+assert.equal(resolveMacros(unbalancedConditional, groupMacroContext), `${unbalancedConditional}\n${unbalancedConditional}`);
 assert.equal(
   resolveMacros("{{unknown::{{#if false}}A{{else}}B{{/if}}}}", groupMacroContext),
   "{{unknown::{{#if false}}A{{else}}B{{/if}}}}",
@@ -267,10 +263,7 @@ sanitizeFolderSegment("-".repeat(50_000) + "package" + "-".repeat(50_000), "fall
 applySegmentEdits(`Narration${" ".repeat(100_000)}not-a-tag`, { 0: { content: "Edited" } });
 applySegmentEdits(`Narration ${"x [".repeat(50_000)}not-a-tag`, { 0: { content: "Edited" } });
 resolveMacros(`[\n{{#if ${" ".repeat(100_000)}unknown}}text{{/if}}\n]`, groupMacroContext);
-assert.ok(
-  performance.now() - scopedParsingStartedAt < 5_000,
-  "adversarial parsing should complete within five seconds",
-);
+assert.ok(performance.now() - scopedParsingStartedAt < 5_000, "adversarial parsing should complete within five seconds");
 const encodedSpeakerNoise = "&lt;;".repeat(20_000);
 assert.equal(decodeEncodedSpeakerTags(encodedSpeakerNoise), encodedSpeakerNoise);
 assert.equal(decodeEncodedSpeakerTags("&lt;speaker=&quot;Luna&quot;&gt;"), '<speaker="Luna">');

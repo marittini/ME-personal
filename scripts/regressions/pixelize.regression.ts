@@ -33,9 +33,7 @@ function rawImage(width: number, height: number, paint: (x: number, y: number) =
       data[i + 2] = b;
       data[i + 3] = a;
     }
-  return sharp(data, { raw: { width, height, channels: 4 } })
-    .png()
-    .toBuffer() as Promise<Buffer>;
+  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer() as Promise<Buffer>;
 }
 
 async function decodeRaw(png: Buffer): Promise<{ data: Buffer; width: number; height: number }> {
@@ -93,12 +91,7 @@ async function main() {
 
   // 4) Input bounds reject BEFORE allocation, with the typed error.
   const oversized = await sharp({
-    create: {
-      width: PIXELIZE_MAX_INPUT_DIMENSION + 1,
-      height: 8,
-      channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 1 },
-    },
+    create: { width: PIXELIZE_MAX_INPUT_DIMENSION + 1, height: 8, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
   })
     .png()
     .toBuffer();
@@ -134,11 +127,7 @@ async function main() {
     "Error: ENOMEM",
     "unix error: No space left on device",
   ]) {
-    assert.equal(
-      isResourceSharpFailure(resourceMessage),
-      true,
-      `resource failure must pass through: ${resourceMessage}`,
-    );
+    assert.equal(isResourceSharpFailure(resourceMessage), true, `resource failure must pass through: ${resourceMessage}`);
   }
   for (const inputMessage of [
     "Input buffer contains unsupported image format",

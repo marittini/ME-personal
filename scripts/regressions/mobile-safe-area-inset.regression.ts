@@ -64,7 +64,9 @@ const rawConsumers: string[] = [];
 for (const entry of readdirSync(clientSourceRoot, { recursive: true, withFileTypes: true })) {
   if (!entry.isFile() || !/\.(?:tsx?|css)$/u.test(entry.name)) continue;
   const filePath = join(entry.parentPath, entry.name);
-  const stripped = readFileSync(filePath, "utf8").replace(overrideHookPattern, "").replace(cssCommentPattern, "");
+  const stripped = readFileSync(filePath, "utf8")
+    .replace(overrideHookPattern, "")
+    .replace(cssCommentPattern, "");
   if (stripped.includes("env(safe-area-inset-bottom")) {
     rawConsumers.push(filePath.slice(repositoryRoot.length + 1));
   }

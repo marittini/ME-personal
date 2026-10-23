@@ -5,10 +5,7 @@ import {
   registerCapabilityConversationCommand,
   stripCapabilityConversationCommands,
 } from "../../packages/server/src/services/capability-packages/capability-command-registry.service.js";
-import {
-  engineEventOwner,
-  visibleTo,
-} from "../../packages/server/src/services/capability-packages/capability-roleplay-events.service.js";
+import { engineEventOwner, visibleTo } from "../../packages/server/src/services/capability-packages/capability-roleplay-events.service.js";
 
 // Audience filter: public always shows; user-only never reaches a model; a private event shows only when
 // every character the turn can write is in its audience (so a group turn cannot leak it).

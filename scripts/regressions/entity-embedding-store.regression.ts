@@ -66,10 +66,7 @@ await store.updateEmbedding("character", "c1", [0.1, 0.2, 0.3], draculaText);
 // ── Content-hash staleness: editing an embed-relevant field invalidates it ──
 {
   const nextData = { name: "Dracula", description: "a reformed pacifist gardener", tags: ["undead"] };
-  await db
-    .update(characters)
-    .set({ data: JSON.stringify(nextData) })
-    .where(eq(characters.id, "c1"));
+  await db.update(characters).set({ data: JSON.stringify(nextData) }).where(eq(characters.id, "c1"));
   const dracula = (await store.listCandidates("character")).find((c) => c.id === "c1")!;
   assert.match(dracula.embedText, /reformed pacifist gardener/, "embed text reflects the edit");
   assert.equal(dracula.embedding, null, "the stale embedding must read as absent after an embed-relevant edit");
@@ -81,11 +78,7 @@ await store.updateEmbedding("character", "c1", [0.1, 0.2, 0.3], draculaText);
   await store.updateEmbedding("character", "c1", [0.9, 0.8], dracula.embedText);
   assert.deepEqual((await store.listCandidates("character")).find((c) => c.id === "c1")!.embedding, [0.9, 0.8]);
   await store.updateEmbedding("character", "c1", null, dracula.embedText);
-  assert.equal(
-    (await store.listCandidates("character")).find((c) => c.id === "c1")!.embedding,
-    null,
-    "null clears the vector",
-  );
+  assert.equal((await store.listCandidates("character")).find((c) => c.id === "c1")!.embedding, null, "null clears the vector");
 }
 
 // ── A second table (chats) exercises the real db.update path for the flat-column
@@ -117,11 +110,7 @@ await store.updateEmbedding("character", "c1", [0.1, 0.2, 0.3], draculaText);
   const remote = createEntityEmbeddingStore(db, "remote-model-v2");
   const chat = (await local.listCandidates("chat")).find((c) => c.id === "chat1")!;
   await local.updateEmbedding("chat", "chat1", [0.1, 0.2], chat.embedText);
-  assert.deepEqual(
-    (await local.listCandidates("chat")).find((c) => c.id === "chat1")!.embedding,
-    [0.1, 0.2],
-    "same source reads its vector",
-  );
+  assert.deepEqual((await local.listCandidates("chat")).find((c) => c.id === "chat1")!.embedding, [0.1, 0.2], "same source reads its vector");
   assert.equal(
     (await remote.listCandidates("chat")).find((c) => c.id === "chat1")!.embedding,
     null,

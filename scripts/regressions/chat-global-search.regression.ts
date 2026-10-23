@@ -222,10 +222,7 @@ try {
     ["cv-2"],
   );
   assert.equal((await app.inject({ method: "GET", url: "/api/chat-insights/search?q=%20" })).statusCode, 400);
-  const perChatResponse = await app.inject({
-    method: "GET",
-    url: "/api/chat-insights/search?q=moon&perChat=1&limit=5",
-  });
+  const perChatResponse = await app.inject({ method: "GET", url: "/api/chat-insights/search?q=moon&perChat=1&limit=5" });
   assert.deepEqual(
     perChatResponse.json().chats.map((chat: { matches: number }) => chat.matches),
     [3, 1],

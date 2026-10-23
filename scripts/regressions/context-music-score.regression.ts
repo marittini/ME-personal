@@ -2,7 +2,11 @@
 // its keep-current stability contract, and the isolation between context
 // tracks and the legacy state library.
 import assert from "node:assert/strict";
-import { scoreMusic, musicAreaSlug, normalizeMusicEnemyTier } from "../../packages/shared/src/utils/music-score.js";
+import {
+  scoreMusic,
+  musicAreaSlug,
+  normalizeMusicEnemyTier,
+} from "../../packages/shared/src/utils/music-score.js";
 
 const bundled = [
   "music:exploration:fantasy:tense:winding-paths",

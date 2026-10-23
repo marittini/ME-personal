@@ -177,7 +177,11 @@ try {
     // ...and it is what the game now shows (resolveTurnGameAnchor honours the checkpoint_restore
     // system message, so the cloned row is the visible one instead of the post-checkpoint state).
     const afterView = (await getTurnGameView(db, chat.id)) as { marker?: string } | null;
-    assert.equal(afterView?.marker, "checkpoint", "after restore, the turn-game rewinds to the checkpoint-time state");
+    assert.equal(
+      afterView?.marker,
+      "checkpoint",
+      "after restore, the turn-game rewinds to the checkpoint-time state",
+    );
   }
 
   console.log("Game checkpoint engine-state regression checks passed.");

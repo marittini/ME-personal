@@ -24,7 +24,11 @@ assert.equal(parseRetryAfterMs("12"), 12_000, "delta-seconds parse to ms");
 assert.equal(parseRetryAfterMs("0"), 0, "zero seconds is a valid immediate retry");
 assert.equal(parseRetryAfterMs(null), undefined, "absent header yields undefined");
 assert.equal(parseRetryAfterMs("not-a-date"), undefined, "unparseable header yields undefined");
-assert.equal(parseRetryAfterMs("Wed, 21 Oct 1999 07:28:00 GMT"), 0, "a past HTTP-date clamps to 0, never negative");
+assert.equal(
+  parseRetryAfterMs("Wed, 21 Oct 1999 07:28:00 GMT"),
+  0,
+  "a past HTTP-date clamps to 0, never negative",
+);
 
 // ── isRateLimitError classification ───────────────────────────────
 assert.equal(isRateLimitError(new LLMHttpError("x", { status: 429 })), true, "429 is retryable");

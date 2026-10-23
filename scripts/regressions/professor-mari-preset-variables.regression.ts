@@ -16,10 +16,7 @@ import { workspaceCommandProtocolPrompt } from "../../packages/server/src/servic
 const prompt = workspaceCommandProtocolPrompt();
 
 // 1) Guidance names the macro and the "inert until referenced" rule.
-assert.ok(
-  prompt.includes("{{variableName}}"),
-  "guidance must name the {{variableName}} macro so Mari references her variables",
-);
+assert.ok(prompt.includes("{{variableName}}"), "guidance must name the {{variableName}} macro so Mari references her variables");
 assert.ok(
   /does nothing on its own|only takes effect|changes nothing/i.test(prompt),
   "guidance must state a choice block is inert until a section references it",
@@ -27,13 +24,7 @@ assert.ok(
 
 // 2) Every preset.create worked example that defines choiceBlocks must reference each variable in a
 //    section. Examples are one JSON object per line inside the prompt.
-type ExampleCommand = {
-  name?: string;
-  arguments?: {
-    action?: string;
-    data?: { sections?: Array<{ content?: string }>; choiceBlocks?: Array<{ variableName?: string }> };
-  };
-};
+type ExampleCommand = { name?: string; arguments?: { action?: string; data?: { sections?: Array<{ content?: string }>; choiceBlocks?: Array<{ variableName?: string }> } } };
 type Example = { commands?: ExampleCommand[] };
 
 const presetCreateExamples = prompt
@@ -62,9 +53,6 @@ for (const example of presetCreateExamples) {
   }
 }
 
-assert.ok(
-  checkedBlocks > 0,
-  "the preset.create example must define at least one choice block for this to be meaningful",
-);
+assert.ok(checkedBlocks > 0, "the preset.create example must define at least one choice block for this to be meaningful");
 
 console.log("professor-mari preset-variable guidance regression passed");

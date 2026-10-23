@@ -761,11 +761,7 @@ const fighter = buildFor({ level: 1, hp_max: 12 });
   assert.ok(withCatalog.ok, `the test catalog must validate: ${withCatalog.ok ? "" : withCatalog.issues.join("; ")}`);
   const ruleset = withCatalog.definition;
   const catalogs = { spells: ruleset.catalogs![0]!.entries! };
-  const rowsOf = (id: string) =>
-    rowsFromCatalogEntry(
-      "spells",
-      catalogs.spells.find((entry) => entry.id === id)!,
-    );
+  const rowsOf = (id: string) => rowsFromCatalogEntry("spells", catalogs.spells.find((entry) => entry.id === id)!);
   const picked = [...rowsOf("fireball"), ...rowsOf("magic-missile"), ...rowsOf("fire-bolt"), ...rowsOf("second-wind")];
   const rowsFor = (list: string) => picked.filter((row) => row.list === list).map((row) => row.row);
   const wizard = buildFor(
@@ -873,10 +869,7 @@ const fighter = buildFor({ level: 1, hp_max: 12 });
   assert.ok(emberParsed.ok, "the 2d6 example must validate");
   const ember = emberParsed.definition;
   const emberCatalogs = { knacks: ember.catalogs![0]!.entries! };
-  const emberRows = rowsFromCatalogEntry(
-    "knacks",
-    emberCatalogs.knacks.find((entry) => entry.id === "last-ember")!,
-  );
+  const emberRows = rowsFromCatalogEntry("knacks", emberCatalogs.knacks.find((entry) => entry.id === "last-ember")!);
   const vex = recomputeScaledRows(
     ember,
     rulesetSheetBuildSchema.parse({

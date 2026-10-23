@@ -341,11 +341,7 @@ try {
     "true",
     "the persona override toggle must survive export -> import",
   );
-  assert.equal(
-    nativeOverrideRow.imageAppearance,
-    overrideText,
-    "the persona override text must survive export -> import",
-  );
+  assert.equal(nativeOverrideRow.imageAppearance, overrideText, "the persona override text must survive export -> import");
   assert.equal(nativeOverrideRow.appearance, "Prose appearance that image models should not receive.");
 
   // Exports from before this feature carry neither field; those must still import
@@ -673,6 +669,7 @@ try {
     typeof firstPoolIssue?.message === "string" && firstPoolIssue.message.length > 0,
     "the first issue must have a message",
   );
+
 } finally {
   await app?.close();
   if (previousFileStorageDir === undefined) {

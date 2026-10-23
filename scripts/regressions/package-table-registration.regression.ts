@@ -241,7 +241,11 @@ async function preservesMalformedRowsOnRegistration() {
       "the preserved copy still contains the dropped entry",
     );
     await db._fileStore.flush();
-    assert.deepEqual(JSON.parse(readFileSync(shardPath, "utf8")), rows, "the shard is rewritten from the usable rows");
+    assert.deepEqual(
+      JSON.parse(readFileSync(shardPath, "utf8")),
+      rows,
+      "the shard is rewritten from the usable rows",
+    );
   } finally {
     await db._fileStore.close();
     rmSync(sandbox, { recursive: true, force: true });

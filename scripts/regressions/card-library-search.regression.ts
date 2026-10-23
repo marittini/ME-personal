@@ -20,8 +20,14 @@ const characterLibrarySearchDocument = {
   ],
 };
 
-assert.equal(matchesCardLibrarySearch(characterLibrarySearchDocument, parseCardLibrarySearchQuery("pasta devs")), true);
-assert.equal(matchesCardLibrarySearch(characterLibrarySearchDocument, parseCardLibrarySearchQuery("snezhnaya")), true);
+assert.equal(
+  matchesCardLibrarySearch(characterLibrarySearchDocument, parseCardLibrarySearchQuery("pasta devs")),
+  true,
+);
+assert.equal(
+  matchesCardLibrarySearch(characterLibrarySearchDocument, parseCardLibrarySearchQuery("snezhnaya")),
+  true,
+);
 assert.equal(
   matchesCardLibrarySearch(characterLibrarySearchDocument, parseCardLibrarySearchQuery("-tag:villain dottore")),
   false,
@@ -46,6 +52,9 @@ assert.equal(
   matchesCardLibrarySearch(personaLibrarySearchDocument, parseCardLibrarySearchQuery("spicymarinara")),
   true,
 );
-assert.equal(matchesCardLibrarySearch(personaLibrarySearchDocument, parseCardLibrarySearchQuery("formidable")), true);
+assert.equal(
+  matchesCardLibrarySearch(personaLibrarySearchDocument, parseCardLibrarySearchQuery("formidable")),
+  true,
+);
 
 console.info("Card library search regression checks passed.");

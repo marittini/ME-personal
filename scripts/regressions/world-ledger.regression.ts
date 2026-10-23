@@ -337,7 +337,10 @@ const answer = (game: GameWorld, content: string, before: string[] = []) =>
   assert.equal(timed("reputation read", () => readReputationTags("[reputation:".repeat(repeat))).length, 0);
   timed("reputation strip", () => stripReputationTags("[reputation:".repeat(repeat)));
   // A tag after the unclosed openers is still read.
-  assert.equal(readReputationTags("[reputation:".repeat(100) + '[reputation: npc="Mira" action="helped"]').length, 1);
+  assert.equal(
+    readReputationTags("[reputation:".repeat(100) + '[reputation: npc="Mira" action="helped"]').length,
+    1,
+  );
 }
 
 console.log("world ledger: ok");

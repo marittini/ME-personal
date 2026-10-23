@@ -124,10 +124,10 @@ const decoded = deferredConditional.replace(DEFERRED_RELOCATION_CONDITIONAL_TOKE
 assert.equal(decoded, "PRESET", "the decoded branch reads the preset value");
 
 // Each character's bracket block must retain the pending preset claim too.
-const characterBlocks = resolveMacros('[\n{{char}}: {{#if char1 == "Anna"}}PRESET{{else}}CHAT{{/if}}\n]', {
-  ...pendingPresetContext,
-  characterProfiles: [{ name: "Pantalone" }, { name: "Dottore" }],
-});
+const characterBlocks = resolveMacros(
+  '[\n{{char}}: {{#if char1 == "Anna"}}PRESET{{else}}CHAT{{/if}}\n]',
+  { ...pendingPresetContext, characterProfiles: [{ name: "Pantalone" }, { name: "Dottore" }] },
+);
 assert.ok(hasDeferredRelocationConditionals(characterBlocks), "character blocks must defer pending preset values");
 const decodedBlocks = characterBlocks.replace(DEFERRED_RELOCATION_CONDITIONAL_TOKEN_RE, (_match, encoded: string) => {
   const payload = parseDeferredConditionalPayload(encoded);
@@ -197,15 +197,9 @@ assert.equal(resolveMacros("[{{getvar::missing}}]", baseContext({ localVariables
 
 // Bare 21-character identifiers are character references, so they cannot be
 // created as variables that would silently remain unresolved in messages.
-assert.equal(
-  resolveMacros(
-    "{{abcdefghijklmnopqrstu}}",
-    baseContext({
-      localVariables: { abcdefghijklmnopqrstu: "unreadable" },
-    }),
-  ),
-  "{{abcdefghijklmnopqrstu}}",
-);
+assert.equal(resolveMacros("{{abcdefghijklmnopqrstu}}", baseContext({
+  localVariables: { abcdefghijklmnopqrstu: "unreadable" },
+})), "{{abcdefghijklmnopqrstu}}");
 assert.equal(validateChatVariableName("abcdefghijklmnopqrstu"), "reserved");
 assert.equal(validateChatVariableName("abcdefghijklmnopqrst"), null);
 assert.equal(validateChatVariableName("abcdefghijklmnopqrstuv"), null);

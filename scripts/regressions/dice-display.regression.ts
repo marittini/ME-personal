@@ -95,9 +95,8 @@ assert.equal(preRolled.success, true);
 assert.equal(skillCheckDiceSumToTotal(preRolled), true);
 
 function parseSkillCheck(attributes: string, total = 12) {
-  return parseGmTags(
-    `[skill_check: skill="Stealth" dc="10" modifier="0" total="${total}" result="success" ${attributes}]`,
-  ).skillChecks[0];
+  return parseGmTags(`[skill_check: skill="Stealth" dc="10" modifier="0" total="${total}" result="success" ${attributes}]`)
+    .skillChecks[0];
 }
 
 // Explicit invalid notation must not silently become an implicit d20.

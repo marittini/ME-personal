@@ -13,7 +13,10 @@ import {
   serializeMlxRuntimeManifestStamp,
   type RuntimeManifestAsset,
 } from "../../packages/server/src/services/sidecar/runtime-integrity-manifest.js";
-import { downloadFileWithProgress, retry } from "../../packages/server/src/services/sidecar/sidecar-download.js";
+import {
+  downloadFileWithProgress,
+  retry,
+} from "../../packages/server/src/services/sidecar/sidecar-download.js";
 import {
   dependencyAssetDigestsMatch,
   isLlamaRuntimeRecordCurrent,
@@ -64,7 +67,9 @@ assert.equal(
   "a different runtime digest must invalidate the installed stamp",
 );
 
-const dependencySample = LLAMA_CPP_RUNTIME_MANIFEST.entries.find((entry) => (entry.dependencyAssets?.length ?? 0) > 0);
+const dependencySample = LLAMA_CPP_RUNTIME_MANIFEST.entries.find(
+  (entry) => (entry.dependencyAssets?.length ?? 0) > 0,
+);
 assert.ok(dependencySample, "the runtime manifest must retain a dependency-bearing regression fixture");
 const dependencyDigests = dependencySample.dependencyAssets.map((asset) => asset.sha256);
 const dependencyRecord = {

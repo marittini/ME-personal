@@ -93,11 +93,7 @@ try {
   settings = normalizeImageStyleProfileSettings(null);
   newestId = "danbooru";
   for (let copy = 0; copy < 35; copy += 1) ({ settings, id: newestId } = clone(settings, newestId));
-  const deleted = new Set([
-    newestId,
-    settings.profiles[builtInCount + 3]!.id,
-    settings.profiles[builtInCount + 20]!.id,
-  ]);
+  const deleted = new Set([newestId, settings.profiles[builtInCount + 3]!.id, settings.profiles[builtInCount + 20]!.id]);
   settings = normalizeImageStyleProfileSettings({
     ...settings,
     profiles: settings.profiles.filter((profile) => !deleted.has(profile.id)),
