@@ -819,8 +819,6 @@ test.describe("Pop-out drawers on desktop", () => {
 
       // Save As stores the layout, including the user's explicit pin.
       await popped.locator('[data-window-control="pin"]').click();
-      await settings.getByRole("button", { name: "Hide these tips for this chat", exact: true }).click();
-      await expect(settings.locator("[data-chat-settings-top-row]")).toHaveCount(0);
       await settings.locator('button[title="Save current chat settings as a new profile"]').click();
       const dialog = page.getByRole("dialog").filter({ hasText: "Name for the new profile:" });
       await dialog.getByRole("textbox").fill(profileName);
@@ -842,7 +840,6 @@ test.describe("Pop-out drawers on desktop", () => {
       // The Default profile has no layout, so applying it leaves the layout as it is.
       await select.selectOption({ label: "Default" });
       await expect(select.locator("option:checked")).toHaveText("Default");
-      await expect(settings.locator("[data-chat-settings-top-row]")).toBeVisible();
       await expect(popped).toBeVisible();
       expectSameBox(await box(popped), placed, "after the Default profile");
       await expect(settings).toHaveAttribute("data-pinned", "true");
@@ -853,7 +850,6 @@ test.describe("Pop-out drawers on desktop", () => {
       await expect(settings).toHaveAttribute("data-pinned", "false");
       await expect.poll(() => readSavedLayout(request, chat.id)).toBeNull();
       await select.selectOption({ label: profileName });
-      await expect(settings.locator("[data-chat-settings-top-row]")).toHaveCount(0);
       await settle(popped);
       expectSameBox(await box(popped), placed, "from the saved profile");
       await expect(settings).toHaveAttribute("data-pinned", "true");

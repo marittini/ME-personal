@@ -59,3 +59,12 @@ owner asks.
   roleplay/conversation (10 s `page.goto`), its game case (Game mode removed), and `reader-handoff.e2e.ts`
   "selection saves, edits …" (60 s test limit).
 - Korean download file names in E2E need `LANG=C.UTF-8 LC_ALL=C.UTF-8` (the sandbox has no locale).
+- Fail on `main` too (2026-10-24): `core-flows.e2e.ts` "Character and Persona avatar actions stay separated"; on
+  mobile `ux-feedback-sweep.e2e.ts` achievement highlights, Appearance groups, Background library, home library cards
+  and the game background picker; tests that create Game chats (Game mode removed), e.g. most of `phone-bubbles.e2e.ts`
+  and several `chat-settings-window.e2e.ts` / `drawer-popout.e2e.ts` cases.
+- Chat Settings shows one tab at a time (채팅 설정 · 컨텍스트 · 기억 · 기타): tests open the tab first
+  (`openChatSettingsTab` in `e2e/chat-settings-tools.ts`) and wait for `[data-chat-settings-section]:visible`.
+- A dev server that rebuilt `packages/shared/dist` during a run reloads open pages: tests then fail with "element(s)
+  not found" or a store import that no longer matches the page. Restart the E2E servers and rerun before treating
+  that as a regression. On phones, message tools show on a tap, not a hover.
