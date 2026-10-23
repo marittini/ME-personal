@@ -126,21 +126,26 @@ export function DialogueSpeechControls({
       return;
     }
     const owner = document.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`);
-    const quotes = owner
-      ? [...owner.querySelectorAll<HTMLElement>("[data-tts-dialogue]")].filter((node) => !!node.getClientRects().length)
-      : [];
-    const bubbles = owner
-      ? [...owner.querySelectorAll<HTMLElement>("[data-tts-conversation-content]")].filter(
-          (node) => !!node.getClientRects().length,
-        )
-      : [];
+    const visible = (selector: string) =>
+      owner ? [...owner.querySelectorAll<HTMLElement>(selector)].filter((node) => !!node.getClientRects().length) : [];
+    const quotes = visible("[data-tts-dialogue]");
+    // Original lines first; a shown translation is only used when it alone lines up (translation-only view).
+    const originalQuotes = quotes.filter((node) => !node.closest(".translation-text"));
+    const translatedQuotes = quotes.filter((node) => node.closest(".translation-text"));
+    const bubbles = visible("[data-tts-conversation-content]");
+    const conversation = chat?.mode === "conversation";
     // Count/order must agree. A compact control row is safer than guessing a translated speaker.
     const anchors =
-      quotes.length === groups.length
-        ? quotes
-        : chat?.mode === "conversation" && bubbles.length === groups.length
-          ? bubbles
-          : [];
+      originalQuotes.length === groups.length
+        ? originalQuotes
+        : translatedQuotes.length === groups.length
+          ? translatedQuotes
+          : conversation && bubbles.length === groups.length
+            ? bubbles
+            : // A conversation reply without quotes is one spoken line; its control follows the last bubble.
+              conversation && groups.length === 1 && !quotes.length && bubbles.length
+              ? [bubbles[bubbles.length - 1]!]
+              : [];
     const hosts = anchors.map((node) => {
       const host = document.createElement("span");
       host.dataset.ttsControlHost = "";

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { matchParagraphTranslations, splitMessageParagraphs } from "@marinara-engine/shared";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useTranslateParagraph, useSaveParagraphTranslation } from "../../hooks/use-paragraph-translation";
@@ -21,17 +22,16 @@ export function ParagraphTranslationPanel({
   const { t } = useTranslation();
   const translate = useTranslateParagraph(chatId);
   const save = useSaveParagraphTranslation(chatId);
-  const source = text.split(/\n{2,}/);
-  const translated = translation?.split(/\n{2,}/);
-  const initial = () => (translated?.length === source.length ? translated : source.map(() => ""));
+  // Same boundaries as the displayed bubbles (code fences, lists and quotes stay whole), so saved rows align.
+  const source = splitMessageParagraphs(text);
+  const initial = () => matchParagraphTranslations(source, translation) ?? source.map(() => "");
   const [values, setValues] = useState(initial);
   const [busy, setBusy] = useState<number | null>(null);
   const version = useRef(0);
   useEffect(() => {
     version.current++;
-    const count = text.split(/\n{2,}/).length;
-    const rows = translation?.split(/\n{2,}/);
-    setValues(rows?.length === count ? rows : Array.from({ length: count }, () => ""));
+    const rows = splitMessageParagraphs(text);
+    setValues(matchParagraphTranslations(rows, translation) ?? rows.map(() => ""));
     setBusy(null);
     return () => {
       version.current++;

@@ -123,6 +123,7 @@ export * from "./schemas/home-widget.schema.js";
 // Constants
 export * from "./constants/providers.js";
 export * from "./constants/defaults.js";
+export * from "./constants/translation-presets.js";
 export * from "./constants/chat-mode-agent-policy.js";
 export * from "./constants/model-lists.js"; // also exports IMAGE_GENERATION_SOURCES
 export * from "./constants/generation-parameter-relevance.js";
@@ -301,3 +302,5 @@ export * from "./schemas/native-integrations.schema.js";
 export * from "./utils/message-paragraphs.js";
 
 export * from "./schemas/reader-excerpt.schema.js";
+export * from "./schemas/excerpt-appearance.schema.js";
+export * from "./schemas/reader-notes.schema.js";

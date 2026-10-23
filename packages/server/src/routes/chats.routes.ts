@@ -13,6 +13,8 @@ import {
   MAX_CHAT_VARIABLE_VALUE_LENGTH,
   validateChatVariableName,
   readerExcerptsSchema,
+  readerHighlightsSchema,
+  readerBookmarksSchema,
   createChatSchema,
   createMessageSchema,
   appendChatSummaryEntryToMetadata,
@@ -1627,6 +1629,15 @@ export async function chatsRoutes(app: FastifyInstance) {
       const parsed = readerExcerptsSchema.safeParse(incoming.readerExcerpts);
       if (!parsed.success) return reply.status(400).send({ error: "Invalid reader excerpts" });
       incoming.readerExcerpts = parsed.data;
+    }
+    for (const [key, schema] of [
+      ["readerHighlights", readerHighlightsSchema],
+      ["readerBookmarks", readerBookmarksSchema],
+    ] as const) {
+      if (!Object.hasOwn(incoming, key)) continue;
+      const parsed = schema.safeParse(incoming[key]);
+      if (!parsed.success) return reply.status(400).send({ error: "Invalid reader notes" });
+      incoming[key] = parsed.data;
     }
     const summaryRetrievalFieldSchemas = {
       semanticSummaryRecentCount: semanticSummaryRetrievalSettingsSchema.shape.semanticSummaryRecentCount,

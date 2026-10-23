@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  BUILTIN_TRANSLATION_PRESETS,
+  TRANSLATION_PRESET_V2_UPGRADES,
   nativeIntegrationsSchema,
   translationRoomSchema,
   weatherLocationSchema,
@@ -23,12 +25,25 @@ export function importNativeIntegrationBackup(
       .array(z.object({ id: z.string(), name: z.string(), prompt: z.string() }))
       .max(200)
       .parse(data.presets ?? []);
+    // Built-ins ship with the engine, so their ids always resolve and are never stored as custom presets.
+    const builtinIds = new Set(BUILTIN_TRANSLATION_PRESETS.map((preset) => preset.id));
+    const remap = new Map<string, string>();
     const known = new Map(next.translation.presets.map((preset) => [preset.id, preset]));
     for (const preset of imported) {
-      const previous = known.get(preset.id);
+      const id = preset.id.trim();
+      if (!id || !preset.name.trim() || !preset.prompt.trim() || builtinIds.has(id)) continue;
+      // A saved copy of a prompt that later became a v2 built-in maps onto that built-in (extension 1.6.x upgrade).
+      const v2 = TRANSLATION_PRESET_V2_UPGRADES.find((row) => row.sourceId === id);
+      const builtin = v2 && BUILTIN_TRANSLATION_PRESETS.find((row) => row.id === v2.id);
+      if (builtin && builtin.name === preset.name.trim() && builtin.prompt === preset.prompt) {
+        remap.set(id, builtin.id);
+        continue;
+      }
+      const previous = known.get(id);
       if (previous && previous.prompt !== preset.prompt)
         throw new Error("Conflicting preset ID; rename before importing");
-      known.set(preset.id, { ...preset, targetLanguage: "Korean" });
+      // Custom presets replaced the chat prompt in the extension; the language follows the chat unless set.
+      known.set(id, { ...previous, id, name: preset.name.trim(), prompt: preset.prompt, replace: true });
     }
     next.translation.presets = [...known.values()];
     const scope = (value: unknown) => {
@@ -41,7 +56,10 @@ export function importNativeIntegrationBackup(
           target: line.slice(line.indexOf("=") + 1).trim(),
           notes: "",
         }));
-      const resolve = (id: unknown) => (known.has(string(id)) ? string(id) : null);
+      const resolve = (value: unknown) => {
+        const id = remap.get(string(value)) ?? string(value);
+        return known.has(id) || builtinIds.has(id) ? id : null;
+      };
       return translationRoomSchema.parse({
         presetId: resolve(old.incomingPresetId),
         outgoingPresetId: resolve(old.outgoingPresetId),
@@ -49,10 +67,13 @@ export function importNativeIntegrationBackup(
         style: old.incomingVoiceEnabled ? string(old.incomingVoicePrompt) : "",
         freeContext: old.freeContextEnabled ? string(old.freeContext) : "",
         loreEntries: old.freeContextEnabled ? (old.loreEntries ?? []) : [],
-        contextMessages: old.contextEnabled ? Number(old.contextMessageCount ?? 3) : 0,
+        // Same defaults and 1-10 range as the extension's normalizeScope.
+        contextMessages: old.contextEnabled
+          ? Math.min(10, Math.max(1, Number.parseInt(String(old.contextMessageCount ?? ""), 10) || 3))
+          : 0,
         contextIncludeOriginal: old.contextIncludeOriginal !== false,
-        contextIncludeTranslation: old.contextIncludeTranslation === true,
-        contextIncludeUserInput: old.contextIncludeUserInput !== false,
+        contextIncludeTranslation: old.contextIncludeTranslation !== false,
+        contextIncludeUserInput: old.contextIncludeUserInput === true,
       });
     };
     if (data.type === "chat") {
