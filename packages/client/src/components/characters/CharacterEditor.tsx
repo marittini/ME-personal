@@ -2626,127 +2626,134 @@ function MetadataTab({
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-          {t("editor.avatar.label")}
-          <HelpTooltip text={t("editor.avatar.character.help")} />
-        </span>
-
-        {/* Avatar Crop */}
-        {avatarPreview && (
-          <AvatarCropWidget
-            src={avatarPreview}
-            alt={formData.name}
-            crop={savedCrop}
-            onChange={(next) => updateExtension("avatarCrop", next)}
-            onRemove={onRemoveAvatar}
-            removing={removingAvatar}
-          />
-        )}
-
-        <AvatarReplaceActions
-          hasAvatar={Boolean(avatarPreview)}
-          uploading={avatarUploading}
-          generationAvailable={imageGenerationAvailable}
-          onUpload={onSelectAvatar}
-          onGenerate={onGenerateAvatar}
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-1.5 sm:col-span-2">
+      {/* Profile sheet: portrait beside the key facts as a table (stacked on phones). Same fields as before. */}
+      <div className="mari-profile-sheet" data-profile-sheet="character">
+        <div className="mari-profile-sheet__portrait space-y-1.5">
           <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.characters.metadatatab.name")}{" "}
-            <HelpTooltip text={localizeUi("ui.characters.metadatatab.theCharacterSDisplayNameThisIsWhatAppears")} />
+            {t("editor.avatar.label")}
+            <HelpTooltip text={t("editor.avatar.character.help")} />
           </span>
-          <input
-            value={formData.name}
-            onChange={(e) => updateField("name", e.target.value)}
-            onBlur={() => {
-              const trimmedName = formData.name.trim();
-              if (trimmedName !== formData.name) updateField("name", trimmedName);
-            }}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-          />
-        </label>
-        <label className="space-y-1.5 sm:col-span-2">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.characters.metadatatab.titleComment")}{" "}
-            <HelpTooltip text={localizeUi("ui.characters.metadatatab.aShortNoteShownUnderTheCharacterNameIn")} />
-          </span>
-          <input
-            value={characterComment}
-            onChange={(e) => updateCharacterComment(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            placeholder={localizeUi("ui.characters.metadatatab.modernAuVersion")}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.characters.metadatatab.creator")}{" "}
-            <HelpTooltip text={localizeUi("ui.characters.metadatatab.thePersonWhoMadeThisCharacterUsefulForGiving")} />
-          </span>
-          <input
-            value={formData.creator}
-            onChange={(e) => updateField("creator", e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            placeholder={localizeUi("ui.characters.metadatatab.yourName")}
-          />
-        </label>
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.characters.metadatatab.version")}{" "}
-              <HelpTooltip
-                text={localizeUi("ui.characters.metadatatab.versionNumberForTrackingChangesToThisCharacterDefinition")}
-              />
-            </span>
-            <SettingsSwitch
-              checked={formData.extensions.versioningEnabled !== false}
-              onChange={(enabled) => {
-                updateExtension("versioningEnabled", enabled);
-                if (enabled && !formData.character_version.trim()) updateField("character_version", "1.0");
-              }}
-              label={localizeUi("ui.cardversionhistory.automaticVersioning")}
-              labelPosition="end"
-              title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
-              className="min-h-11 gap-2 rounded-md px-1 py-0"
-              labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
+
+          {/* Avatar Crop */}
+          {avatarPreview && (
+            <AvatarCropWidget
+              src={avatarPreview}
+              alt={formData.name}
+              crop={savedCrop}
+              onChange={(next) => updateExtension("avatarCrop", next)}
+              onRemove={onRemoveAvatar}
+              removing={removingAvatar}
             />
-          </div>
-          <input
-            value={formData.character_version}
-            onChange={(e) => updateField("character_version", e.target.value)}
-            disabled={formData.extensions.versioningEnabled === false}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="1.0"
-          />
-          <CharacterVersionHistoryPanel
-            characterId={characterId}
-            currentData={formData}
-            currentComment={characterComment}
-            currentAvatarPath={avatarPreview}
-            hasUnsavedChanges={hasUnsavedChanges}
+          )}
+
+          <AvatarReplaceActions
+            hasAvatar={Boolean(avatarPreview)}
+            uploading={avatarUploading}
+            generationAvailable={imageGenerationAvailable}
+            onUpload={onSelectAvatar}
+            onGenerate={onGenerateAvatar}
           />
         </div>
-        <label className="space-y-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.characters.metadatatab.talkativeness")}{" "}
-            <HelpTooltip text={localizeUi("ui.characters.metadatatab.howOftenThisCharacterSpeaksInGroupChats0")} />
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={formData.extensions.talkativeness}
-            onChange={(e) => updateExtension("talkativeness", parseFloat(e.target.value))}
-            className="w-full accent-[var(--primary)]"
-          />
-          <span className="text-[0.625rem] text-[var(--muted-foreground)]">
-            {Math.round(formData.extensions.talkativeness * 100)}%
-          </span>
-        </label>
+
+        <div className="mari-profile-sheet__fields grid gap-4 sm:grid-cols-2">
+          <label className="space-y-1.5 sm:col-span-2">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.characters.metadatatab.name")}{" "}
+              <HelpTooltip text={localizeUi("ui.characters.metadatatab.theCharacterSDisplayNameThisIsWhatAppears")} />
+            </span>
+            <input
+              value={formData.name}
+              onChange={(e) => updateField("name", e.target.value)}
+              onBlur={() => {
+                const trimmedName = formData.name.trim();
+                if (trimmedName !== formData.name) updateField("name", trimmedName);
+              }}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+            />
+          </label>
+          <label className="space-y-1.5 sm:col-span-2">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.characters.metadatatab.titleComment")}{" "}
+              <HelpTooltip text={localizeUi("ui.characters.metadatatab.aShortNoteShownUnderTheCharacterNameIn")} />
+            </span>
+            <input
+              value={characterComment}
+              onChange={(e) => updateCharacterComment(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.characters.metadatatab.modernAuVersion")}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.characters.metadatatab.creator")}{" "}
+              <HelpTooltip
+                text={localizeUi("ui.characters.metadatatab.thePersonWhoMadeThisCharacterUsefulForGiving")}
+              />
+            </span>
+            <input
+              value={formData.creator}
+              onChange={(e) => updateField("creator", e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.characters.metadatatab.yourName")}
+            />
+          </label>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.characters.metadatatab.version")}{" "}
+                <HelpTooltip
+                  text={localizeUi(
+                    "ui.characters.metadatatab.versionNumberForTrackingChangesToThisCharacterDefinition",
+                  )}
+                />
+              </span>
+              <SettingsSwitch
+                checked={formData.extensions.versioningEnabled !== false}
+                onChange={(enabled) => {
+                  updateExtension("versioningEnabled", enabled);
+                  if (enabled && !formData.character_version.trim()) updateField("character_version", "1.0");
+                }}
+                label={localizeUi("ui.cardversionhistory.automaticVersioning")}
+                labelPosition="end"
+                title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
+                className="min-h-11 gap-2 rounded-md px-1 py-0"
+                labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
+              />
+            </div>
+            <input
+              value={formData.character_version}
+              onChange={(e) => updateField("character_version", e.target.value)}
+              disabled={formData.extensions.versioningEnabled === false}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="1.0"
+            />
+            <CharacterVersionHistoryPanel
+              characterId={characterId}
+              currentData={formData}
+              currentComment={characterComment}
+              currentAvatarPath={avatarPreview}
+              hasUnsavedChanges={hasUnsavedChanges}
+            />
+          </div>
+          <label className="space-y-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.characters.metadatatab.talkativeness")}{" "}
+              <HelpTooltip text={localizeUi("ui.characters.metadatatab.howOftenThisCharacterSpeaksInGroupChats0")} />
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={formData.extensions.talkativeness}
+              onChange={(e) => updateExtension("talkativeness", parseFloat(e.target.value))}
+              className="w-full accent-[var(--primary)]"
+            />
+            <span className="text-[0.625rem] text-[var(--muted-foreground)]">
+              {Math.round(formData.extensions.talkativeness * 100)}%
+            </span>
+          </label>
+        </div>
       </div>
 
       {/* Tags */}

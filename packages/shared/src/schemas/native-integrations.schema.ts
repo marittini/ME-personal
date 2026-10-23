@@ -16,8 +16,18 @@ export const glossaryEntrySchema = z.object({
   notes: z.string().max(1000).default(""),
 });
 export const translationRoomSchema = z.object({
+  /** Incoming (character response) preset; the chosen prompt is written into the chat's own prompt field. */
   presetId: id.nullable().default(null),
   outgoingPresetId: id.nullable().default(null),
+  /** Set once the room is saved from the in-section panel: presets live in the chat's prompts, not on the server. */
+  presetsInNative: z.boolean().optional(),
+  /** The chat's own prompts before a preset replaced them, restored by "채팅 설정 유지". */
+  incomingOriginalPrompt: z.string().max(100000).optional(),
+  outgoingOriginalPrompt: z.string().max(100000).optional(),
+  /** Unset on older rooms: the section counts as on when it has content. */
+  voiceEnabled: z.boolean().optional(),
+  freeContextEnabled: z.boolean().optional(),
+  contextEnabled: z.boolean().optional(),
   glossary: z.array(glossaryEntrySchema).max(500).default([]),
   style: z.string().max(10000).default(""),
   freeContext: z.string().max(30000).default(""),

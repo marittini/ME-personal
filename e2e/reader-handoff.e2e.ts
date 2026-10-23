@@ -162,7 +162,7 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "읽기 설정", exact: true }).click();
     await page.getByRole("combobox", { name: "글꼴", exact: true }).selectOption("@serif");
-    await page.getByRole("spinbutton", { name: "문단 들여쓰기 (em)", exact: true }).fill("1.5");
+    await page.getByRole("slider", { name: "문단 들여쓰기", exact: true }).fill("1.5");
     await page.keyboard.press("Tab");
     await page.keyboard.press("Escape");
     await page.reload();
@@ -237,10 +237,7 @@ async function selectText(page: Page, messageId: string, text: string) {
     { messageId, text },
   );
 }
-test("reading notes: colored highlights, private memos, bookmarks and excerpt cards from notes", async ({
-  page,
-  request,
-}) => {
+test("reading notes: colored highlights, private memos and excerpt cards from notes", async ({ page, request }) => {
   // An unreachable fixture connection lets the dry run build the real prompt without calling a model.
   const connection = await (
     await request.post("/api/connections", {
@@ -301,7 +298,8 @@ test("reading notes: colored highlights, private memos, bookmarks and excerpt ca
     expect(prompt).not.toContain("나만 보는 비밀 메모");
 
     await page.reload();
-    await expect.poll(() => painted("reader-note-b")).toBe(1);
+    // A reload recompiles the roleplay surface in a cold dev server; allow it the time a page open gets.
+    await expect.poll(() => painted("reader-note-b"), { timeout: 30_000 }).toBe(1);
     await expect.poll(() => painted("reader-note-g")).toBe(1);
     // Tapping the memo sentence opens it again, like a novel reader.
     const point = await page.evaluate(() => {
@@ -319,15 +317,26 @@ test("reading notes: colored highlights, private memos, bookmarks and excerpt ca
     );
     await page.keyboard.press("Escape");
 
-    await workspace.getByRole("button", { name: "여기에 책갈피 꽂기", exact: true }).click();
-    await expect.poll(async () => (await metadata()).readerBookmarks?.[0]?.messageId).toBe(message.id);
+    // The reader bar keeps only back, title, notes, focus and settings (owner request 2026-10-23).
+    await expect(workspace.locator("header button")).toHaveCount(4);
     await workspace.getByRole("button", { name: "독서 노트", exact: true }).click();
     const notes = page.getByRole("dialog", { name: "독서 노트", exact: true });
     await expect(notes.getByText("나만 보는 비밀 메모", { exact: true })).toBeVisible();
-    await notes.getByRole("tab", { name: /책갈피/ }).click();
-    await expect(notes.getByRole("button", { name: "이 위치로 이동", exact: true })).toBeVisible();
+    await expect(notes.getByRole("tab")).toHaveText([/전체/, /형광펜/, /메모/, /발췌 카드/, /메시지 북마크/]);
+    // Novel-reader list: grouped by message, color dot + sentence, memo box, footer with message and menu.
+    await expect(notes.getByRole("heading", { name: "1번째 메시지", exact: true })).toBeVisible();
+    await expect(notes.locator("[data-reader-note]")).toHaveCount(2);
+    await expect(notes.locator("[data-reader-note]").first()).toContainText("첫 문장은 분홍으로 칠합니다.");
+    await expect(notes.locator("[data-reader-note]").nth(1)).toContainText("1번 메시지");
+    await notes.getByRole("tab", { name: /메모/ }).click();
+    await expect(notes.locator("[data-reader-note]")).toHaveCount(1);
+    await notes.getByRole("tab", { name: /전체/ }).click();
+    await notes.locator("[data-reader-note]").first().getByRole("button", { name: "더보기", exact: true }).click();
+    await expect(notes.getByRole("menu")).toContainText("발췌 카드로 만들기");
     await page.screenshot({ path: ".tmp/reading-notes.png" });
-    await notes.getByRole("tab", { name: /형광펜/ }).click();
+    await notes.getByRole("menu").getByRole("menuitem", { name: "본문으로 이동" }).click();
+    await expect(notes).toBeHidden();
+    await workspace.getByRole("button", { name: "독서 노트", exact: true }).click();
     await notes.getByRole("button", { name: "메모 편집", exact: true }).click();
     await editor.getByRole("button", { name: "형광펜 삭제", exact: true }).click();
     await page
@@ -374,7 +383,7 @@ test("paragraph translation editor uses the reader's paragraph boundaries and sa
     await request.delete(`/api/chats/${chat.id}?force=true`);
   }
 });
-test("translation presets and glossary are reachable inside native chat translation settings", async ({
+test("translation presets write into the native prompt fields and the panel saves its glossary", async ({
   page,
   request,
 }) => {
@@ -382,42 +391,47 @@ test("translation presets and glossary are reachable inside native chat translat
   const chat = await (
     await request.post("/api/chats", { data: { name: "번역 진입 검증", mode: "conversation", characterIds: [] } })
   ).json();
+  await request.patch(`/api/chats/${chat.id}/metadata`, { data: { translationProvider: "ai" } });
+  const metadata = async () => (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata;
+  const room = async () =>
+    (await (await request.get("/api/native-integrations/settings")).json()).translation.rooms[chat.id];
   try {
     await open(page, chat.id);
-    await page.getByRole("button", { name: "엔진 도구 보기", exact: true }).click();
     await page.locator("[data-chat-settings-button]").click();
     const section = page.locator('[data-chat-settings-section="translation"]');
     await section.locator("[data-drawer-toggle]").click();
-    await page.locator('[data-component="TranslationIntegratedTools"] summary').click();
-    await page.getByRole("button", { name: "프리셋 추가", exact: true }).click();
-    await page.getByRole("textbox", { name: "프리셋 이름", exact: true }).fill("한국어 검증");
-    await page.getByRole("button", { name: "단어 추가", exact: true }).click();
-    await page.getByRole("textbox", { name: "원어", exact: true }).fill("Alice");
-    await page.getByRole("textbox", { name: "번역어", exact: true }).fill("앨리스");
-    // Built-in presets from the translation extension are selectable for incoming and outgoing translation.
-    const tools = page.locator('[data-component="TranslationIntegratedTools"]');
-    await tools.getByRole("combobox", { name: "번역 프리셋", exact: true }).selectOption({ label: "자연스러운 RP" });
-    await tools
-      .getByRole("combobox", { name: "입력 번역 프리셋", exact: true })
-      .selectOption("builtin-literary-roleplay-input");
-    await expect(tools.getByRole("combobox", { name: "번역 프리셋", exact: true }).locator("option")).toHaveCount(
-      1 + 15 + 1,
-    );
-    await tools.getByRole("button", { name: "저장", exact: true }).click();
+    // The panel sits inside the native section, as the extension placed it (no separate form to open).
+    const panel = section.locator('[data-component="TranslationPresetPanel"]');
+    await expect(panel.getByRole("heading", { name: "번역 프롬프트", exact: true })).toBeVisible();
+    const incoming = panel.getByRole("combobox", { name: "캐릭터 응답 번역 프롬프트 프리셋", exact: true });
+    await expect(incoming.locator("option")).toHaveCount(16);
+    await incoming.selectOption({ label: "자연스러운 RP" });
+    await expect(panel.getByRole("status")).toHaveText("캐릭터 응답 번역 프롬프트에 적용했습니다.");
+    // The chosen prompt is what the native field shows and what the chat stores.
+    const nativeIncoming = section.locator("textarea").nth(1);
+    await expect(nativeIncoming).toHaveValue(/^You are an expert literary and roleplay translator/);
     await expect
-      .poll(
-        async () =>
-          (await (await request.get("/api/native-integrations/settings")).json()).translation.rooms[chat.id]
-            ?.glossary[0]?.target,
-      )
-      .toBe("앨리스");
+      .poll(async () => (await metadata()).translationOutputPrompt)
+      .toMatch(/^You are an expert literary and roleplay translator/);
+    await expect.poll(async () => (await room())?.presetId).toBe("builtin-roleplay");
+    expect((await room()).presetsInNative).toBe(true);
+    // "채팅 설정 유지" restores the prompt the field had before the preset.
+    await incoming.selectOption({ label: "채팅 설정 유지" });
+    await expect.poll(async () => (await metadata()).translationOutputPrompt ?? null).toBeNull();
+    await expect.poll(async () => (await room())?.presetId).toBeNull();
+
+    await panel.getByRole("button", { name: "+ 단어 추가", exact: true }).click();
+    await panel.getByRole("textbox", { name: "원문 단어", exact: true }).fill("Alice");
+    await panel.getByRole("textbox", { name: "번역 단어", exact: true }).fill("앨리스");
+    await panel.getByRole("button", { name: "새 프리셋", exact: true }).click();
+    await panel.getByRole("textbox", { name: "프리셋 이름", exact: true }).fill("한국어 검증");
+    await panel.getByRole("button", { name: "저장", exact: true }).click();
+    await expect.poll(async () => (await room())?.glossary[0]?.target).toBe("앨리스");
     const saved = (await (await request.get("/api/native-integrations/settings")).json()).translation;
-    expect(saved.rooms[chat.id].presetId).toBe("builtin-roleplay");
-    expect(saved.rooms[chat.id].outgoingPresetId).toBe("builtin-literary-roleplay-input");
-    const added = saved.presets.find((preset: { name: string }) => preset.name === "한국어 검증");
-    expect(added.replace).toBe(true);
-    expect(added.targetLanguage).toBeUndefined();
-    await page.screenshot({ path: ".tmp/translation-builtin-presets.png" });
+    expect(saved.presets.find((preset: { name: string }) => preset.name === "한국어 검증")?.replace).toBe(true);
+    await expect(incoming.locator("option", { hasText: "사용자 정의 · 한국어 검증" })).toHaveCount(1);
+    await panel.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: ".tmp/translation-panel.png", fullPage: false });
   } finally {
     const latest = await (await request.get("/api/native-integrations/settings")).json();
     await request.put("/api/native-integrations/settings", { data: { ...snapshot, revision: latest.revision } });
@@ -577,17 +591,28 @@ test("reading index retains order and opens the stored work in both themes", asy
       rooms.push({ ...chat, messageId: message.id });
     }
     await open(page, rooms[0]!.id);
-    await page.evaluate(async (rows) => {
-      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
-      useUIStore.setState({
+    // Seeded through the persisted UI state: a store module imported from the test can be a different instance
+    // from the app's once the dev server has hot-reloaded it.
+    await seedUIState(
+      page,
+      {
+        hasCompletedOnboarding: true,
+        sidebarOpen: false,
+        rightPanelOpen: false,
+        language: "ko",
+        chatHelpSeenModes: ["roleplay", "conversation"],
         readerPositions: Object.fromEntries(
-          rows.map((row, index) => [
+          rooms.map((row, index) => [
             row.id,
-            { messageId: row.messageId, messageNumber: 1, offset: 0, updatedAt: `2026-10-22T0${index + 1}:00:00.000Z` },
+            // Future times: leaving the open room saves its position "now", which must not reorder the seeded ones.
+            { messageId: row.messageId, messageNumber: 1, offset: 0, updatedAt: `2099-10-22T0${index + 1}:00:00.000Z` },
           ]),
         ),
-      });
-    }, rooms);
+      },
+      "merge",
+    );
+    await page.reload();
+    await expect(page.locator('[data-component="ReaderWorkspace"]')).toHaveAttribute("data-reader-enabled", "true");
     await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
     await page.getByRole("button", { name: "서재로 돌아가기", exact: true }).click();
     await page
@@ -611,5 +636,203 @@ test("reading index retains order and opens the stored work in both themes", asy
     await expect(page.locator('[data-component="ReaderWorkspace"]')).toContainText("기록 본문 2");
   } finally {
     for (const room of rooms) await request.delete(`/api/chats/${room.id}?force=true`);
+  }
+});
+test("convo: messenger header, avatar on top, translations outside bubbles with markdown, size offset and bubble colors", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "하나" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "메신저 검증", mode: "conversation", characterIds: [card.id] } })
+  ).json();
+  try {
+    const content = "첫 줄입니다.\n\n둘째 줄입니다.";
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", content, characterId: card.id },
+      })
+    ).json();
+    await request.patch(`/api/chats/${chat.id}/messages/${message.id}/extra`, {
+      data: { translation: "*First* line.\n\n**Second** line.", translationSource: content, translationHidden: false },
+    });
+    await open(page, chat.id);
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const header = workspace.locator('header[data-reader-header="messenger"]');
+    // The Convo identity (avatar, name, status menu) moves into the header instead of a second bar.
+    await expect(header.locator("[data-reader-contact] [data-conversation-header-identity]")).toContainText("하나");
+    await expect(page.locator("[data-conversation-header-identity]")).toHaveCount(1);
+    const row = workspace.locator(`[data-message-id="${message.id}"]`);
+    const bubbles = row.locator(".texting-bubble");
+    await expect(bubbles).toHaveCount(2);
+    // Translations sit under each bubble, outside its background, and keep markdown.
+    const translations = row.locator('[data-conversation-translation="outside"]');
+    await expect(translations).toHaveCount(2);
+    await expect(row.locator(".texting-bubble [data-conversation-translation]")).toHaveCount(0);
+    await expect(translations.first().locator("em")).toHaveText("First");
+    await expect(translations.nth(1).locator("strong")).toHaveText("Second");
+    // The avatar lines up with the top of the message, not its last bubble.
+    const avatar = await row.locator(".mari-message-avatar").boundingBox();
+    const body = await row.locator(".mari-message-body").boundingBox();
+    expect(Math.abs(avatar!.y - body!.y)).toBeLessThan(4);
+
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await dialog.getByRole("spinbutton", { name: "번역문 글자 크기 (본문보다 작게) (px)", exact: true }).fill("3");
+    await dialog.getByRole("combobox", { name: "말풍선 색", exact: true }).selectOption("global");
+    await dialog.getByLabel("캐릭터 말풍선", { exact: true }).fill("#336699");
+    await page.screenshot({ path: ".tmp/convo-reader-settings.png" });
+    await page.keyboard.press("Escape");
+    const bodySize = await bubbles
+      .first()
+      .locator(".mari-message-content")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    const translationSize = await translations
+      .first()
+      .locator(".translation-text")
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(bodySize - translationSize).toBeCloseTo(3, 0);
+    await expect(bubbles.first()).toHaveCSS("background-color", "rgb(51, 102, 153)");
+    await page.screenshot({ path: ".tmp/convo-messenger.png" });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("work information lists reading records as a table of contents with branches indented", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "목차 작가" } } })).json();
+  const ids: string[] = [];
+  try {
+    const chat = await (
+      await request.post("/api/chats", { data: { name: "첫 기록", mode: "roleplay", characterIds: [card.id] } })
+    ).json();
+    ids.push(chat.id);
+    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content: "본문 하나" } });
+    for (let i = 0; i < 2; i++) {
+      const branch = await (await request.post(`/api/chats/${chat.id}/branch`, { data: {} })).json();
+      ids.push(branch.id);
+    }
+    const second = await (
+      await request.post("/api/chats", { data: { name: "둘째 기록", mode: "conversation", characterIds: [card.id] } })
+    ).json();
+    ids.push(second.id);
+    await open(page, second.id);
+    await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
+    const detail = page.locator('[data-component="LibraryWorkDetail"]');
+    const toc = detail.getByRole("navigation", { name: "목차", exact: true });
+    const rows = toc.locator("[data-record-depth]");
+    await expect(rows).toHaveCount(4);
+    // Records in the order they began; branches right under their record, indented.
+    await expect(rows.nth(0)).toHaveAttribute("data-record-depth", "0");
+    await expect(rows.nth(0)).toContainText("01");
+    await expect(rows.nth(0)).toContainText("첫 기록");
+    await expect(rows.nth(1)).toHaveAttribute("data-record-depth", "1");
+    await expect(rows.nth(1)).toContainText("브랜치 1");
+    await expect(rows.nth(2)).toContainText("브랜치 2");
+    await expect(rows.nth(3)).toContainText("02");
+    await expect(rows.nth(3)).toContainText("둘째 기록");
+    // No reading dates on the information page.
+    await expect(detail).not.toContainText(/\d+월 \d+일/);
+    await page.screenshot({ path: ".tmp/work-toc.png" });
+  } finally {
+    for (const id of ids) await request.delete(`/api/chats/${id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("character and persona editors show a profile sheet: portrait beside facts on PC, stacked on phones", async ({
+  page,
+  request,
+}) => {
+  const card = await (
+    await request.post("/api/characters", {
+      data: { data: { name: "시트 캐릭터", creator: "작가", tags: ["판타지"] } },
+    })
+  ).json();
+  const persona = await (await request.post("/api/characters/personas", { data: { name: "시트 페르소나" } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "시트 검증", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  try {
+    await open(page, chat.id);
+    const mobile = test.info().project.name.startsWith("mobile");
+    for (const [kind, id] of [
+      ["character", card.id],
+      ["persona", persona.id],
+    ] as const) {
+      await page.evaluate(
+        async ({ kind, id }) => {
+          const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+          if (kind === "character") useUIStore.getState().openCharacterDetail(id);
+          else useUIStore.getState().openPersonaDetail(id);
+        },
+        { kind, id },
+      );
+      const sheet = page.locator(`[data-profile-sheet="${kind}"]`);
+      await expect(sheet).toBeVisible();
+      const portrait = await sheet.locator(".mari-profile-sheet__portrait").boundingBox();
+      const fields = await sheet.locator(".mari-profile-sheet__fields").boundingBox();
+      // Same fields as before, only arranged: the name input is still there.
+      await expect(sheet.locator(".mari-profile-sheet__fields input").first()).toHaveValue(
+        kind === "character" ? "시트 캐릭터" : "시트 페르소나",
+      );
+      if (mobile) expect(fields!.y).toBeGreaterThanOrEqual(portrait!.y + portrait!.height - 1);
+      else expect(fields!.x).toBeGreaterThanOrEqual(portrait!.x + portrait!.width);
+      await sheet.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `.tmp/profile-sheet-${kind}-${test.info().project.name}.png` });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+      await page.evaluate(async () => {
+        const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+        useUIStore.getState().closeCharacterDetail();
+        useUIStore.getState().closePersonaDetail();
+      });
+    }
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/personas/${persona.id}`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("viewer settings: page colors, font size steps and side margins", async ({ page, request }) => {
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "보기 설정 검증", mode: "roleplay", characterIds: [] } })
+  ).json();
+  try {
+    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content: "책처럼 읽는 문단." } });
+    await open(page, chat.id);
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await dialog.getByRole("radio", { name: "세피아", exact: true }).click();
+    const before = await workspace
+      .locator(".mari-message-content")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    await dialog.getByRole("button", { name: "글자 크기 1 늘리기", exact: true }).click();
+    await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("24");
+    await page.screenshot({ path: ".tmp/viewer-settings.png" });
+    await page.keyboard.press("Escape");
+    await expect(workspace).toHaveCSS("background-color", "rgb(244, 236, 216)");
+    await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-left-width", "24px");
+    await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-right-width", "24px");
+    await expect
+      .poll(() =>
+        workspace
+          .locator(".mari-message-content")
+          .first()
+          .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+      )
+      .toBe(before + 1);
+    await page.screenshot({ path: ".tmp/viewer-sepia.png" });
+    // Reset the shared preferences other proofs read.
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    await dialog.getByRole("radio", { name: "테마 따르기", exact: true }).click();
+    await dialog.getByRole("button", { name: "글자 크기 1 줄이기", exact: true }).click();
+    await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("0");
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
   }
 });

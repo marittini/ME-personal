@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { ReplyToMessageButton } from "./MessageReplyPreview";
 import type { Message, MessageExtra } from "@marinara-engine/shared";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { MsgAction } from "./ConversationMessageShared";
@@ -58,6 +58,8 @@ export interface ConversationMessageActionsProps {
   onShowThinking: () => void;
   /** Toggle the user's reaction with the picked emoji; omit to hide the add-reaction button. */
   onPickReaction?: (emoji: string, imageUrl: string | null) => void;
+  /** Message voice button, placed before delete as the TTS extension did. */
+  speech?: ReactNode;
 }
 
 export function ConversationMessageActions({
@@ -89,6 +91,7 @@ export function ConversationMessageActions({
   onShowGenerationReplay,
   onShowThinking,
   onPickReaction,
+  speech,
 }: ConversationMessageActionsProps) {
   const { t: localizeUi } = useUiTranslation();
   const { t } = useTranslation();
@@ -214,6 +217,7 @@ export function ConversationMessageActions({
           buttonRef={thinkingButtonRef}
         />
       )}
+      {!thinkingOnly && speech}
       {onDelete && (
         <MsgAction
           icon={<Trash2 size={MESSAGE_ACTION_ICON_SIZE} />}

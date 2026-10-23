@@ -27,10 +27,7 @@ async function quiet(page: import("@playwright/test").Page, chatId?: string) {
   );
 }
 for (const mode of ["roleplay", "conversation"] as const) {
-  test(`${mode}: Korean spacing persistence, theme isolation and per-dialogue cached speech`, async ({
-    page,
-    request,
-  }) => {
+  test(`${mode}: Korean spacing persistence, theme isolation and cached speech`, async ({ page, request }) => {
     const chat = await (
       await request.post("/api/chats", { data: { name: `읽기 검증 ${mode}`, mode, characterIds: [] } })
     ).json();
@@ -80,29 +77,56 @@ for (const mode of ["roleplay", "conversation"] as const) {
         await page.locator("html").evaluate((el) => getComputedStyle(el).getPropertyValue("--primary").trim()),
       ).not.toBe("#ff00ff");
       const speech = workspace.locator(`[data-message-id="${message.id}"]`);
-      await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
-      // Each control must sit inside its own spoken line in both modes, never in a row under the message.
-      await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
-      await speech.getByRole("button", { name: "1번 대사 음성 생성", exact: true }).click();
-      await expect.poll(() => calls.length).toBe(1);
-      expect(calls[0]).toContain("First line.");
-      expect(calls[0]).not.toContain("Second line.");
-      await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
-      await speech.getByRole("button", { name: "1번 대사 재생", exact: true }).click();
-      await expect(speech.getByRole("button", { name: "1번 대사 멈춤", exact: true })).toBeVisible();
-      expect(calls.length).toBe(1);
-      await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
-      await speech.getByRole("button", { name: "1번 대사 음성 재생성", exact: true }).click();
-      await page.getByRole("button", { name: "취소", exact: true }).click();
-      expect(calls.length).toBe(1);
-      await speech.getByRole("button", { name: "1번 대사 음성 재생성", exact: true }).click();
-      await page.getByRole("button", { name: "음성 재생성", exact: true }).click();
-      await expect.poll(() => calls.length).toBe(2);
-      await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
-      await speech.getByRole("button", { name: "2번 대사 음성 생성", exact: true }).click();
-      await expect.poll(() => calls.length).toBe(3);
-      expect(calls[2]).toContain("Second line.");
-      await speech.getByRole("button", { name: "2번 대사 멈춤", exact: true }).click();
+      if (mode === "conversation") {
+        // Conversation speaks the whole message from its actions, like the TTS extension; no per-line buttons.
+        await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(0);
+        await speech.locator(".mari-message-content").first().hover();
+        await speech.getByRole("button", { name: "음성 생성", exact: true }).click();
+        await expect.poll(() => calls.join(" ")).toContain("Second line.");
+        expect(calls.join(" ")).toContain("First line.");
+        const generated = calls.length;
+        const replay = speech.locator("[data-conversation-speech-replay]");
+        await expect(replay).toHaveAttribute("aria-label", "음성 멈춤");
+        await replay.click();
+        await expect(replay).toHaveAttribute("aria-label", "다시 듣기");
+        await replay.click();
+        await expect(replay).toHaveAttribute("aria-label", "음성 멈춤");
+        await replay.click();
+        expect(calls.length).toBe(generated);
+        await speech.locator(".mari-message-content").first().hover();
+        await speech.getByRole("button", { name: "음성 다시 생성", exact: true }).click();
+        await page.getByRole("button", { name: "취소", exact: true }).click();
+        expect(calls.length).toBe(generated);
+        await speech.locator(".mari-message-content").first().hover();
+        await speech.getByRole("button", { name: "음성 다시 생성", exact: true }).click();
+        await page.getByRole("dialog").getByRole("button", { name: "음성 다시 생성", exact: true }).click();
+        await expect.poll(() => calls.length).toBe(generated * 2);
+        await page.screenshot({ path: `.tmp/${mode}-message-speech.png` });
+      } else {
+        await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
+        // Each control must sit inside its own spoken line, never in a row under the message.
+        await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+        await speech.getByRole("button", { name: "1번 대사 음성 생성", exact: true }).click();
+        await expect.poll(() => calls.length).toBe(1);
+        expect(calls[0]).toContain("First line.");
+        expect(calls[0]).not.toContain("Second line.");
+        await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
+        await speech.getByRole("button", { name: "1번 대사 재생", exact: true }).click();
+        await expect(speech.getByRole("button", { name: "1번 대사 멈춤", exact: true })).toBeVisible();
+        expect(calls.length).toBe(1);
+        await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
+        await speech.getByRole("button", { name: "1번 대사 음성 재생성", exact: true }).click();
+        await page.getByRole("button", { name: "취소", exact: true }).click();
+        expect(calls.length).toBe(1);
+        await speech.getByRole("button", { name: "1번 대사 음성 재생성", exact: true }).click();
+        await page.getByRole("button", { name: "음성 재생성", exact: true }).click();
+        await expect.poll(() => calls.length).toBe(2);
+        await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
+        await speech.getByRole("button", { name: "2번 대사 음성 생성", exact: true }).click();
+        await expect.poll(() => calls.length).toBe(3);
+        expect(calls[2]).toContain("Second line.");
+        await speech.getByRole("button", { name: "2번 대사 멈춤", exact: true }).click();
+      }
       const stored = await (await request.get(`/api/chats/${chat.id}/messages`)).json();
       expect(JSON.stringify(stored)).toContain("[whispering]");
       expect(JSON.stringify(stored)).toContain(message.id);
@@ -178,8 +202,14 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await expect(speech).toContainText("간다.");
       for (const hidden of ["audio_persona", "audio_character", "[calm, flat]", "[flustered, gruff]", persona.id])
         await expect(speech).not.toContainText(hidden);
-      await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
-      await expect(speech.locator("[data-tts-dialogue]").first()).toContainText("마음대로 해.");
+      if (mode === "conversation") {
+        await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(0);
+        await speech.locator(".mari-message-content").first().hover();
+        await expect(speech.getByRole("button", { name: "음성 생성", exact: true })).toBeVisible();
+      } else {
+        await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+        await expect(speech.locator("[data-tts-dialogue]").first()).toContainText("마음대로 해.");
+      }
       await page.screenshot({ path: `.tmp/${mode}-tagged-dialogue.png` });
       const stored = await (await request.get(`/api/chats/${chat.id}/messages`)).json();
       expect(JSON.stringify(stored)).toContain("[calm, flat]");
@@ -246,7 +276,9 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await expect(speech).toContainText("마음대로 해.");
       for (const hidden of ["audio_persona", "audio_character", "[calm, flat]", persona.id, "Do as you like"])
         await expect(speech).not.toContainText(hidden);
-      await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+      await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(
+        mode === "conversation" ? 0 : 2,
+      );
       await page.screenshot({ path: `.tmp/${mode}-translation-only-tags.png` });
     } finally {
       await request.delete(`/api/chats/${chat.id}?force=true`);

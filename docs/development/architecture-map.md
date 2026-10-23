@@ -10,22 +10,22 @@ File counts, line counts, and route counts drift as the repo changes. This map g
 
 Use these codes when planning moves, labeling issues, or adding a short file header to code that cannot be moved yet.
 
-| Code | Meaning | Primary home |
-| --- | --- | --- |
-| `CORE-CONTRACT` | Types, schemas, constants, pure helpers shared by client and server | `packages/shared/src` |
-| `CLIENT-APP` | React app bootstrap, layout shell, global UI wiring | `packages/client/src/App.tsx`, `main.tsx`, `components/layout` |
-| `CLIENT-SHARED` | Client-only UI primitives, common hooks, common browser helpers, global stores | `packages/client/src/components/ui`, `hooks`, `lib`, `stores` |
-| `SERVER-APP` | Fastify app bootstrap, middleware, route registration, runtime config | `packages/server/src/app.ts`, `index.ts`, `middleware`, `config` |
-| `SERVER-SHARED` | Server-only storage, DB, LLM, prompt, lorebook, import, and integration foundations | `packages/server/src/services`, `db`, `utils`, `lib` |
-| `MODE-CONVERSATION` | Conversation-only UI and server behavior | conversation components, `/api/conversation`, conversation services |
-| `MODE-ROLEPLAY` | Roleplay UI, scenes, sprites, encounter helpers | roleplay chat components, `/api/scene`, `/api/encounter`, `/api/sprites` |
-| `MODE-GAME` | Game-mode UI, GM prompts, dice, party, map, combat, assets, sessions | `components/game`, `/api/game`, game services |
-| `FEATURE-AGENTS` | Agent definitions, execution, debug state, knowledge routing | agent components, agent store, agent routes/services |
-| `FEATURE-ASSETS` | Backgrounds, avatars, gallery, generated images, sprites, game assets | asset routes, gallery storage, image services |
-| `FEATURE-SIDECAR` | Local model runtime, scene analysis, downloads, process control | sidecar store, `/api/sidecar`, sidecar services |
-| `FEATURE-TTS` | TTS config, voice routing, cache keys, audio playback | TTS settings/hooks/routes/services |
-| `FEATURE-IMPORT` | SillyTavern and Marinara importers and migration helpers | import routes/services |
-| `TEST` | Tracked regression and browser smoke coverage, plus temporary proof tests when needed | `scripts/regressions`, `e2e`, and temporary `packages/server/src/**/__tests__/` files removed after use |
+| Code                | Meaning                                                                               | Primary home                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `CORE-CONTRACT`     | Types, schemas, constants, pure helpers shared by client and server                   | `packages/shared/src`                                                                                   |
+| `CLIENT-APP`        | React app bootstrap, layout shell, global UI wiring                                   | `packages/client/src/App.tsx`, `main.tsx`, `components/layout`                                          |
+| `CLIENT-SHARED`     | Client-only UI primitives, common hooks, common browser helpers, global stores        | `packages/client/src/components/ui`, `hooks`, `lib`, `stores`                                           |
+| `SERVER-APP`        | Fastify app bootstrap, middleware, route registration, runtime config                 | `packages/server/src/app.ts`, `index.ts`, `middleware`, `config`                                        |
+| `SERVER-SHARED`     | Server-only storage, DB, LLM, prompt, lorebook, import, and integration foundations   | `packages/server/src/services`, `db`, `utils`, `lib`                                                    |
+| `MODE-CONVERSATION` | Conversation-only UI and server behavior                                              | conversation components, `/api/conversation`, conversation services                                     |
+| `MODE-ROLEPLAY`     | Roleplay UI, scenes, sprites, encounter helpers                                       | roleplay chat components, `/api/scene`, `/api/encounter`, `/api/sprites`                                |
+| `MODE-GAME`         | Game-mode UI, GM prompts, dice, party, map, combat, assets, sessions                  | `components/game`, `/api/game`, game services                                                           |
+| `FEATURE-AGENTS`    | Agent definitions, execution, debug state, knowledge routing                          | agent components, agent store, agent routes/services                                                    |
+| `FEATURE-ASSETS`    | Backgrounds, avatars, gallery, generated images, sprites, game assets                 | asset routes, gallery storage, image services                                                           |
+| `FEATURE-SIDECAR`   | Local model runtime, scene analysis, downloads, process control                       | sidecar store, `/api/sidecar`, sidecar services                                                         |
+| `FEATURE-TTS`       | TTS config, voice routing, cache keys, audio playback                                 | TTS settings/hooks/routes/services                                                                      |
+| `FEATURE-IMPORT`    | SillyTavern and Marinara importers and migration helpers                              | import routes/services                                                                                  |
+| `TEST`              | Tracked regression and browser smoke coverage, plus temporary proof tests when needed | `scripts/regressions`, `e2e`, and temporary `packages/server/src/**/__tests__/` files removed after use |
 
 Prefer making the path communicate the section. A comment like `// Section: MODE-GAME` is only useful while a file still sits in a mixed directory.
 
@@ -158,15 +158,15 @@ Expected boundary:
 
 These files are the most likely to slow future work because they mix many concerns in one place. Line counts change often, so this list gives rough order and the concern rather than exact sizes.
 
-| File | Section | Concern |
-| --- | --- | --- |
-| `packages/server/src/routes/generate.routes.ts` | shared generation and agents | Route, streaming, prompt, agents, storage, and side effects live in one file. |
-| `packages/server/src/routes/game.routes.ts` | `MODE-GAME` | API handlers, GM flow, scene analysis, assets, combat, and persistence are coupled. |
-| `packages/client/src/components/game/GameSurface.tsx` | `MODE-GAME` | Rendering, state orchestration, assets, logs, narration, combat, and effects are coupled. |
-| `packages/client/src/components/chat/ChatSettingsDrawer.tsx` | mixed chat settings | Section extraction is underway in `features/chat-settings`, but the drawer is still large. |
-| `packages/client/src/components/game/GameNarration.tsx` | `MODE-GAME` | Display rendering and command formatting are tightly coupled. |
-| `packages/client/src/components/game/GameCombatUI.tsx` | `MODE-GAME` | Combat display, controls, and logs can become smaller panels and hooks. |
-| `packages/client/src/components/chat/RoleplayHUD.tsx` | `MODE-ROLEPLAY` | A split is partly done via `RoleplayHUDActionsMenu.tsx` and `RoleplayHUDPanels.tsx`. |
+| File                                                         | Section                      | Concern                                                                                    |
+| ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `packages/server/src/routes/generate.routes.ts`              | shared generation and agents | Route, streaming, prompt, agents, storage, and side effects live in one file.              |
+| `packages/server/src/routes/game.routes.ts`                  | `MODE-GAME`                  | API handlers, GM flow, scene analysis, assets, combat, and persistence are coupled.        |
+| `packages/client/src/components/game/GameSurface.tsx`        | `MODE-GAME`                  | Rendering, state orchestration, assets, logs, narration, combat, and effects are coupled.  |
+| `packages/client/src/components/chat/ChatSettingsDrawer.tsx` | mixed chat settings          | Section extraction is underway in `features/chat-settings`, but the drawer is still large. |
+| `packages/client/src/components/game/GameNarration.tsx`      | `MODE-GAME`                  | Display rendering and command formatting are tightly coupled.                              |
+| `packages/client/src/components/game/GameCombatUI.tsx`       | `MODE-GAME`                  | Combat display, controls, and logs can become smaller panels and hooks.                    |
+| `packages/client/src/components/chat/RoleplayHUD.tsx`        | `MODE-ROLEPLAY`              | A split is partly done via `RoleplayHUDActionsMenu.tsx` and `RoleplayHUDPanels.tsx`.       |
 
 ## Target structure
 

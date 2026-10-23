@@ -1,55 +1,21 @@
-import { TranslationLorePicker } from "./TranslationLorePicker";
 import { importNativeIntegrationBackup } from "../../lib/native-integration-import";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  BUILTIN_TRANSLATION_PRESETS,
-  INHERIT_TRANSLATION_PRESET_ID,
-  type NativeIntegrations,
-  type WeatherLocation,
-} from "@marinara-engine/shared";
+import { type NativeIntegrations, type WeatherLocation } from "@marinara-engine/shared";
 import {
   useNativeIntegrations,
   useSaveNativeIntegrations,
   useWeatherPlaces,
   useWeatherPreview,
   useApplyGlobalPreset,
-  useExtractTranslationGlossary,
 } from "../../hooks/use-native-integrations";
 import { useChats } from "../../hooks/use-chats";
 import { usePresets } from "../../hooks/use-presets";
-import { useConnections } from "../../hooks/use-connections";
 import { downloadJsonFile } from "../../lib/download-json";
-import { generateClientId } from "../../lib/utils";
 import { showConfirmDialog } from "../../lib/app-dialogs";
 
 import { INTEGRATION_INPUT, INTEGRATION_BUTTON } from "./IntegrationControls";
-
-/** Built-in presets ship with the engine (read-only); custom presets are the editable ones above. */
-function TranslationPresetOptions({ custom }: { custom: NativeIntegrations["translation"]["presets"] }) {
-  const { t } = useTranslation();
-  return (
-    <>
-      <optgroup label={t("integrations.builtinPresets")}>
-        {BUILTIN_TRANSLATION_PRESETS.filter((preset) => preset.id !== INHERIT_TRANSLATION_PRESET_ID).map((preset) => (
-          <option key={preset.id} value={preset.id}>
-            {preset.name}
-          </option>
-        ))}
-      </optgroup>
-      {custom.length > 0 && (
-        <optgroup label={t("integrations.customPresets")}>
-          {custom.map((preset) => (
-            <option key={preset.id} value={preset.id}>
-              {preset.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </>
-  );
-}
 
 function LocationPicker({
   value,
@@ -125,7 +91,7 @@ export function NativeIntegrationSettings({
   kind,
   initialChatId = "",
 }: {
-  kind: "weather" | "translation" | "globalPreset";
+  kind: "weather" | "globalPreset";
   initialChatId?: string;
 }) {
   const { t } = useTranslation();
@@ -133,13 +99,10 @@ export function NativeIntegrationSettings({
   const save = useSaveNativeIntegrations();
   const chats = useChats();
   const presets = usePresets();
-  const connections = useConnections();
   const apply = useApplyGlobalPreset();
   const [draft, setDraft] = useState<NativeIntegrations | null>(null);
   const [dirty, setDirty] = useState(false);
   const [chatId, setChatId] = useState(initialChatId);
-  const extract = useExtractTranslationGlossary();
-  const [sample, setSample] = useState("");
   useEffect(() => {
     if (query.data && !dirty) setDraft(query.data);
   }, [query.data, dirty]);
@@ -158,7 +121,6 @@ export function NativeIntegrationSettings({
     setDraft(next);
     setDirty(true);
   };
-  const roomTranslation = draft.translation.rooms[chatId] ?? draft.translation.defaults;
   const roomWeather = draft.weather.rooms[chatId] ?? { enabled: false, characterLocation: null };
   const nativePresetId = chats.data?.find((chat) => chat.id === chatId)?.promptPresetId ?? null;
   const roomPreset = draft.globalPreset.rooms[chatId] ?? {
@@ -166,14 +128,6 @@ export function NativeIntegrationSettings({
     presetId: nativePresetId,
     presetName: presets.data?.find((preset) => preset.id === nativePresetId)?.name ?? "",
   };
-  const updateTranslation = (next: typeof roomTranslation) =>
-    patch({
-      ...draft,
-      translation: {
-        ...draft.translation,
-        ...(chatId ? { rooms: { ...draft.translation.rooms, [chatId]: next } } : { defaults: next }),
-      },
-    });
   const updateWeather = (next: typeof roomWeather) =>
     patch({ ...draft, weather: { ...draft.weather, rooms: { ...draft.weather.rooms, [chatId]: next } } });
   return (
@@ -257,139 +211,10 @@ export function NativeIntegrationSettings({
           </div>
         </>
       )}
-      {kind === "translation" && (
-        <>
-          {draft.translation.presets.map((preset, index) => (
-            <div key={preset.id} className="space-y-2 border-b border-[var(--border)] pb-4">
-              <input
-                aria-label={t("integrations.presetName")}
-                className={INTEGRATION_INPUT}
-                value={preset.name}
-                onChange={(e) =>
-                  patch({
-                    ...draft,
-                    translation: {
-                      ...draft.translation,
-                      presets: draft.translation.presets.map((row, i) =>
-                        i === index ? { ...row, name: e.target.value } : row,
-                      ),
-                    },
-                  })
-                }
-              />
-              <textarea
-                aria-label={t("integrations.translationPrompt")}
-                className={INTEGRATION_INPUT}
-                rows={4}
-                value={preset.prompt}
-                onChange={(e) =>
-                  patch({
-                    ...draft,
-                    translation: {
-                      ...draft.translation,
-                      presets: draft.translation.presets.map((row, i) =>
-                        i === index ? { ...row, prompt: e.target.value } : row,
-                      ),
-                    },
-                  })
-                }
-              />
-              <input
-                aria-label={t("integrations.targetLanguage")}
-                className={INTEGRATION_INPUT}
-                placeholder={t("integrations.followChatLanguage")}
-                value={preset.targetLanguage ?? ""}
-                onChange={(e) =>
-                  patch({
-                    ...draft,
-                    translation: {
-                      ...draft.translation,
-                      presets: draft.translation.presets.map((row, i) =>
-                        i === index ? { ...row, targetLanguage: e.target.value || undefined } : row,
-                      ),
-                    },
-                  })
-                }
-              />
-              <select
-                aria-label={t("integrations.connection")}
-                className={INTEGRATION_INPUT}
-                value={preset.connectionId ?? ""}
-                onChange={(e) =>
-                  patch({
-                    ...draft,
-                    translation: {
-                      ...draft.translation,
-                      presets: draft.translation.presets.map((row, i) =>
-                        i === index ? { ...row, connectionId: e.target.value || undefined } : row,
-                      ),
-                    },
-                  })
-                }
-              >
-                <option value="">{t("integrations.keepConnection")}</option>
-                {(connections.data as Array<{ id: string; name: string }> | undefined)?.map((connection) => (
-                  <option key={connection.id} value={connection.id}>
-                    {connection.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                className={INTEGRATION_BUTTON}
-                type="button"
-                onClick={async () => {
-                  if (
-                    await showConfirmDialog({
-                      title: t("integrations.remove"),
-                      message: preset.name,
-                      tone: "destructive",
-                    })
-                  )
-                    patch({
-                      ...draft,
-                      translation: {
-                        ...draft.translation,
-                        presets: draft.translation.presets.filter((row) => row.id !== preset.id),
-                      },
-                    });
-                }}
-              >
-                {t("integrations.remove")}
-              </button>
-            </div>
-          ))}
-          <button
-            className={INTEGRATION_BUTTON}
-            type="button"
-            onClick={() =>
-              patch({
-                ...draft,
-                translation: {
-                  ...draft.translation,
-                  presets: [
-                    ...draft.translation.presets,
-                    {
-                      id: generateClientId(),
-                      name: t("integrations.newPreset"),
-                      prompt:
-                        "Translate faithfully into {{targetLanguage}}. Preserve all markup and audio delivery tags. Return only the translation.",
-                      replace: true,
-                    },
-                  ],
-                },
-              })
-            }
-          >
-            {t("integrations.addPreset")}
-          </button>
-        </>
-      )}
       <label className="block text-sm">
         {t("integrations.room")}
         <select className={INTEGRATION_INPUT} value={chatId} onChange={(e) => setChatId(e.target.value)}>
-          <option value="">
-            {t(kind === "translation" ? "integrations.translationDefaults" : "integrations.selectRoom")}
-          </option>
+          <option value="">{t("integrations.selectRoom")}</option>
           {chats.data
             ?.filter((chat) => kind !== "weather" || chat.mode === "conversation")
             .map((chat) => (
@@ -471,156 +296,6 @@ export function NativeIntegrationSettings({
               ))}
             </select>
           )}
-        </>
-      )}
-      {kind === "translation" && (
-        <>
-          <select
-            aria-label={t("integrations.translationPreset")}
-            className={INTEGRATION_INPUT}
-            value={roomTranslation.presetId ?? ""}
-            onChange={(e) => updateTranslation({ ...roomTranslation, presetId: e.target.value || null })}
-          >
-            <option value="">{t("integrations.keepTranslation")}</option>
-            <TranslationPresetOptions custom={draft.translation.presets} />
-          </select>
-          <label className="block text-sm">
-            {t("integrations.inputPreset")}
-            <select
-              className={INTEGRATION_INPUT}
-              value={roomTranslation.outgoingPresetId ?? ""}
-              onChange={(e) => updateTranslation({ ...roomTranslation, outgoingPresetId: e.target.value || null })}
-            >
-              <option value="">{t("integrations.keepTranslation")}</option>
-              <TranslationPresetOptions custom={draft.translation.presets} />
-            </select>
-          </label>
-          <label className="block text-sm">
-            {t("integrations.translationContext")}
-            <input
-              type="number"
-              className={INTEGRATION_INPUT}
-              min={0}
-              max={50}
-              value={roomTranslation.contextMessages}
-              onChange={(e) =>
-                updateTranslation({
-                  ...roomTranslation,
-                  contextMessages: Math.max(0, Math.min(50, Number(e.target.value))),
-                })
-              }
-            />
-          </label>
-          <textarea
-            aria-label={t("integrations.speechStyle")}
-            className={INTEGRATION_INPUT}
-            rows={3}
-            value={roomTranslation.style}
-            onChange={(e) => updateTranslation({ ...roomTranslation, style: e.target.value })}
-          />
-          <textarea
-            aria-label={t("integrations.worldContext")}
-            className={INTEGRATION_INPUT}
-            rows={3}
-            value={roomTranslation.freeContext}
-            onChange={(e) => updateTranslation({ ...roomTranslation, freeContext: e.target.value })}
-          />
-          <TranslationLorePicker
-            value={roomTranslation.loreEntries}
-            onChange={(loreEntries) => updateTranslation({ ...roomTranslation, loreEntries })}
-          />
-          <div className="space-y-1">
-            {(["contextIncludeOriginal", "contextIncludeTranslation", "contextIncludeUserInput"] as const).map(
-              (key) => (
-                <label key={key} className="flex min-h-11 items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={roomTranslation[key]}
-                    onChange={(e) => updateTranslation({ ...roomTranslation, [key]: e.target.checked })}
-                  />
-                  {t(`integrations.${key}`)}
-                </label>
-              ),
-            )}
-          </div>
-          <h3 className="text-sm font-semibold">{t("integrations.glossary")}</h3>
-          {roomTranslation.glossary.map((entry, index) => (
-            <div key={index} className="grid grid-cols-2 gap-2">
-              {(["source", "target", "notes"] as const).map((field) => (
-                <input
-                  key={field}
-                  className={INTEGRATION_INPUT}
-                  aria-label={t(`integrations.${field}`)}
-                  value={entry[field]}
-                  onChange={(e) =>
-                    updateTranslation({
-                      ...roomTranslation,
-                      glossary: roomTranslation.glossary.map((row, i) =>
-                        i === index ? { ...row, [field]: e.target.value } : row,
-                      ),
-                    })
-                  }
-                />
-              ))}
-              <button
-                className={INTEGRATION_BUTTON}
-                type="button"
-                onClick={() =>
-                  updateTranslation({
-                    ...roomTranslation,
-                    glossary: roomTranslation.glossary.filter((_, i) => i !== index),
-                  })
-                }
-              >
-                {t("integrations.remove")}
-              </button>
-            </div>
-          ))}
-          <button
-            className={INTEGRATION_BUTTON}
-            type="button"
-            onClick={() =>
-              updateTranslation({
-                ...roomTranslation,
-                glossary: [...roomTranslation.glossary, { source: "", target: "", notes: "" }],
-              })
-            }
-          >
-            {t("integrations.addTerm")}
-          </button>
-          <details>
-            <summary className="min-h-11 cursor-pointer py-3 text-sm">{t("integrations.extractGlossary")}</summary>
-            <textarea
-              aria-label={t("integrations.sampleText")}
-              className={INTEGRATION_INPUT}
-              rows={4}
-              value={sample}
-              onChange={(e) => setSample(e.target.value)}
-            />
-            <button
-              className={INTEGRATION_BUTTON}
-              type="button"
-              disabled={extract.isPending || !sample.trim() || dirty || !chatId}
-              onClick={async () => {
-                try {
-                  const result = await extract.mutateAsync({ chatId, text: sample });
-                  updateTranslation({
-                    ...roomTranslation,
-                    glossary: [
-                      ...roomTranslation.glossary,
-                      ...result.entries.filter(
-                        (term) => !roomTranslation.glossary.some((old) => old.source === term.source),
-                      ),
-                    ],
-                  });
-                } catch {
-                  toast.error(t("integrations.extractError"));
-                }
-              }}
-            >
-              {t("integrations.extract")}
-            </button>
-          </details>
         </>
       )}
       <div className="flex flex-wrap gap-2 border-t border-[var(--border)] pt-4">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, BookOpen, Bookmark, ChevronDown, NotebookPen, PencilLine, Settings2, Wrench } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronLeft, NotebookPen, PencilLine, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
@@ -7,23 +7,20 @@ import { useReaderPosition } from "../../hooks/use-reader-position";
 import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
-import { requestChatScrollToBottom } from "../../lib/chat-scroll-events";
 import {
-  readerBookmarksSchema,
   readerExcerptsSchema,
   readerExcerptSchema,
   readerHighlightsSchema,
   type ExcerptMarkColor,
-  type ReaderBookmark,
   type ReaderExcerpt,
   type ReaderExcerptAnchor,
   type ReaderHighlight,
 } from "@marinara-engine/shared";
-import { captureReadingBookmark, highlightAtPoint, sameAnchors } from "../../lib/reader-notes";
+import { highlightAtPoint, sameAnchors } from "../../lib/reader-notes";
 import { ColorSwatches, HighlightEditor, ReaderNotesPanel } from "./ReaderNotes";
 import { captureExcerptAnchors } from "../../lib/reader-excerpt-anchors";
 import { useReaderHighlights } from "../../hooks/use-reader-highlights";
-import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
+import { showConfirmDialog } from "../../lib/app-dialogs";
 import { Modal } from "../ui/Modal";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
@@ -32,6 +29,7 @@ import { getChatWidgetFontFamily } from "../../lib/font-family";
 import { toast } from "sonner";
 import { TTSRoomMenu } from "./TTSRoomMenu";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
+import { READER_PAPERS } from "../../lib/reader-preferences";
 const ExcerptStudio = lazy(() => import("./ExcerptStudio").then((module) => ({ default: module.ExcerptStudio })));
 
 export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNode; surfaceActive: boolean }) {
@@ -49,7 +47,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
   const [focus, setFocus] = useState(false);
-  const [tools, setTools] = useState(false);
   const [settings, setSettings] = useState(false);
   const [excerptSelection, setExcerptSelection] = useState("");
   const [excerpt, setExcerpt] = useState<ReaderExcerpt | null>(null);
@@ -64,24 +61,14 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     const parsed = readerHighlightsSchema.safeParse(chat?.metadata.readerHighlights ?? []);
     return parsed.success ? parsed.data : [];
   }, [chat?.metadata.readerHighlights]);
-  const bookmarks = useMemo(() => {
-    const parsed = readerBookmarksSchema.safeParse(chat?.metadata.readerBookmarks ?? []);
-    return parsed.success ? parsed.data : [];
-  }, [chat?.metadata.readerBookmarks]);
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
+  const conversation = chat?.mode === "conversation";
   useReaderHighlights(root, excerpts, enabled && surfaceActive, highlights);
   const saveHighlights = (next: ReaderHighlight[], onSuccess?: () => void) => {
     if (!chatId) return;
     updateMetadata.mutate(
       { id: chatId, readerHighlights: next },
-      { onSuccess, onError: () => toast.error(t("integrations.saveError")) },
-    );
-  };
-  const saveBookmarks = (next: ReaderBookmark[], onSuccess?: () => void) => {
-    if (!chatId) return;
-    updateMetadata.mutate(
-      { id: chatId, readerBookmarks: next },
       { onSuccess, onError: () => toast.error(t("integrations.saveError")) },
     );
   };
@@ -114,24 +101,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     setEditingHighlight(null);
     useChatStore.getState().requestGotoMessage(chatId, anchor.messageNumber, undefined, anchor.messageId);
   };
-  const addBookmark = () => {
-    const spot = root.current ? captureReadingBookmark(root.current) : null;
-    if (!spot) {
-      toast.error(t("readerNotes.bookmarkUnavailable"));
-      return;
-    }
-    if (bookmarks.length >= 500) {
-      toast.error(t("readerNotes.limit"));
-      return;
-    }
-    const bookmark: ReaderBookmark = {
-      id: crypto.randomUUID(),
-      label: "",
-      ...spot,
-      createdAt: new Date().toISOString(),
-    };
-    saveBookmarks([...bookmarks, bookmark], () => toast.success(t("readerNotes.bookmarkAdded")));
-  };
   const back = () => {
     if (chat) {
       const workId = libraryChatGroupKey(chat);
@@ -145,14 +114,13 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
 
   useEffect(() => {
     if (!enabled) return;
-    document.documentElement.dataset.readerWorkspace = tools ? "tools" : "quiet";
+    document.documentElement.dataset.readerWorkspace = "quiet";
     return () => {
       delete document.documentElement.dataset.readerWorkspace;
     };
-  }, [enabled, tools]);
+  }, [enabled]);
   useEffect(() => {
     setFocus(false);
-    setTools(false);
     setSettings(false);
     setExcerpt(null);
     setExcerptSelection("");
@@ -198,6 +166,42 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     useUIStore.setState((state) => ({ readerPreferences: { ...state.readerPreferences, ...value } }));
   const control =
     "min-h-11 min-w-11 inline-flex items-center justify-center rounded-md px-2 hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]";
+  const actions = (
+    <>
+      <button
+        className={control}
+        onClick={() => setExcerptList(true)}
+        aria-label={t("readerNotes.title")}
+        title={t("readerNotes.title")}
+      >
+        <NotebookPen size={18} />
+      </button>
+      <button
+        className={control}
+        onClick={() => setFocus(!focus)}
+        aria-pressed={focus}
+        aria-label={focus ? t("reader.write") : t("reader.focus")}
+        title={focus ? t("reader.write") : t("reader.focus")}
+      >
+        {focus ? (
+          <>
+            <PencilLine size={18} />
+            <span className="ml-1 text-xs">{t("reader.write")}</span>
+          </>
+        ) : (
+          <BookOpen size={20} />
+        )}
+      </button>
+      <button
+        className={control}
+        onClick={() => setSettings(true)}
+        aria-label={t("reader.settings")}
+        title={t("reader.settings")}
+      >
+        <Settings2 size={20} />
+      </button>
+    </>
+  );
   return (
     <div
       ref={root}
@@ -207,7 +211,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       data-reader-mode={enabled ? chat?.mode : undefined}
       data-reader-focus={(enabled && focus) || undefined}
       data-reader-streaming={streaming || undefined}
-      data-reader-tools={tools || undefined}
+      data-reader-bubble-scope={conversation ? preferences.bubbleScope : undefined}
+      data-reader-paper={enabled && preferences.paper !== "theme" ? preferences.paper : undefined}
       style={
         {
           "--reader-line-height": preferences.lineHeight,
@@ -218,77 +223,55 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
             getChatWidgetFontFamily(preferences.font === "serif" ? "@serif" : preferences.font) ?? "inherit",
           "--reader-indent": `${Number.isFinite(preferences.indent) ? Math.max(0, Math.min(4, preferences.indent)) : 0}em`,
           "--reader-align": preferences.align,
+          "--reader-body-size": `${fontSize}px`,
+          "--reader-side-margin": `${preferences.sideMargin ?? 0}px`,
+          "--reader-translation-offset": `${preferences.translationSizeOffset ?? 0}px`,
+          ...(preferences.bubbleCharacterBg ? { "--reader-bubble-character-bg": preferences.bubbleCharacterBg } : {}),
+          ...(preferences.bubbleCharacterText
+            ? { "--reader-bubble-character-text": preferences.bubbleCharacterText }
+            : {}),
+          ...(preferences.bubblePersonaBg ? { "--reader-bubble-persona-bg": preferences.bubblePersonaBg } : {}),
+          ...(preferences.bubblePersonaText ? { "--reader-bubble-persona-text": preferences.bubblePersonaText } : {}),
         } as CSSProperties
       }
     >
       {enabled && (
         <header
-          className="flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--background)] px-2 pt-[env(safe-area-inset-top)] text-[var(--foreground)]"
+          className={
+            conversation
+              ? "grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-1 border-b border-[var(--border)] bg-[var(--background)]/90 px-2 pb-1.5 pt-[calc(env(safe-area-inset-top)+0.375rem)] text-[var(--foreground)] backdrop-blur"
+              : "flex shrink-0 items-center gap-1 border-b border-[var(--border)] bg-[var(--background)] px-2 pt-[env(safe-area-inset-top)] text-[var(--foreground)]"
+          }
           data-chat-window-top-obstacle=""
+          data-reader-header={conversation ? "messenger" : "book"}
           aria-label={t("reader.navigation")}
         >
-          <button className={control} onClick={back} aria-label={t("reader.back")}>
-            <ArrowLeft size={20} />
-          </button>
-          <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
-          <button
-            className={control}
-            onClick={addBookmark}
-            disabled={updateMetadata.isPending}
-            aria-label={t("readerNotes.addBookmark")}
-            title={t("readerNotes.addBookmark")}
-          >
-            <Bookmark size={18} />
-          </button>
-          <button
-            className={control}
-            onClick={() => setExcerptList(true)}
-            aria-label={t("readerNotes.title")}
-            title={t("readerNotes.title")}
-          >
-            <NotebookPen size={18} />
-          </button>
-          <button
-            className={control}
-            onClick={() => setFocus(!focus)}
-            aria-pressed={focus}
-            aria-label={focus ? t("reader.write") : t("reader.focus")}
-            title={focus ? t("reader.write") : t("reader.focus")}
-          >
-            {focus ? (
-              <>
-                <PencilLine size={18} />
-                <span className="ml-1 text-xs">{t("reader.write")}</span>
-              </>
-            ) : (
-              <BookOpen size={20} />
-            )}
-          </button>
-          <button
-            className={control}
-            onClick={() => requestChatScrollToBottom({ chatId: chatId!, behavior: "auto" })}
-            aria-label={t("reader.latest")}
-            title={t("reader.latest")}
-          >
-            <ChevronDown size={20} />
-          </button>
-          <button
-            className={control}
-            onClick={() => setSettings(true)}
-            aria-label={t("reader.settings")}
-            title={t("reader.settings")}
-          >
-            <Settings2 size={20} />
-          </button>
-          <button
-            className={control}
-            onClick={() => setTools(!tools)}
-            aria-pressed={tools}
-            aria-label={t("reader.tools")}
-            title={t("reader.tools")}
-          >
-            <Wrench size={18} />
-          </button>
+          {conversation ? (
+            <>
+              <div className="flex min-w-0 items-center">
+                <button className={control} onClick={back} aria-label={t("reader.back")}>
+                  <ChevronLeft size={26} className="text-[var(--primary)]" />
+                </button>
+              </div>
+              {/* iMessage-style contact, centered: Convo moves its own presence card (avatar, name, status menu)
+                  into this slot; the chat name shows until it arrives. */}
+              <div className="flex min-w-0 max-w-[50vw] flex-col items-center" data-reader-contact="">
+                <div data-reader-contact-slot="" className="flex min-w-0 max-w-full justify-center" />
+                <span data-reader-contact-fallback="" className="max-w-full truncate text-xs font-medium">
+                  {chat?.name}
+                </span>
+              </div>
+              <div className="flex min-w-0 items-center justify-end">{actions}</div>
+            </>
+          ) : (
+            <>
+              <button className={control} onClick={back} aria-label={t("reader.back")}>
+                <ArrowLeft size={20} />
+              </button>
+              <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
+              {actions}
+            </>
+          )}
         </header>
       )}
       {children}
@@ -381,7 +364,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           <ReaderNotesPanel
             chatId={chatId}
             highlights={highlights}
-            bookmarks={bookmarks}
             excerpts={excerpts}
             busy={updateMetadata.isPending}
             onOpenHighlight={(highlight) => {
@@ -389,33 +371,27 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               setEditingHighlight(highlight);
             }}
             onGotoHighlight={(highlight) => gotoAnchor(highlight.anchors[0])}
-            onGotoBookmark={(bookmark) => {
+            onExcerptHighlight={(highlight) => {
+              // The memo stays in the notes; the card carries only the sentence.
               setExcerptList(false);
-              useChatStore
-                .getState()
-                .requestGotoMessage(chatId, bookmark.messageNumber, bookmark.offset, bookmark.messageId);
-            }}
-            onRenameBookmark={async (bookmark) => {
-              const label = await showPromptDialog({
-                title: t("readerNotes.renameBookmark"),
-                message: bookmark.snippet,
-                defaultValue: bookmark.label,
+              setExcerpt({
+                id: crypto.randomUUID(),
+                text: highlight.text,
+                marks: [],
+                anchors: highlight.anchors,
+                updatedAt: new Date().toISOString(),
               });
-              if (label === null) return;
-              saveBookmarks(
-                bookmarks.map((row) => (row.id === bookmark.id ? { ...row, label: label.trim().slice(0, 200) } : row)),
-              );
             }}
-            onDeleteBookmark={async (bookmark) => {
+            onDeleteHighlight={async (highlight) => {
               if (
                 await showConfirmDialog({
-                  title: t("readerNotes.deleteBookmark"),
-                  message: bookmark.label || bookmark.snippet,
-                  confirmLabel: t("readerNotes.deleteBookmark"),
+                  title: t("readerNotes.deleteHighlight"),
+                  message: highlight.text.slice(0, 200),
+                  confirmLabel: t("readerNotes.deleteHighlight"),
                   cancelLabel: t("reader.cancel"),
                 })
               )
-                saveBookmarks(bookmarks.filter((row) => row.id !== bookmark.id));
+                saveHighlights(highlights.filter((row) => row.id !== highlight.id));
             }}
             onEditExcerpt={(entry) => {
               setExcerptList(false);
@@ -517,6 +493,60 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               </select>
             </label>
           )}
+          {conversation && (
+            <fieldset className="space-y-2" data-reader-bubble-colors="">
+              <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
+                {t("reader.bubbleColors")}
+                <select
+                  className="min-h-11 rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
+                  value={preferences.bubbleScope}
+                  onChange={(event) => patch({ bubbleScope: event.target.value as "card" | "global" })}
+                >
+                  <option value="card">{t("reader.bubbleColorsCard")}</option>
+                  <option value="global">{t("reader.bubbleColorsGlobal")}</option>
+                </select>
+              </label>
+              {preferences.bubbleScope === "global" && (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {(
+                    [
+                      ["bubbleCharacterBg", "reader.bubbleCharacterBg", "var(--secondary)"],
+                      ["bubbleCharacterText", "reader.bubbleCharacterText", "var(--secondary-foreground)"],
+                      ["bubblePersonaBg", "reader.bubblePersonaBg", "var(--primary)"],
+                      ["bubblePersonaText", "reader.bubblePersonaText", "var(--primary-foreground)"],
+                    ] as const
+                  ).map(([key, label, theme]) => (
+                    <label
+                      key={key}
+                      className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-[var(--border)] px-2"
+                    >
+                      <span>{t(label)}</span>
+                      <span className="flex items-center gap-1">
+                        <input
+                          type="color"
+                          aria-label={t(label)}
+                          className="h-8 w-10 cursor-pointer rounded border-0 bg-transparent"
+                          value={preferences[key] || "#888888"}
+                          style={preferences[key] ? undefined : { outline: `2px dashed ${theme}` }}
+                          onChange={(event) => patch({ [key]: event.target.value })}
+                        />
+                        {preferences[key] && (
+                          <button
+                            type="button"
+                            className="min-h-8 rounded px-1.5 text-[0.6875rem] underline"
+                            onClick={() => patch({ [key]: "" })}
+                          >
+                            {t("reader.bubbleColorReset")}
+                          </button>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-[var(--muted-foreground)]">{t("reader.bubbleColorsHelp")}</p>
+            </fieldset>
+          )}
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.speech")}
             <input
@@ -591,17 +621,36 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               <option value="dark">{t("reader.dark")}</option>
             </select>
           </label>
-          <label className="block text-sm">
-            {t("reader.fontSize", { value: fontSize })}
-            <input
-              className="mt-3 block w-full"
-              type="range"
-              min={12}
-              max={32}
-              value={fontSize}
-              onChange={(event) => useUIStore.getState().setChatFontSize(Number(event.target.value))}
-            />
-          </label>
+          {/* Page color, like an e-book app; "테마" keeps the light/dark colors above. */}
+          <div className="space-y-2 text-sm">
+            <span>{t("reader.paper")}</span>
+            <div role="radiogroup" aria-label={t("reader.paper")} className="flex flex-wrap gap-2">
+              {READER_PAPERS.map((paper) => (
+                <button
+                  key={paper}
+                  type="button"
+                  role="radio"
+                  aria-checked={preferences.paper === paper}
+                  aria-label={t(`reader.papers.${paper}`)}
+                  title={t(`reader.papers.${paper}`)}
+                  data-reader-paper-swatch={paper}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] text-xs aria-checked:ring-2 aria-checked:ring-[var(--primary)] aria-checked:ring-offset-2 aria-checked:ring-offset-[var(--background)]"
+                  onClick={() => patch({ paper })}
+                >
+                  {paper === "theme" ? t("reader.papers.themeShort") : t("reader.papers.sample")}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ReaderNumberSetting
+            label={t("reader.fontSizeLabel")}
+            unit="px"
+            value={fontSize}
+            min={12}
+            max={32}
+            step={1}
+            onChange={(size) => useUIStore.getState().setChatFontSize(size)}
+          />
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.font")}
             <select
@@ -622,13 +671,40 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               ))}
             </select>
           </label>
+          <label className="block text-sm">
+            {t("reader.indentValue", { value: preferences.indent ?? 0 })}
+            <input
+              className="mt-3 block w-full"
+              type="range"
+              aria-label={t("reader.indent")}
+              min={0}
+              max={4}
+              step={0.5}
+              value={preferences.indent ?? 0}
+              onChange={(event) => patch({ indent: Number(event.target.value) })}
+            />
+          </label>
+          <label className="block text-sm">
+            {t("reader.sideMargin", { value: preferences.sideMargin ?? 0 })}
+            <input
+              className="mt-3 block w-full"
+              type="range"
+              aria-label={t("reader.sideMarginLabel")}
+              min={0}
+              max={64}
+              step={4}
+              value={preferences.sideMargin ?? 0}
+              onChange={(event) => patch({ sideMargin: Number(event.target.value) })}
+            />
+          </label>
           <ReaderNumberSetting
-            label={t("reader.indent")}
-            unit="em"
-            value={preferences.indent ?? 0}
+            label={t("reader.translationSizeOffset")}
+            unit="px"
+            value={preferences.translationSizeOffset ?? 0}
             min={0}
-            max={4}
-            onChange={(indent) => patch({ indent })}
+            max={8}
+            step={1}
+            onChange={(translationSizeOffset) => patch({ translationSizeOffset })}
           />
           <ReaderNumberSetting
             label={t("reader.letterSpacingLabel")}

@@ -25,6 +25,7 @@ import { imagePreviewUrl } from "../../lib/image-preview-url";
 import { useHomeFeed } from "../../hooks/use-home-feed";
 import { cn, getAvatarCropStyle } from "../../lib/utils";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
+import { buildRecordToc } from "../../lib/library-record-toc";
 import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
@@ -280,7 +281,8 @@ export function LibraryHome() {
     }
   };
   const locale = i18n.resolvedLanguage ?? i18n.language;
-  const loading = chats.isPending || characters.isPending;
+  // With no character in any chat the summaries query never runs, and a disabled query stays "pending".
+  const loading = chats.isPending || (characterIds.length > 0 && characters.isPending);
   const failed = chats.isError || characters.isError;
   const continueWork = readWorks[0] ?? works[0] ?? null;
 
@@ -329,9 +331,6 @@ export function LibraryHome() {
                     {selectedWork.description}
                   </p>
                 )}
-                <p className="mt-5 text-xs text-[var(--muted-foreground)]">
-                  {formatReadTime(selectedWork.lastMessageAt, locale, t("libraryShell.ready"))}
-                </p>
                 <button
                   type="button"
                   onClick={() => openWork(selectedWork)}
@@ -354,31 +353,57 @@ export function LibraryHome() {
                   {t("libraryShell.newRecord")}
                 </button>
               </div>
-              <div className="mt-3 border-t border-[var(--border)]">
-                {selectedWork.chats.map((chat) => {
+              {/* A book's table of contents: records in the order they began, branches indented under them. */}
+              <nav className="mt-3 border-t border-[var(--border)]" aria-label={t("libraryShell.work.toc")}>
+                {buildRecordToc(selectedWork.chats).map(({ chat, depth, number, label: title }) => {
                   const Icon = chat.mode === "conversation" ? MessageCircle : ScrollText;
                   const label =
                     chat.mode === "conversation" ? t("libraryShell.work.letters") : t("libraryShell.work.body");
                   const unread = unreadCounts.get(chat.id) ?? 0;
+                  const name = title ?? t("libraryShell.work.branch", { number });
                   return (
                     <div
                       key={chat.id}
-                      className="flex items-center gap-1 border-b border-[var(--border)]"
-                      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 72px" }}
+                      className={cn(
+                        "flex items-center gap-1",
+                        depth ? "" : "border-t border-[var(--border)] first:border-t-0",
+                      )}
+                      data-record-depth={depth}
+                      style={{ contentVisibility: "auto", containIntrinsicSize: depth ? "auto 48px" : "auto 64px" }}
                     >
                       <button
-                        key={chat.id}
                         type="button"
                         onClick={() => setActiveChatId(chat.id)}
-                        className="flex min-h-16 min-w-0 flex-1 items-center gap-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                        className={cn(
+                          "flex min-w-0 flex-1 items-baseline gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
+                          depth ? "min-h-11 py-2" : "min-h-14 py-3",
+                        )}
+                        style={depth ? { paddingInlineStart: `${depth * 1.5 + 0.25}rem` } : undefined}
                       >
-                        <Icon size="1rem" className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block break-words text-sm font-semibold leading-snug">{chat.name}</span>
-                          <span className="mt-0.5 block truncate text-xs text-[var(--muted-foreground)]">
-                            {label} ·{" "}
-                            {formatReadTime(chat.lastMessageAt ?? chat.updatedAt, locale, t("libraryShell.ready"))}
+                        {depth ? (
+                          <span className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true">
+                            –
                           </span>
+                        ) : (
+                          <span className="w-7 shrink-0 font-serif text-sm tabular-nums text-[var(--muted-foreground)]">
+                            {String(number).padStart(2, "0")}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "break-words leading-snug",
+                              depth ? "text-sm text-[var(--foreground)]/85" : "text-[0.95rem] font-semibold",
+                            )}
+                          >
+                            {name}
+                          </span>
+                          {!depth && (
+                            <span className="ml-2 inline-flex items-center gap-1 align-middle text-[0.7rem] text-[var(--muted-foreground)]">
+                              <Icon size="0.75rem" aria-hidden="true" />
+                              {label}
+                            </span>
+                          )}
                         </span>
                         {unread > 0 ? (
                           <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--primary-foreground)]">
@@ -387,7 +412,7 @@ export function LibraryHome() {
                         ) : null}
                         <ChevronRight
                           size="1rem"
-                          className="shrink-0 text-[var(--muted-foreground)]"
+                          className="shrink-0 self-center text-[var(--muted-foreground)]"
                           aria-hidden="true"
                         />
                       </button>
@@ -396,7 +421,7 @@ export function LibraryHome() {
                         className="flex min-h-11 min-w-11 items-center justify-center rounded hover:bg-[var(--secondary)]"
                         disabled={updateChat.isPending || deleteChat.isPending}
                         onClick={() => void renameRecord(chat)}
-                        aria-label={t("reader.renameNamed", { name: chat.name })}
+                        aria-label={t("reader.renameNamed", { name })}
                       >
                         <PencilLine size={17} />
                       </button>
@@ -406,14 +431,14 @@ export function LibraryHome() {
                         disabled={deleteChat.isPending || updateChat.isPending || generatingChats.has(chat.id)}
                         onClick={() => void removeRecord(chat)}
                         title={generatingChats.has(chat.id) ? t("reader.stopBeforeDelete") : undefined}
-                        aria-label={t("reader.deleteNamed", { name: chat.name })}
+                        aria-label={t("reader.deleteNamed", { name })}
                       >
                         <Trash2 size={17} />
                       </button>
                     </div>
                   );
                 })}
-              </div>
+              </nav>
             </section>
           </div>
         </div>

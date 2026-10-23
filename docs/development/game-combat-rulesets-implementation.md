@@ -109,19 +109,19 @@ Keep ruleset-specific sheets in a discriminated union. Do not force all resource
 
 Proposed starting balance:
 
-| Rule                | Proposed v1 behavior                                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Initiative          | Descending effective Speed, stable encounter tie order; no extra activation for ties or high speed                           |
+| Rule                | Proposed v1 behavior                                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initiative          | Descending effective Speed, stable encounter tie order; no extra activation for ties or high speed                                                                      |
 | Tactical scheduling | By side: party phase, then enemy phase, the player choosing among unacted party units. By initiative (combat C6c): one unit at a time in an order rolled once per fight |
-| Classic scheduling  | Unified descending effective-Speed order; UI queues manual commands then resolves current legal targets at each slot         |
-| Movement            | Explicit movement budget independent of Speed. Suggested default 4 tiles, with bounded class/ability adjustments             |
-| Attack Speed        | Effective Speed, with only explicitly modeled penalties/bonuses; no fictional weapon weight                                  |
-| Follow-up threshold | Attacker Attack Speed at least defender Attack Speed + 5; configurable only as a validated ruleset option                    |
-| Eligible action     | Basic attack or a skill explicitly marked `allowsSpeedFollowUp`; default false for skills                                    |
-| Exchange            | Initiator strike → legal surviving defender counter → eligible surviving initiator follow-up                                 |
-| Faster defender     | One legal counter in v1; a defender follow-up is a separate balance option, default off                                      |
-| MP                  | Explicit pool and per-skill cost, deducted once per chosen skill activation; follow-up costs must be specified by that skill |
-| Movement refresh    | Once at the next ordinary activation; counter/follow-up never refresh it                                                     |
+| Classic scheduling  | Unified descending effective-Speed order; UI queues manual commands then resolves current legal targets at each slot                                                    |
+| Movement            | Explicit movement budget independent of Speed. Suggested default 4 tiles, with bounded class/ability adjustments                                                        |
+| Attack Speed        | Effective Speed, with only explicitly modeled penalties/bonuses; no fictional weapon weight                                                                             |
+| Follow-up threshold | Attacker Attack Speed at least defender Attack Speed + 5; configurable only as a validated ruleset option                                                               |
+| Eligible action     | Basic attack or a skill explicitly marked `allowsSpeedFollowUp`; default false for skills                                                                               |
+| Exchange            | Initiator strike → legal surviving defender counter → eligible surviving initiator follow-up                                                                            |
+| Faster defender     | One legal counter in v1; a defender follow-up is a separate balance option, default off                                                                                 |
+| MP                  | Explicit pool and per-skill cost, deducted once per chosen skill activation; follow-up costs must be specified by that skill                                            |
+| Movement refresh    | Once at the next ordinary activation; counter/follow-up never refresh it                                                                                                |
 
 The threshold of 5 and exchange ordering are Marinara proposals, not a claim to reproduce any particular game's rules. The maintainer requested the faster attacking unit to strike twice; implementing defensive doubling is not required by that request.
 

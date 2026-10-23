@@ -79,12 +79,14 @@ export function useReadNovelAiMetadata() {
   });
 }
 
-export function useExtractTranslationGlossary() {
+export type TranslationScanResult =
+  | { entries: Array<{ source: string; target: string }> }
+  | { entries: Array<{ name: string; style: string }> }
+  | { text: string };
+/** The extension's 단어장 생성 / 말투 자동 정리 / 세계관 자동 정리 for one chat. */
+export function useTranslationScan() {
   return useMutation({
-    mutationFn: (input: { chatId: string; text: string }) =>
-      api.post<{ entries: NativeIntegrations["translation"]["rooms"][string]["glossary"] }>(
-        "/native-integrations/translation/extract",
-        input,
-      ),
+    mutationFn: (input: { chatId: string; kind: "glossary" | "speech" | "world" }) =>
+      api.post<TranslationScanResult>("/native-integrations/translation/scan", input),
   });
 }

@@ -36,6 +36,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { Loader2, ChevronUp, Puzzle } from "lucide-react";
 import { ConversationMessage } from "./ConversationMessage";
@@ -566,34 +567,49 @@ export function ConversationView({
   };
   const conversationSurfacePackages = selectConversationSurfacePackages(installedCapabilities, chatMeta);
   const conversationCapabilityProps = { chatId, metadata: chatMeta, characterMap, chatCharIds, personaInfo };
-  // Like the Roleplay strip, the see-through header lets touches through to the transcript except on its controls.
-  const renderHeader = () => (
-    <div className="pointer-events-none sticky top-0 z-30 flex items-center justify-between px-4 py-2">
-      <div data-conversation-header-identity className="pointer-events-auto flex min-w-0 items-center gap-1.5">
-        <ConversationPresenceCard
-          chatId={chatId}
-          chatMeta={chatMeta}
-          chatCharIds={chatCharIds}
-          characterMap={characterMap}
-          messages={messages}
-          onOpenSettings={onOpenSettings}
-          onOpenScheduleEditor={onOpenScheduleEditor}
-        />
-        {callsPackage && (
-          <span data-chat-help="call" className="contents">
-            <CapabilityElement
-              packageId={callsPackage.id}
-              view="toolbar"
-              capabilityProps={callCapabilityProps}
-              // ponytail: This direct-child size bridge supports Calls <=1.0.11; remove it once 1.0.12 is the minimum.
-              className="contents [&>button]:h-8! [&>button]:w-8! max-md:[&>button]:h-9! max-md:[&>button]:w-9!"
-            />
-          </span>
-        )}
-      </div>
-      {/* Chat Settings, the connected chat and package toolbars sit in the topbar and in bubbles. */}
+  // In the reader, the identity (avatar, name, status menu) moves into its messenger header, centered.
+  const [contactSlot, setContactSlot] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    setContactSlot(document.querySelector<HTMLElement>("[data-reader-contact-slot]"));
+  }, [chatId]);
+  const identity = (layout: "pill" | "stacked") => (
+    <div
+      data-conversation-header-identity
+      className={`pointer-events-auto flex min-w-0 items-center gap-1.5${layout === "stacked" ? " justify-center" : ""}`}
+    >
+      <ConversationPresenceCard
+        chatId={chatId}
+        chatMeta={chatMeta}
+        chatCharIds={chatCharIds}
+        characterMap={characterMap}
+        messages={messages}
+        onOpenSettings={onOpenSettings}
+        onOpenScheduleEditor={onOpenScheduleEditor}
+        layout={layout}
+      />
+      {callsPackage && (
+        <span data-chat-help="call" className="contents">
+          <CapabilityElement
+            packageId={callsPackage.id}
+            view="toolbar"
+            capabilityProps={callCapabilityProps}
+            // ponytail: This direct-child size bridge supports Calls <=1.0.11; remove it once 1.0.12 is the minimum.
+            className="contents [&>button]:h-8! [&>button]:w-8! max-md:[&>button]:h-9! max-md:[&>button]:w-9!"
+          />
+        </span>
+      )}
     </div>
   );
+  // Like the Roleplay strip, the see-through header lets touches through to the transcript except on its controls.
+  const renderHeader = () =>
+    contactSlot ? (
+      createPortal(identity("stacked"), contactSlot)
+    ) : (
+      <div className="pointer-events-none sticky top-0 z-30 flex items-center justify-between px-4 py-2">
+        {identity("pill")}
+        {/* Chat Settings, the connected chat and package toolbars sit in the topbar and in bubbles. */}
+      </div>
+    );
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [mobileHistoryComposerCollapsed, setMobileHistoryComposerCollapsed] = useState(false);

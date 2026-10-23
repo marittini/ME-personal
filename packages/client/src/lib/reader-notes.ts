@@ -1,28 +1,5 @@
-import type { ReaderBookmark, ReaderHighlight } from "@marinara-engine/shared";
+import type { ReaderHighlight } from "@marinara-engine/shared";
 import { restoreExcerptRange } from "./reader-excerpt-anchors";
-
-/** First message whose body is visible at the top of the reading area, as the reading position uses. */
-export function captureReadingBookmark(root: Element): Omit<ReaderBookmark, "id" | "createdAt" | "label"> | null {
-  const area = root.querySelector<HTMLElement>("[data-chat-scroll]");
-  if (!area) return null;
-  const top = area.getBoundingClientRect().top;
-  const node = Array.from(area.querySelectorAll<HTMLElement>("[data-message-id][data-message-number]")).find(
-    (element) => element.getBoundingClientRect().bottom > top + 64,
-  );
-  const messageNumber = Number(node?.dataset.messageNumber);
-  if (!node?.dataset.messageId || !Number.isInteger(messageNumber) || messageNumber < 1) return null;
-  const text = Array.from(node.querySelectorAll(".mari-message-content"))
-    .map((element) => element.textContent ?? "")
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return {
-    messageId: node.dataset.messageId,
-    messageNumber,
-    offset: node.getBoundingClientRect().top - top,
-    snippet: text.slice(0, 120),
-  };
-}
 
 function caretAt(x: number, y: number): { node: Node; offset: number } | null {
   const doc = document as Document & {

@@ -52,21 +52,21 @@ The existing composers support file attachments. They do not currently support m
 
 The capability resolver must also enforce current chat-mode restrictions and resource availability. The table describes the operation when the existing UI already allows it in the active mode.
 
-| Resource | Chat surface | Composer | Drop behavior |
-| --- | --- | --- | --- |
-| Character | Add ID to `characterIds` | None | Add immediately; toast with Undo |
-| Lorebook | Add ID to `activeLorebookIds` | None | Add immediately; toast with Undo |
-| Agent | Add ID to `activeAgentIds` | None | Add immediately when agents are enabled; otherwise confirm enabling agents and adding it |
-| Persona | Set `personaId` | None | Set immediately if empty; confirm when replacing another persona |
-| Prompt preset | Set `promptPresetId` | None | Respect mode restrictions; set immediately if empty; confirm when replacing another preset |
-| Connection | Set `connectionId` | None | Confirm when changing the current connection; include the old and new connection names |
-| Chat background | Set existing chat background metadata | None | Use the current background assignment semantics; confirm replacement only if the existing flow requires it |
-| Image or supported file | None | Add to draft attachments | Reuse the existing attachment validation and preparation pipeline |
-| Character/lorebook/agent folder | None | None | No target |
-| Settings control | None | None | No target |
-| Regex script | None | None | No target until a chat-scoped assignment contract exists |
-| Custom function/tool | None | None | No target until a chat-scoped assignment contract exists |
-| Extension contribution | None by default | None by default | Opt-in only through a future typed contribution API |
+| Resource                        | Chat surface                          | Composer                 | Drop behavior                                                                                              |
+| ------------------------------- | ------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Character                       | Add ID to `characterIds`              | None                     | Add immediately; toast with Undo                                                                           |
+| Lorebook                        | Add ID to `activeLorebookIds`         | None                     | Add immediately; toast with Undo                                                                           |
+| Agent                           | Add ID to `activeAgentIds`            | None                     | Add immediately when agents are enabled; otherwise confirm enabling agents and adding it                   |
+| Persona                         | Set `personaId`                       | None                     | Set immediately if empty; confirm when replacing another persona                                           |
+| Prompt preset                   | Set `promptPresetId`                  | None                     | Respect mode restrictions; set immediately if empty; confirm when replacing another preset                 |
+| Connection                      | Set `connectionId`                    | None                     | Confirm when changing the current connection; include the old and new connection names                     |
+| Chat background                 | Set existing chat background metadata | None                     | Use the current background assignment semantics; confirm replacement only if the existing flow requires it |
+| Image or supported file         | None                                  | Add to draft attachments | Reuse the existing attachment validation and preparation pipeline                                          |
+| Character/lorebook/agent folder | None                                  | None                     | No target                                                                                                  |
+| Settings control                | None                                  | None                     | No target                                                                                                  |
+| Regex script                    | None                                  | None                     | No target until a chat-scoped assignment contract exists                                                   |
+| Custom function/tool            | None                                  | None                     | No target until a chat-scoped assignment contract exists                                                   |
+| Extension contribution          | None by default                       | None by default          | Opt-in only through a future typed contribution API                                                        |
 
 ### Mode Rules
 
