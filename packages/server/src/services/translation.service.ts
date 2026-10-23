@@ -14,6 +14,7 @@ import { resolveStoredChatOptions, resolveStoredMaxTokens } from "./generation/g
 import {
   DEFAULT_TRANSLATION_SYSTEM_PROMPT,
   PROVIDERS,
+  hideTTSAudioCues,
   localAuthProviderBaseUrl,
   buildGameTranslationSource,
   resolveTranslationSystemPrompt,
@@ -24,7 +25,6 @@ import { safeFetch, validateOutboundUrl } from "../utils/security.js";
 import { resolveBaseUrl } from "../routes/generate/generate-route-utils.js";
 import type { GenerationFallbackNotifier } from "./generation/fallback-notification.js";
 import { integratedTranslationInput } from "./native-integrations.js";
-import { protectTranslationMarkup } from "./translation-markup.js";
 
 const GOOGLE_MAX_LENGTH = 5000;
 
@@ -49,10 +49,9 @@ const translateSchema = z.object({
 
 export async function translateText(db: DB, body: unknown, onFallback?: GenerationFallbackNotifier) {
   const input = await integratedTranslationInput(db, translateSchema.parse(body));
-  const markup = protectTranslationMarkup(input.text);
-  input.text = markup.text;
-  if (input.provider === "ai")
-    input.systemPrompt = `${input.systemPrompt || DEFAULT_TRANSLATION_SYSTEM_PROMPT}\nPreserve every MARI_…_END marker exactly, once, and in its original order. Markers are protected formatting, not prose.`;
+  // A translation is display text: speech always uses the original lines and their audio cues. Sending the
+  // audio wrappers and cues would make the model echo them (or fail when it changes them), so strip them.
+  if (input.direction !== "input") input.text = hideTTSAudioCues(input.text);
   const connections = createConnectionsStorage(db);
   let result: { translatedText: string };
   switch (input.provider) {
@@ -69,7 +68,7 @@ export async function translateText(db: DB, body: unknown, onFallback?: Generati
       result = await translateWithGoogle(input);
       break;
   }
-  return { translatedText: markup.restore(result.translatedText) };
+  return { translatedText: result.translatedText };
 }
 
 export async function extractTranslationGlossary(db: DB, body: unknown) {
