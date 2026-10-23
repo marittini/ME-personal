@@ -94,7 +94,7 @@ async function openSettingsWindow(page: Page) {
   await expect(settings).toBeVisible();
   await expect(settings).toHaveAttribute("data-presentation", "window");
   // The loading placeholder shares the window; wait for the real settings.
-  await expect(settings.locator("[data-chat-settings-section]").first()).toBeVisible();
+  await expect(settings.locator("[data-chat-settings-section]:visible").first()).toBeVisible();
   // Measure after the opening animation settles.
   await settings.evaluate((element) =>
     Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined))),
@@ -208,48 +208,6 @@ test.describe("Chat Settings window on desktop", () => {
       await expect(chatSettingsButton(page)).toHaveCount(0);
     } finally {
       await Promise.all(chats.map((chat) => request.delete(`/api/chats/${chat.id}?force=true`)));
-    }
-  });
-
-  test("Chat Settings tips dismiss only for this chat and stay dismissed after reload", async ({ page, request }) => {
-    const first = await createChat(request, "conversation");
-    let second: { id: string; mode: ChatMode } | undefined;
-    try {
-      await prepare(page, first.id);
-      await page.goto("/");
-      await expect(page.locator('[data-chat-mode="conversation"]')).toBeVisible();
-      const settings = await openSettingsWindow(page);
-      const hints = settings.locator("[data-chat-settings-top-row]");
-      await expect(hints).toContainText("Your setups for chats are saved within the profiles below.");
-      await settings.getByRole("button", { name: "Hide these tips for this chat", exact: true }).click();
-      await expect(hints).toHaveCount(0);
-      await expect
-        .poll(async () => {
-          const chat = await (await request.get(`/api/chats/${first.id}`)).json();
-          const metadata = typeof chat.metadata === "string" ? JSON.parse(chat.metadata) : chat.metadata;
-          return metadata.chatSettingsHintDismissed;
-        })
-        .toBe(true);
-      await page.reload();
-      await expect(page.locator('[data-chat-mode="conversation"]')).toBeVisible();
-      await openSettingsWindow(page);
-      await expect(hints).toHaveCount(0);
-
-      second = await createChat(request, "conversation");
-      // A slow load holds the switch in the gap CI hit, where the open window is not drawn yet.
-      await page.route(`**/api/chats/${second.id}`, async (route) => {
-        await new Promise((resolve) => setTimeout(resolve, 1_000));
-        await route.continue();
-      });
-      await setActiveChat(page, second.id);
-      await keepSettingsWindowOpen(page);
-      await expect(hints).toBeVisible();
-      await setActiveChat(page, first.id);
-      await keepSettingsWindowOpen(page);
-      await expect(hints).toHaveCount(0);
-    } finally {
-      await request.delete(`/api/chats/${first.id}?force=true`);
-      if (second) await request.delete(`/api/chats/${second.id}?force=true`);
     }
   });
 
@@ -676,11 +634,6 @@ test.describe("Chat Settings window on desktop", () => {
       await page.goto("/");
       await expect(page.locator('[data-chat-mode="roleplay"]')).toBeVisible();
       const settings = await openSettingsWindow(page);
-      const hint = settings.locator("[data-chat-settings-top-row]").filter({ hasText: "Drag this window" });
-      await expect(hint).toContainText(
-        "Drag this window's title bar to move it, and drag its edges to resize it. Drag a section's title out",
-      );
-
       // The tip points at the Chat Settings button: dragging it is the thing to discover.
       const tip = page.locator("[data-chat-settings-move-tip]");
       await expect(tip).toHaveText(
@@ -1099,7 +1052,7 @@ test("phones open Chat Settings from its button as a sheet with Help and the Tra
     const sheet = settingsWindow(page);
     await expect(sheet).toBeVisible();
     // The loading placeholder shares the sheet; measure the real settings, not the one being replaced.
-    await expect(sheet.locator("[data-chat-settings-section]").first()).toBeVisible();
+    await expect(sheet.locator("[data-chat-settings-section]:visible").first()).toBeVisible();
     await expect(sheet).toHaveAttribute("data-presentation", "sheet");
     await expect(sheet.locator('[data-window-control="lock"]')).toBeVisible();
     await expect(sheet.locator('[data-window-control="close"]')).toBeVisible();

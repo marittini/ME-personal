@@ -21,8 +21,24 @@ export async function openChatSettings(page: Page): Promise<Locator> {
   const settings = chatSettingsWindow(page);
   if (await settings.isVisible()) return settings;
   await page.locator("[data-chat-settings-button]").click();
-  await expect(settings.locator("[data-chat-settings-section]").first()).toBeVisible();
+  await expect(settings.locator("[data-chat-settings-section]:visible").first()).toBeVisible();
   return settings;
+}
+
+/** Chat Settings shows one tab at a time (채팅 설정 · 컨텍스트 · 기억 · 기타); this opens the tab holding a tool. */
+const TOOL_TABS: Record<ChatSettingsTool | "agents", "settings" | "context" | "memory" | "other"> = {
+  "chat-branches": "settings",
+  "chat-summary": "memory",
+  "active-context": "context",
+  "author-notes": "context",
+  "agent-activity": "other",
+  gallery: "other",
+  "message-search": "other",
+  agents: "other",
+};
+export async function openChatSettingsTab(page: Page, tab: "settings" | "context" | "memory" | "other") {
+  const button = chatSettingsWindow(page).locator(`[data-chat-settings-tab-button="${tab}"]`);
+  if (await button.count()) await button.click();
 }
 
 /** The open/close toggle in a drawer's own header (not one of a nested drawer). */
@@ -45,6 +61,7 @@ export function chatSettingsDrawer(page: Page, tool: ChatSettingsTool | "agents"
 /** Opens Chat Settings, expands a chat tool's drawer and returns it. */
 export async function openChatSettingsTool(page: Page, tool: ChatSettingsTool): Promise<Locator> {
   await openChatSettings(page);
+  await openChatSettingsTab(page, TOOL_TABS[tool]);
   const drawer = chatSettingsDrawer(page, tool);
   await drawer.scrollIntoViewIfNeeded();
   await expand(drawer);

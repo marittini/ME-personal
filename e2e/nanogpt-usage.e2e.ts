@@ -41,7 +41,9 @@ for (const theme of ["light", "dark"] as const) {
       const { default: React } = await import(url("react"));
       const { default: ReactDOM } = await import(url("react-dom_client"));
       const { QueryClient, QueryClientProvider } = await import(url("@tanstack_react-query"));
-      const { SubscriptionUsageWidget } = await import("/src/components/connections/SubscriptionUsageWidget.tsx" as string);
+      const { SubscriptionUsageWidget } = await import(
+        "/src/components/connections/SubscriptionUsageWidget.tsx" as string
+      );
       const mount = document.createElement("div");
       mount.style.cssText =
         "position:fixed;inset:0;z-index:99999;overflow:auto;background:var(--background);padding:12px;color:var(--foreground)";

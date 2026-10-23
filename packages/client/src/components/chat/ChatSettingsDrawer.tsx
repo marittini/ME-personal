@@ -22,7 +22,18 @@
 // ──────────────────────────────────────────────
 // Chat: Settings Drawer — per-chat configuration
 // ──────────────────────────────────────────────
-import { lazy, Suspense, useState, useRef, useEffect, useMemo, useCallback, useId, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+  useId,
+  type ReactNode,
+} from "react";
 import { useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -59,7 +70,7 @@ import {
   RefreshCw,
   RotateCcw,
   Settings2,
-  Info,
+  LayoutList,
   ArrowRightLeft,
   Archive,
   Unlink,
@@ -106,6 +117,9 @@ import { type ChatToolbarFloatingPanelAnchor } from "./ChatToolbarControls";
 import { PickerDropdown } from "../../features/chat-settings/PickerDropdown";
 import { PersonaHistoryReassignDropdown } from "../../features/chat-settings/sections/PersonaHistoryReassignDropdown";
 import { ChatSettingsSection as Section } from "../../features/chat-settings/ChatSettingsSection";
+import { CHAT_SETTINGS_TABS, useChatSettingsTabs } from "./chat-settings-tabs";
+import { ChatUiManager, applyChatUiPlacements } from "./ChatUiManager";
+import { chatUiMode, normalizeChatUiLayout } from "../../lib/chat-ui-layout";
 import { ActiveChatBackgroundPicker } from "../panels/settings/BackgroundPicker";
 import { AdvancedParametersSection } from "../../features/chat-settings/sections/AdvancedParametersSection";
 import { ChatNameSection } from "../../features/chat-settings/sections/ChatNameSection";
@@ -915,6 +929,8 @@ export function ChatSettingsDrawer({
   const sectionsPoppedOut = useHostHasDetachedDrawers(CHAT_SETTINGS_WINDOW_ID);
   const open = windowOpen || sectionsPoppedOut;
   const setControlDockHost = useChatControlDockStore((state) => state.setElement);
+  const [settingsList, setSettingsList] = useState<HTMLDivElement | null>(null);
+  const [uiManagerOpen, setUiManagerOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   // On phones the sheet keeps the field being typed in (a summary, the notes) above the keyboard.
   useKeepFocusedFieldAboveKeyboard(panelRef);
@@ -1010,6 +1026,21 @@ export function ChatSettingsDrawer({
       : "roleplay";
   const isConversation = chatMode === "conversation";
   const isGame = chatMode === "game";
+  const uiMode = chatUiMode(chatMode);
+  const storedUiLayout = useUIStore((s) => (uiMode ? s.chatUiLayout[uiMode] : undefined));
+  const uiLayout = useMemo(
+    () => (storedUiLayout ? normalizeChatUiLayout(storedUiLayout) : undefined),
+    [storedUiLayout],
+  );
+  const settingsTabs = useChatSettingsTabs(settingsList, uiLayout);
+  // A room of the same mode follows the explicit top/settings choices made in the UI manager (computers only).
+  const uiLayoutRef = useRef(uiLayout);
+  uiLayoutRef.current = uiLayout;
+  useEffect(() => {
+    if (!settingsList) return;
+    const frame = requestAnimationFrame(() => applyChatUiPlacements(uiLayoutRef.current, settingsList));
+    return () => cancelAnimationFrame(frame);
+  }, [chat.id, settingsList]);
   const isRoleplayMode = chatMode === "roleplay";
   const { data: generationStatus, refetch: refetchGenerationStatus } = useGenerationStatus(
     chat.id,
@@ -1341,6 +1372,21 @@ export function ChatSettingsDrawer({
       }).filter((entry) => entry.enabled).length,
     [metadata.summary, metadata.summaryEntries],
   );
+  const showSettingsSection = settingsTabs.showSection;
+  useLayoutEffect(() => {
+    if (!open || !initialSection) return;
+    showSettingsSection(
+      initialSection === "autonomous"
+        ? "conversation-autonomous-messaging"
+        : initialSection === "summary"
+          ? `${chatMode}-chat-summary`
+          : initialSection === "active-context" ||
+              initialSection === "memory-recall" ||
+              initialSection === "message-search"
+            ? `${chatMode}-${initialSection}`
+            : initialSection,
+    );
+  }, [chatMode, initialSection, open, showSettingsSection]);
   useEffect(() => {
     if (!open || initialSection !== "autonomous" || !isConversation) return;
     const frame = window.requestAnimationFrame(() => {
@@ -5051,6 +5097,19 @@ export function ChatSettingsDrawer({
   // Reset View and the favorite arrangement, then the Tracker Panel dice and window controls.
   const headerControls = (
     <>
+      {uiMode && (
+        <button
+          type="button"
+          data-chat-ui-manager-button=""
+          aria-label={localizeUi("chat.uiManager.title")}
+          title={localizeUi("chat.uiManager.title")}
+          aria-pressed={uiManagerOpen}
+          className="mari-window__control"
+          onClick={() => setUiManagerOpen((value) => !value)}
+        >
+          <LayoutList size="0.8125rem" />
+        </button>
+      )}
       <button
         type="button"
         data-chat-help="reset-view"
@@ -5081,6 +5140,7 @@ export function ChatSettingsDrawer({
   );
   return (
     <>
+      {uiMode && <ChatUiManager open={uiManagerOpen} onClose={() => setUiManagerOpen(false)} mode={uiMode} />}
       <FloatingWindow
         id={CHAT_SETTINGS_WINDOW_ID}
         hidden={!windowOpen}
@@ -5100,33 +5160,30 @@ export function ChatSettingsDrawer({
         onRequestClose={() => requestClose()}
       >
         {/* Desktop-only: drag-and-drop hint (sidebar drag is disabled on mobile overlays) */}
-        {metadata.chatSettingsHintDismissed !== true && (
-          <div
-            data-chat-settings-top-row
-            className="flex shrink-0 items-start gap-2 border-b border-[var(--border)] px-4 py-2 text-[0.6875rem] leading-snug text-[var(--muted-foreground)] max-md:hidden"
-          >
-            <Info size="0.8125rem" className="mt-px shrink-0" />
-            {/* The slash-joined list has no spaces, so let it wrap in a narrow window. */}
-            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-              {localizeUi("chat.settings.dragDropHint")} {localizeUi("chat.settings.moveResizeHint")}{" "}
-              {localizeUi("chat.settings.dragOutHint")}
-              {modeSettingsSurfaces.showSettingsProfiles && <> {localizeUi("chat.settings.profilesHint")}</>}{" "}
-              {localizeUi("chat.settings.favoriteLayout.hint")}
-            </span>
-            <button
-              type="button"
-              onClick={() => updateMeta.mutate({ id: chat.id, chatSettingsHintDismissed: true })}
-              disabled={updateMeta.isPending}
-              aria-label={localizeUi("chat.settings.dismissHints")}
-              title={localizeUi("chat.settings.dismissHints")}
-              className="shrink-0 rounded p-1.5 hover:bg-[var(--muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-50"
-            >
-              <X size="0.875rem" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-
         <div
+          role="tablist"
+          aria-label={localizeUi("chat.settings.tabs.label")}
+          data-chat-settings-tabs
+          className="mari-chat-settings-tabs flex shrink-0 gap-1 border-b border-[var(--border)] px-3 py-1.5"
+        >
+          {CHAT_SETTINGS_TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={settingsTabs.tab === tab}
+              data-chat-settings-tab-button={tab}
+              className="mari-chat-settings-tab"
+              onClick={() => settingsTabs.setTab(tab)}
+            >
+              {localizeUi(`chat.settings.tabs.${tab}`)}
+            </button>
+          ))}
+        </div>
+        <div
+          ref={setSettingsList}
+          role="tabpanel"
+          data-chat-settings-tab={settingsTabs.tab}
           className={cn(
             NEUTRAL_PANEL_SCROLL_AREA,
             "@container flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[calc(1rem+var(--mari-safe-area-inset-bottom,env(safe-area-inset-bottom)))]",
@@ -5144,6 +5201,7 @@ export function ChatSettingsDrawer({
           {modeSettingsSurfaces.showSettingsProfiles && (
             <div
               style={{ order: CHAT_SETTINGS_ORDER.settingsPresets }}
+              data-chat-settings-profiles=""
               className="flex shrink-0 flex-col gap-2 border-b border-[var(--border)] px-4 py-3"
             >
               <input

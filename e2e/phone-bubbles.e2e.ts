@@ -121,7 +121,7 @@ async function sharedBubbleShape(page: Page) {
 async function openSettingsSheet(page: Page) {
   await chatSettingsButton(page).click();
   const settings = sheet(page, "chat-settings");
-  await expect(settings.locator("[data-chat-settings-section]").first()).toBeVisible();
+  await expect(settings.locator("[data-chat-settings-section]:visible").first()).toBeVisible();
   await expect(settings).toHaveAttribute("data-presentation", "sheet");
   return settings;
 }

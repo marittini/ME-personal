@@ -798,6 +798,7 @@ export function PersonasPanel() {
                   value2: group.name,
                 })}
                 title={localizeUi("ui.panels.backgroundpicker.doubleClickDoubleTapOrPressF2ToRename")}
+                data-receipt-folder=""
                 className="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition-all hover:bg-[var(--sidebar-accent)]/40 max-md:pr-12 [@media(pointer:coarse)]:pr-12"
                 onClick={(event) =>
                   handleFolderRenameGesture(group.id, event, {
@@ -1134,6 +1135,7 @@ export function PersonasPanel() {
                   chatResourcePayload: { version: 1, kind: "persona", ids: [persona.id], label: persona.name },
                 })
               }
+              data-receipt-row=""
               className={cn(
                 "group relative flex touch-pan-y cursor-grab active:cursor-grabbing items-center gap-3 rounded-xl p-2.5 transition-all hover:bg-[var(--sidebar-accent)]",
                 selectionMode &&

@@ -30,6 +30,8 @@ let privateScope = false;
 let omitKorean = false;
 let truncateMulti = false;
 let truncateSingle = false;
+/** Appended to the promise text so successive commits carry new values. */
+let contentVariant = "";
 const requests: string[][] = [];
 const provider = createServer(async (req, res) => {
   const chunks: Buffer[] = [];
@@ -46,7 +48,8 @@ const provider = createServer(async (req, res) => {
       {
         kind: "promise",
         key: knownId ? "renamed model key" : "promise:book",
-        content: progress === "completed" ? "Alice has returned the book." : "Alice will return the book.",
+        content:
+          (progress === "completed" ? "Alice has returned the book." : "Alice will return the book.") + contentVariant,
         status: "current",
         progress,
         existingId: knownId,
@@ -351,12 +354,31 @@ try {
       characterId: null,
       content: `Book promise update ${index}.`,
     });
+    contentVariant = ` (update ${index})`;
     await startCommittedMemory(db, split.id);
     assert.equal((await finish(split.id)).state.job?.status, "complete");
   }
   const bounded = (await committedMemoryStatus(db, split.id)).state.batches.flatMap((batch) => batch.facts);
   assert.equal(bounded.length, 1);
   assert.equal(bounded[0]?.previous?.length, 3, "version history is bounded and never listed as extra memories");
+  // The same value again is no change: no new memory and no new history entry.
+  await chats.createMessage({
+    chatId: split.id,
+    role: "assistant",
+    characterId: null,
+    content: "Book promise repeated.",
+  });
+  await startCommittedMemory(db, split.id);
+  assert.equal((await finish(split.id)).state.job?.status, "complete");
+  const repeated = (await committedMemoryStatus(db, split.id)).state.batches.flatMap((batch) => batch.facts);
+  assert.equal(repeated.length, 1, "a repeated value creates no new memory");
+  assert.equal(repeated[0]?.id, bounded[0]?.id);
+  assert.deepEqual(
+    repeated[0]?.previous?.map((version) => version.content),
+    bounded[0]?.previous?.map((version) => version.content),
+    "a repeated value adds no history",
+  );
+  contentVariant = "";
   await chats.createMessage({ chatId: split.id, role: "assistant", characterId: null, content: "A final new event." });
   truncateSingle = true;
   await startCommittedMemory(db, split.id);

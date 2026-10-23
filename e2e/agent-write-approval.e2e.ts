@@ -80,15 +80,17 @@ for (const theme of ["light", "dark"] as const) {
       await page.keyboard.press("Enter");
       await expect(summary).toBeVisible();
       await expect(summary.locator("textarea")).toHaveValue("The group visited the library.");
-      await expect.poll(() => commits).toEqual([
-        {
-          kind: "lorebook_update",
-          text: "### Library\n\nAn edited library.",
-          payload: {},
-          agentName: "Review agent",
-          agentType: "lorebook-keeper",
-        },
-      ]);
+      await expect
+        .poll(() => commits)
+        .toEqual([
+          {
+            kind: "lorebook_update",
+            text: "### Library\n\nAn edited library.",
+            payload: {},
+            agentName: "Review agent",
+            agentType: "lorebook-keeper",
+          },
+        ]);
       const discard = summary.getByRole("button", { name: "Discard", exact: true });
       await discard.focus();
       await page.keyboard.press("Space");

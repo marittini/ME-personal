@@ -169,8 +169,7 @@ for (const spec of [
         .poll(() => editor.locator(".mari-editor-navigation-tabs [data-active]").getAttribute("aria-label"))
         .toBe(spec.last);
       if (paged) await openSection(editor, "Metadata");
-      else
-        await editor.locator(".mari-editor-content").evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
+      else await editor.locator(".mari-editor-content").evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
       await expect
         .poll(() => editor.locator(".mari-editor-navigation-tabs [data-active]").getAttribute("aria-label"))
         .not.toBe(spec.last);
@@ -697,6 +696,8 @@ for (const mode of ["roleplay", "game", "conversation"] as const) {
         await expect(drawer.locator('[data-chat-settings-section$="-background"]')).toHaveCount(0);
         return;
       }
+      // Background and Agents sit in Chat Settings' "Other" tab.
+      await drawer.locator('[data-chat-settings-tab-button="other"]').click();
       const section = drawer.locator(`[data-chat-settings-section="${mode}-background"]`);
       const agents = drawer.locator(`[data-chat-settings-section="${mode}-agents"]`);
       expect(Number(await section.evaluate((el) => getComputedStyle(el).order))).toBeGreaterThan(

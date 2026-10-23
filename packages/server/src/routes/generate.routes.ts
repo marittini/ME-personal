@@ -1852,7 +1852,11 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
       // Get chat messages
       const chatMode = requestChatMode;
       const advancedMemorySettings = normalizeAdvancedMemorySettings(chatMeta.advancedMemory);
-      const advancedMemoryEnabled = chatMode === "roleplay" && advancedMemorySettings.enabled;
+      // Unified memory is the RP memory when it is on: advanced memory and memory recall stay out of the prompt
+      // (both being on used to drop unified memory instead).
+      const unifiedMemoryEnabled =
+        chatMode === "roleplay" && (chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled === true;
+      const advancedMemoryEnabled = chatMode === "roleplay" && advancedMemorySettings.enabled && !unifiedMemoryEnabled;
       // A character never replies before Advanced Memory has decided who sees earlier messages (#7192).
       const decidesMessageVisibility =
         advancedMemoryEnabled &&
@@ -5506,7 +5510,12 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
             .filter(Boolean)
             .join("\n\n");
           replaceConversationContextMacro(finalMessages, "memories", conversationMemoriesBlockValue);
-        } else if (!advancedMemoryEnabled && enableMemoryRecall && memoryRecallVectorizerAvailable) {
+        } else if (
+          !advancedMemoryEnabled &&
+          !unifiedMemoryEnabled &&
+          enableMemoryRecall &&
+          memoryRecallVectorizerAvailable
+        ) {
           memoryRecallAttempted = true;
           recalledAgentVectorMemories = await injectMemoryRecallContext({
             db: app.db,

@@ -121,54 +121,58 @@ async function wheelBackOneEntry(page: Page) {
   await page.mouse.wheel(0, -120);
 }
 
-test("a hidden verb-only anchor does not blank the GM narration panel", { tag: "@smoke" }, async ({ page, request }, testInfo) => {
-  test.skip(!testInfo.project.name.includes("desktop"), "One proof of the narration filter is sufficient.");
-  const { chatId, anchorId, editedEmptyId } = await seedVerbOnlyTurn(request);
-  try {
-    await openGameChat(page, chatId);
-    const narrationPanel = page.locator('[data-component="GameNarration.ActivePanel"]');
-    await expect(narrationPanel).toBeVisible({ timeout: 30_000 });
-    // Without the hidden/command-only/empty filter on the latest-GM-turn pick, one of
-    // the three unreadable rows above becomes the rendered turn and the panel falls
-    // back to its "send an action to begin the scene" empty state (anchor, edited-empty)
-    // or leaks the continuity note (hidden row).
-    await expect(narrationPanel).toContainText(GM_NARRATION);
-    await expect(narrationPanel).not.toContainText(HIDDEN_CONTEXT);
-    await expect(narrationPanel).not.toContainText(EARLIER_NARRATION);
+test(
+  "a hidden verb-only anchor does not blank the GM narration panel",
+  { tag: "@smoke" },
+  async ({ page, request }, testInfo) => {
+    test.skip(!testInfo.project.name.includes("desktop"), "One proof of the narration filter is sufficient.");
+    const { chatId, anchorId, editedEmptyId } = await seedVerbOnlyTurn(request);
+    try {
+      await openGameChat(page, chatId);
+      const narrationPanel = page.locator('[data-component="GameNarration.ActivePanel"]');
+      await expect(narrationPanel).toBeVisible({ timeout: 30_000 });
+      // Without the hidden/command-only/empty filter on the latest-GM-turn pick, one of
+      // the three unreadable rows above becomes the rendered turn and the panel falls
+      // back to its "send an action to begin the scene" empty state (anchor, edited-empty)
+      // or leaks the continuity note (hidden row).
+      await expect(narrationPanel).toContainText(GM_NARRATION);
+      await expect(narrationPanel).not.toContainText(HIDDEN_CONTEXT);
+      await expect(narrationPanel).not.toContainText(EARLIER_NARRATION);
 
-    // Wheel-nav walks the flat log, which is built from its own copy of the filter. One
-    // step back must reach the previous readable turn: if the hidden continuity note is
-    // still in that list it takes this slot instead, and the earlier turn is one step
-    // further away than the player's history says it is.
-    await wheelBackOneEntry(page);
-    await expect(narrationPanel).toContainText(EARLIER_NARRATION, { timeout: 10_000 });
-    await expect(narrationPanel).not.toContainText(HIDDEN_CONTEXT);
+      // Wheel-nav walks the flat log, which is built from its own copy of the filter. One
+      // step back must reach the previous readable turn: if the hidden continuity note is
+      // still in that list it takes this slot instead, and the earlier turn is one step
+      // further away than the player's history says it is.
+      await wheelBackOneEntry(page);
+      await expect(narrationPanel).toContainText(EARLIER_NARRATION, { timeout: 10_000 });
+      await expect(narrationPanel).not.toContainText(HIDDEN_CONTEXT);
 
-    await page.getByRole("button", { name: "Logs", exact: true }).click();
-    const logs = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Session Logs" }) });
-    await expect(logs).toBeVisible();
-    await expect(logs).toContainText(GM_NARRATION);
-    await expect(logs).toContainText(EARLIER_NARRATION);
-    await expect(logs).not.toContainText(HIDDEN_CONTEXT);
-    await page.screenshot({ path: testInfo.outputPath("game-visible-logs.png") });
+      await page.getByRole("button", { name: "Logs", exact: true }).click();
+      const logs = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Session Logs" }) });
+      await expect(logs).toBeVisible();
+      await expect(logs).toContainText(GM_NARRATION);
+      await expect(logs).toContainText(EARLIER_NARRATION);
+      await expect(logs).not.toContainText(HIDDEN_CONTEXT);
+      await page.screenshot({ path: testInfo.outputPath("game-visible-logs.png") });
 
-    // Both unreadable rows are still real rows on the server — the surface skipped them,
-    // they were not dropped from the chat. Re-asserting the edited row's shape keeps the
-    // fixture honest: it only exercises the predicate's content test while it stays the
-    // newest row, empty, and free of the anchor's visibility flags.
-    const stored = await request.get(`/api/chats/${chatId}/messages`);
-    expect(stored.ok()).toBeTruthy();
-    const rows = (await stored.json()) as Array<{ id: string; content?: string; extra?: unknown }>;
-    expect(rows.some((row) => row.id === anchorId)).toBe(true);
-    const newest = rows[rows.length - 1];
-    expect(newest?.id).toBe(editedEmptyId);
-    expect(newest?.content ?? "").toBe("");
-    const newestExtra = (
-      typeof newest?.extra === "string" ? JSON.parse(newest.extra) : (newest?.extra ?? {})
-    ) as Record<string, unknown>;
-    expect(newestExtra.hiddenFromUser).not.toBe(true);
-    expect(newestExtra.commandOnly).not.toBe(true);
-  } finally {
-    await request.delete(`/api/chats/${chatId}`);
-  }
-});
+      // Both unreadable rows are still real rows on the server — the surface skipped them,
+      // they were not dropped from the chat. Re-asserting the edited row's shape keeps the
+      // fixture honest: it only exercises the predicate's content test while it stays the
+      // newest row, empty, and free of the anchor's visibility flags.
+      const stored = await request.get(`/api/chats/${chatId}/messages`);
+      expect(stored.ok()).toBeTruthy();
+      const rows = (await stored.json()) as Array<{ id: string; content?: string; extra?: unknown }>;
+      expect(rows.some((row) => row.id === anchorId)).toBe(true);
+      const newest = rows[rows.length - 1];
+      expect(newest?.id).toBe(editedEmptyId);
+      expect(newest?.content ?? "").toBe("");
+      const newestExtra = (
+        typeof newest?.extra === "string" ? JSON.parse(newest.extra) : (newest?.extra ?? {})
+      ) as Record<string, unknown>;
+      expect(newestExtra.hiddenFromUser).not.toBe(true);
+      expect(newestExtra.commandOnly).not.toBe(true);
+    } finally {
+      await request.delete(`/api/chats/${chatId}`);
+    }
+  },
+);

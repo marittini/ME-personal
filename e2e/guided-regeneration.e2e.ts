@@ -6,7 +6,10 @@ import { seedUIState } from "./ui-state-fixture.js";
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 for (const mode of ["roleplay", "conversation"] as const) {
-  test(`${mode} guided regeneration keeps its guidance unless the setting clears it`, async ({ page, request }, testInfo) => {
+  test(`${mode} guided regeneration keeps its guidance unless the setting clears it`, async ({
+    page,
+    request,
+  }, testInfo) => {
     const chatIds: string[] = [];
     let connectionId: string | undefined;
     let pending: Route | undefined;

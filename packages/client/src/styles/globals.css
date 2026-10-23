@@ -9178,3 +9178,163 @@ html[data-reader-focus="true"]
 [data-reader-enabled="true"] [data-chat-scroll] {
   border-inline: var(--reader-side-margin, 0px) solid transparent;
 }
+
+/* Library lists (characters, personas, lorebooks, presets) read like a nutrition label or a receipt:
+   a heavy bar opens and closes each list, hairlines separate rows, names are bold and values sit right. */
+:where(div):has(> [data-receipt-row]) {
+  gap: 0 !important;
+  border-block-start: 0.5rem solid var(--foreground);
+  border-block-end: 0.1875rem solid var(--foreground);
+  border-radius: 0 !important;
+}
+[data-receipt-row] {
+  border-radius: 0 !important;
+  padding-inline: 0.25rem !important;
+}
+[data-receipt-row] + [data-receipt-row] {
+  border-block-start: 1px solid color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+[data-receipt-row] .font-medium {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+[data-receipt-row] :is(.rounded-xl, .rounded-lg) {
+  border-radius: 0.25rem;
+}
+[data-receipt-row] [data-receipt-value] {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+/* A value that is a direct child of the row's text column moves to the right edge of the first line. */
+[data-receipt-row] div:has(> [data-receipt-value]):not(.flex) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.5rem;
+  align-content: center;
+}
+[data-receipt-row] div:has(> [data-receipt-value]):not(.flex) > * {
+  grid-column: 1;
+}
+[data-receipt-row] div:has(> [data-receipt-value]):not(.flex) > [data-receipt-value] {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: baseline;
+}
+[data-receipt-row] .flex:has(> [data-receipt-value]) > [data-receipt-value] {
+  order: 9;
+  margin-inline-start: auto;
+}
+[data-receipt-folder] {
+  border-radius: 0 !important;
+  border-block-start: 0.1875rem solid var(--foreground);
+  padding-block: 0.5rem !important;
+}
+[data-receipt-folder] .truncate {
+  color: var(--foreground);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* Inside a folder the folder's own bar opens the list. */
+:has(> [data-receipt-folder]) :where(div):has(> [data-receipt-row]) {
+  border-block-start-width: 1px;
+  border-block-end-width: 0;
+}
+
+/* Chat Settings tabs (채팅 설정 · 컨텍스트 · 기억 · 기타): only the selected tab's sections show. */
+.mari-chat-settings-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mari-chat-settings-tab {
+  flex-shrink: 0;
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.mari-chat-settings-tab:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.mari-chat-settings-tab[aria-selected="true"] {
+  background: var(--marinara-chat-chrome-highlight-bg, var(--accent));
+  color: var(--marinara-chat-chrome-button-text-active, var(--foreground));
+}
+.mari-chat-settings-tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+[data-chat-settings-tab="settings"] > [data-chat-settings-category]:not([data-chat-settings-category="settings"]),
+[data-chat-settings-tab="settings"]
+  > [data-chat-control-dock]
+  > [data-chat-settings-category]:not([data-chat-settings-category="settings"]),
+[data-chat-settings-tab="context"] > [data-chat-settings-category]:not([data-chat-settings-category="context"]),
+[data-chat-settings-tab="context"]
+  > [data-chat-control-dock]
+  > [data-chat-settings-category]:not([data-chat-settings-category="context"]),
+[data-chat-settings-tab="memory"] > [data-chat-settings-category]:not([data-chat-settings-category="memory"]),
+[data-chat-settings-tab="memory"]
+  > [data-chat-control-dock]
+  > [data-chat-settings-category]:not([data-chat-settings-category="memory"]),
+[data-chat-settings-tab="other"] > [data-chat-settings-category]:not([data-chat-settings-category="other"]),
+[data-chat-settings-tab="other"]
+  > [data-chat-control-dock]
+  > [data-chat-settings-category]:not([data-chat-settings-category="other"]) {
+  display: none !important;
+}
+
+/* Chat room UI manager: hidden Chat Settings items, message tools behind "more" or hidden, and the manager list. */
+[data-chat-ui-hidden],
+.mari-message-actions > [data-chat-tool-placement="hidden"],
+.mari-message-actions > [data-chat-tool-placement="more"] {
+  display: none !important;
+}
+.mari-ui-manager__list {
+  display: flex;
+  flex-direction: column;
+}
+.mari-ui-manager__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding-block: 0.375rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+.mari-ui-manager__heading {
+  margin-block: 0.5rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+.mari-ui-manager__segmented {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0.125rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.mari-ui-manager__segmented button {
+  min-height: 1.75rem;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+}
+.mari-ui-manager__segmented button[aria-checked="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.mari-ui-manager__segmented button:disabled {
+  opacity: 0.4;
+}
+@media (max-width: 480px) {
+  .mari-ui-manager__row {
+    flex-wrap: wrap;
+  }
+}

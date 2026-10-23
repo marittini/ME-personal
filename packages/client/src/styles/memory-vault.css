@@ -252,3 +252,113 @@
     display: block;
   }
 }
+/* Format 2: overview tables, token bar, entities and call-up controls. */
+.memory-vault__table {
+  border-block: 1px solid var(--border);
+}
+.memory-vault__table > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.375rem 0.25rem;
+}
+.memory-vault__table > div + div {
+  border-top: 1px solid var(--border);
+}
+.memory-vault__table dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.memory-vault__bar {
+  display: flex;
+  height: 0.5rem;
+  margin-block: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--secondary);
+}
+.memory-vault__bar > span {
+  min-width: 2px;
+}
+.memory-vault__bar > [data-tier="always"] {
+  background: var(--primary);
+}
+.memory-vault__bar > [data-tier="recall"] {
+  background: color-mix(in srgb, var(--primary) 60%, var(--background));
+}
+.memory-vault__bar > [data-tier="boundary"] {
+  background: var(--destructive);
+}
+.memory-vault__bar > [data-tier="flow"] {
+  background: var(--muted-foreground);
+}
+.memory-vault__list-plain {
+  list-style: disc;
+  padding-inline-start: 1.25rem;
+}
+.memory-vault__list-plain li + li {
+  margin-top: 0.25rem;
+}
+.memory-vault__history li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding-block: 0.625rem;
+  border-bottom: 1px solid var(--border);
+}
+.memory-vault__entities {
+  display: grid;
+  gap: 0;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  max-height: 16rem;
+  overflow-y: auto;
+}
+.memory-vault__entities button[aria-pressed] {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.375rem;
+  border-radius: 0.375rem;
+  text-align: start;
+}
+.memory-vault__entities button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.memory-vault__entities strong {
+  font-variant-numeric: tabular-nums;
+}
+.memory-vault__entity[data-homonym] {
+  border-inline-start: 2px solid var(--destructive);
+  padding-inline-start: 0.25rem;
+}
+.memory-vault__homonym {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.375rem 0.5rem;
+}
+.memory-vault__recall {
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.memory-vault__segmented {
+  display: inline-flex;
+  padding: 0.125rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.memory-vault__segmented button {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+}
+.memory-vault__segmented button[aria-checked="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
