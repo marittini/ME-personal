@@ -8,6 +8,7 @@ export function ReaderNumberSetting({
   value,
   min,
   max,
+  step = 0.1,
   onChange,
 }: {
   label: string;
@@ -15,6 +16,8 @@ export function ReaderNumberSetting({
   value: number;
   min: number;
   max: number;
+  /** Size of one ± press; also the input's step. */
+  step?: number;
   onChange: (value: number) => void;
 }) {
   const { t } = useTranslation();
@@ -39,8 +42,8 @@ export function ReaderNumberSetting({
           type="button"
           className={button}
           disabled={value <= min}
-          aria-label={t("reader.decrease", { label })}
-          onClick={() => commit(value - 0.1)}
+          aria-label={t("reader.decrease", { label, step })}
+          onClick={() => commit(value - step)}
         >
           <Minus size={16} />
         </button>
@@ -49,7 +52,7 @@ export function ReaderNumberSetting({
           className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
           type="number"
           inputMode="decimal"
-          step={0.1}
+          step={step}
           min={min}
           max={max}
           value={draft}
@@ -65,8 +68,8 @@ export function ReaderNumberSetting({
           type="button"
           className={button}
           disabled={value >= max}
-          aria-label={t("reader.increase", { label })}
-          onClick={() => commit(value + 0.1)}
+          aria-label={t("reader.increase", { label, step })}
+          onClick={() => commit(value + step)}
         >
           <Plus size={16} />
         </button>

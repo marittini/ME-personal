@@ -29,6 +29,7 @@ import { getChatWidgetFontFamily } from "../../lib/font-family";
 import { toast } from "sonner";
 import { TTSRoomMenu } from "./TTSRoomMenu";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
+import { READER_PAPERS } from "../../lib/reader-preferences";
 const ExcerptStudio = lazy(() => import("./ExcerptStudio").then((module) => ({ default: module.ExcerptStudio })));
 
 export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNode; surfaceActive: boolean }) {
@@ -211,6 +212,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       data-reader-focus={(enabled && focus) || undefined}
       data-reader-streaming={streaming || undefined}
       data-reader-bubble-scope={conversation ? preferences.bubbleScope : undefined}
+      data-reader-paper={enabled && preferences.paper !== "theme" ? preferences.paper : undefined}
       style={
         {
           "--reader-line-height": preferences.lineHeight,
@@ -222,6 +224,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           "--reader-indent": `${Number.isFinite(preferences.indent) ? Math.max(0, Math.min(4, preferences.indent)) : 0}em`,
           "--reader-align": preferences.align,
           "--reader-body-size": `${fontSize}px`,
+          "--reader-side-margin": `${preferences.sideMargin ?? 0}px`,
           "--reader-translation-offset": `${preferences.translationSizeOffset ?? 0}px`,
           ...(preferences.bubbleCharacterBg ? { "--reader-bubble-character-bg": preferences.bubbleCharacterBg } : {}),
           ...(preferences.bubbleCharacterText
@@ -368,6 +371,28 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               setEditingHighlight(highlight);
             }}
             onGotoHighlight={(highlight) => gotoAnchor(highlight.anchors[0])}
+            onExcerptHighlight={(highlight) => {
+              // The memo stays in the notes; the card carries only the sentence.
+              setExcerptList(false);
+              setExcerpt({
+                id: crypto.randomUUID(),
+                text: highlight.text,
+                marks: [],
+                anchors: highlight.anchors,
+                updatedAt: new Date().toISOString(),
+              });
+            }}
+            onDeleteHighlight={async (highlight) => {
+              if (
+                await showConfirmDialog({
+                  title: t("readerNotes.deleteHighlight"),
+                  message: highlight.text.slice(0, 200),
+                  confirmLabel: t("readerNotes.deleteHighlight"),
+                  cancelLabel: t("reader.cancel"),
+                })
+              )
+                saveHighlights(highlights.filter((row) => row.id !== highlight.id));
+            }}
             onEditExcerpt={(entry) => {
               setExcerptList(false);
               setExcerpt(entry);
@@ -596,17 +621,36 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               <option value="dark">{t("reader.dark")}</option>
             </select>
           </label>
-          <label className="block text-sm">
-            {t("reader.fontSize", { value: fontSize })}
-            <input
-              className="mt-3 block w-full"
-              type="range"
-              min={12}
-              max={32}
-              value={fontSize}
-              onChange={(event) => useUIStore.getState().setChatFontSize(Number(event.target.value))}
-            />
-          </label>
+          {/* Page color, like an e-book app; "테마" keeps the light/dark colors above. */}
+          <div className="space-y-2 text-sm">
+            <span>{t("reader.paper")}</span>
+            <div role="radiogroup" aria-label={t("reader.paper")} className="flex flex-wrap gap-2">
+              {READER_PAPERS.map((paper) => (
+                <button
+                  key={paper}
+                  type="button"
+                  role="radio"
+                  aria-checked={preferences.paper === paper}
+                  aria-label={t(`reader.papers.${paper}`)}
+                  title={t(`reader.papers.${paper}`)}
+                  data-reader-paper-swatch={paper}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] text-xs aria-checked:ring-2 aria-checked:ring-[var(--primary)] aria-checked:ring-offset-2 aria-checked:ring-offset-[var(--background)]"
+                  onClick={() => patch({ paper })}
+                >
+                  {paper === "theme" ? t("reader.papers.themeShort") : t("reader.papers.sample")}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ReaderNumberSetting
+            label={t("reader.fontSizeLabel")}
+            unit="px"
+            value={fontSize}
+            min={12}
+            max={32}
+            step={1}
+            onChange={(size) => useUIStore.getState().setChatFontSize(size)}
+          />
           <label className="flex min-h-11 items-center justify-between gap-4 text-sm">
             {t("reader.font")}
             <select
@@ -627,20 +671,39 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               ))}
             </select>
           </label>
-          <ReaderNumberSetting
-            label={t("reader.indent")}
-            unit="em"
-            value={preferences.indent ?? 0}
-            min={0}
-            max={4}
-            onChange={(indent) => patch({ indent })}
-          />
+          <label className="block text-sm">
+            {t("reader.indentValue", { value: preferences.indent ?? 0 })}
+            <input
+              className="mt-3 block w-full"
+              type="range"
+              aria-label={t("reader.indent")}
+              min={0}
+              max={4}
+              step={0.5}
+              value={preferences.indent ?? 0}
+              onChange={(event) => patch({ indent: Number(event.target.value) })}
+            />
+          </label>
+          <label className="block text-sm">
+            {t("reader.sideMargin", { value: preferences.sideMargin ?? 0 })}
+            <input
+              className="mt-3 block w-full"
+              type="range"
+              aria-label={t("reader.sideMarginLabel")}
+              min={0}
+              max={64}
+              step={4}
+              value={preferences.sideMargin ?? 0}
+              onChange={(event) => patch({ sideMargin: Number(event.target.value) })}
+            />
+          </label>
           <ReaderNumberSetting
             label={t("reader.translationSizeOffset")}
             unit="px"
             value={preferences.translationSizeOffset ?? 0}
             min={0}
             max={8}
+            step={1}
             onChange={(translationSizeOffset) => patch({ translationSizeOffset })}
           />
           <ReaderNumberSetting

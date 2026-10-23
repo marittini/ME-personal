@@ -2203,6 +2203,8 @@ export const useUIStore = create<UIState>()(
           align: "start",
           translationSizeOffset: 0,
           bubbleScope: "card",
+          paper: "theme",
+          sideMargin: 0,
           bubbleCharacterBg: "",
           bubbleCharacterText: "",
           bubblePersonaBg: "",

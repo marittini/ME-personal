@@ -11,6 +11,10 @@ export type ReaderPreferences = {
   translationSizeOffset: number;
   /** Convo bubbles: "card" keeps each character's/persona's own look, "global" uses the colors below for all. */
   bubbleScope: "card" | "global";
+  /** Page color like an e-book app; "theme" keeps the app's light/dark colors. */
+  paper: ReaderPaper;
+  /** Extra space on both sides of the messages, in px. */
+  sideMargin: number;
   bubbleCharacterBg: string;
   bubbleCharacterText: string;
   bubblePersonaBg: string;
@@ -18,6 +22,8 @@ export type ReaderPreferences = {
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
+export const READER_PAPERS = ["theme", "white", "sepia", "yellow", "green", "gray", "black"] as const;
+export type ReaderPaper = (typeof READER_PAPERS)[number];
 export function normalizeReaderPreferences(value: unknown): ReaderPreferences {
   const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const number = (key: string, fallback: number, min: number, max: number) =>
@@ -36,6 +42,8 @@ export function normalizeReaderPreferences(value: unknown): ReaderPreferences {
     align: source.align === "justify" ? "justify" : "start",
     translationSizeOffset: number("translationSizeOffset", 0, 0, 8),
     bubbleScope: source.bubbleScope === "global" ? "global" : "card",
+    paper: READER_PAPERS.includes(source.paper as ReaderPaper) ? (source.paper as ReaderPaper) : "theme",
+    sideMargin: number("sideMargin", 0, 0, 64),
     bubbleCharacterBg: color("bubbleCharacterBg"),
     bubbleCharacterText: color("bubbleCharacterText"),
     bubblePersonaBg: color("bubblePersonaBg"),

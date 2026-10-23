@@ -162,7 +162,7 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "읽기 설정", exact: true }).click();
     await page.getByRole("combobox", { name: "글꼴", exact: true }).selectOption("@serif");
-    await page.getByRole("spinbutton", { name: "문단 들여쓰기 (em)", exact: true }).fill("1.5");
+    await page.getByRole("slider", { name: "문단 들여쓰기", exact: true }).fill("1.5");
     await page.keyboard.press("Tab");
     await page.keyboard.press("Escape");
     await page.reload();
@@ -322,8 +322,21 @@ test("reading notes: colored highlights, private memos and excerpt cards from no
     await workspace.getByRole("button", { name: "독서 노트", exact: true }).click();
     const notes = page.getByRole("dialog", { name: "독서 노트", exact: true });
     await expect(notes.getByText("나만 보는 비밀 메모", { exact: true })).toBeVisible();
-    await expect(notes.getByRole("tab")).toHaveText([/형광펜/, /발췌 카드/, /메시지 북마크/]);
+    await expect(notes.getByRole("tab")).toHaveText([/전체/, /형광펜/, /메모/, /발췌 카드/, /메시지 북마크/]);
+    // Novel-reader list: grouped by message, color dot + sentence, memo box, footer with message and menu.
+    await expect(notes.getByRole("heading", { name: "1번째 메시지", exact: true })).toBeVisible();
+    await expect(notes.locator("[data-reader-note]")).toHaveCount(2);
+    await expect(notes.locator("[data-reader-note]").first()).toContainText("첫 문장은 분홍으로 칠합니다.");
+    await expect(notes.locator("[data-reader-note]").nth(1)).toContainText("1번 메시지");
+    await notes.getByRole("tab", { name: /메모/ }).click();
+    await expect(notes.locator("[data-reader-note]")).toHaveCount(1);
+    await notes.getByRole("tab", { name: /전체/ }).click();
+    await notes.locator("[data-reader-note]").first().getByRole("button", { name: "더보기", exact: true }).click();
+    await expect(notes.getByRole("menu")).toContainText("발췌 카드로 만들기");
     await page.screenshot({ path: ".tmp/reading-notes.png" });
+    await notes.getByRole("menu").getByRole("menuitem", { name: "본문으로 이동" }).click();
+    await expect(notes).toBeHidden();
+    await workspace.getByRole("button", { name: "독서 노트", exact: true }).click();
     await notes.getByRole("button", { name: "메모 편집", exact: true }).click();
     await editor.getByRole("button", { name: "형광펜 삭제", exact: true }).click();
     await page
@@ -781,5 +794,45 @@ test("character and persona editors show a profile sheet: portrait beside facts 
     await request.delete(`/api/chats/${chat.id}?force=true`);
     await request.delete(`/api/characters/personas/${persona.id}`);
     await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("viewer settings: page colors, font size steps and side margins", async ({ page, request }) => {
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "보기 설정 검증", mode: "roleplay", characterIds: [] } })
+  ).json();
+  try {
+    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content: "책처럼 읽는 문단." } });
+    await open(page, chat.id);
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await dialog.getByRole("radio", { name: "세피아", exact: true }).click();
+    const before = await workspace
+      .locator(".mari-message-content")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    await dialog.getByRole("button", { name: "글자 크기 1 늘리기", exact: true }).click();
+    await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("24");
+    await page.screenshot({ path: ".tmp/viewer-settings.png" });
+    await page.keyboard.press("Escape");
+    await expect(workspace).toHaveCSS("background-color", "rgb(244, 236, 216)");
+    await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-left-width", "24px");
+    await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-right-width", "24px");
+    await expect
+      .poll(() =>
+        workspace
+          .locator(".mari-message-content")
+          .first()
+          .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+      )
+      .toBe(before + 1);
+    await page.screenshot({ path: ".tmp/viewer-sepia.png" });
+    // Reset the shared preferences other proofs read.
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    await dialog.getByRole("radio", { name: "테마 따르기", exact: true }).click();
+    await dialog.getByRole("button", { name: "글자 크기 1 줄이기", exact: true }).click();
+    await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("0");
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
   }
 });

@@ -8949,3 +8949,99 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
     margin: 0 !important;
   }
 }
+
+/* Reader page colors (e-book style). Scoped to the reader, so the rest of the app keeps its theme. */
+[data-reader-paper] {
+  background: var(--background);
+  color: var(--foreground);
+}
+[data-reader-paper="white"] {
+  --background: #ffffff;
+  --foreground: #1f1f1f;
+  --card: #ffffff;
+  --card-foreground: #1f1f1f;
+  --secondary: #f1f1f1;
+  --secondary-foreground: #1f1f1f;
+  --muted-foreground: #6b6b6b;
+  --border: #e2e2e2;
+}
+[data-reader-paper="sepia"] {
+  --background: #f4ecd8;
+  --foreground: #3b2f1e;
+  --card: #f4ecd8;
+  --card-foreground: #3b2f1e;
+  --secondary: #e9ddc2;
+  --secondary-foreground: #3b2f1e;
+  --muted-foreground: #7a6a52;
+  --border: #dccfb2;
+}
+[data-reader-paper="yellow"] {
+  --background: #fbf3c9;
+  --foreground: #333021;
+  --card: #fbf3c9;
+  --card-foreground: #333021;
+  --secondary: #f1e6af;
+  --secondary-foreground: #333021;
+  --muted-foreground: #77704a;
+  --border: #e5d99b;
+}
+[data-reader-paper="green"] {
+  --background: #e3efdc;
+  --foreground: #22301f;
+  --card: #e3efdc;
+  --card-foreground: #22301f;
+  --secondary: #d2e3c7;
+  --secondary-foreground: #22301f;
+  --muted-foreground: #5b6e55;
+  --border: #c3d7b7;
+}
+[data-reader-paper="gray"] {
+  --background: #3a3b3d;
+  --foreground: #e6e6e6;
+  --card: #3a3b3d;
+  --card-foreground: #e6e6e6;
+  --secondary: #48494c;
+  --secondary-foreground: #e6e6e6;
+  --muted-foreground: #a6a6a6;
+  --border: #55565a;
+}
+[data-reader-paper="black"] {
+  --background: #000000;
+  --foreground: #d6d6d6;
+  --card: #000000;
+  --card-foreground: #d6d6d6;
+  --secondary: #161616;
+  --secondary-foreground: #d6d6d6;
+  --muted-foreground: #8a8a8a;
+  --border: #262626;
+}
+[data-reader-paper-swatch="white"] {
+  background: #ffffff;
+  color: #1f1f1f;
+}
+[data-reader-paper-swatch="sepia"] {
+  background: #f4ecd8;
+  color: #3b2f1e;
+}
+[data-reader-paper-swatch="yellow"] {
+  background: #fbf3c9;
+  color: #333021;
+}
+[data-reader-paper-swatch="green"] {
+  background: #e3efdc;
+  color: #22301f;
+}
+[data-reader-paper-swatch="gray"] {
+  background: #3a3b3d;
+  color: #e6e6e6;
+}
+[data-reader-paper-swatch="black"] {
+  background: #000000;
+  color: #d6d6d6;
+}
+
+/* Side margins for the messages (reader settings). A transparent border adds the space on top of the
+   transcript's own padding, which each mode sets differently (some inline). */
+[data-reader-enabled="true"] [data-chat-scroll] {
+  border-inline: var(--reader-side-margin, 0px) solid transparent;
+}
