@@ -77,7 +77,7 @@ import { mergeEmbeddedCharacterCardFields } from "../../lib/character-import";
 import { parsePngCharacterCard } from "../../lib/png-parser";
 import { SpriteGenerationModal } from "../ui/SpriteGenerationModal";
 import { AvatarGenerationModal } from "../ui/AvatarGenerationModal";
-import { AvatarCropWidget } from "../ui/AvatarCropWidget";
+import { ProfileSheetPortrait } from "../ui/ProfileSheetPortrait";
 import { AvatarReplaceActions } from "../ui/AvatarReplaceActions";
 import { EditorAvatarTileActions } from "../ui/EditorAvatarTileActions";
 import { CallClipGenerationModal } from "../ui/CallClipGenerationModal";
@@ -423,6 +423,7 @@ export function CharacterEditor() {
     !!formData,
     (useUIStore.getState().characterDetailInitialTab as TabId | null) ?? "metadata",
     setActiveTab,
+    { paged: true },
   );
   const [characterComment, setCharacterComment] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -2602,50 +2603,23 @@ function MetadataTab({
         helpText={CHARACTER_METADATA_HELP}
       />
 
-      {characterId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/70 px-3 py-2">
-          <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            {localizeUi("ui.characters.metadatatab.characterId")}
-          </span>
-          <code className="min-w-0 flex-1 break-all rounded-lg bg-[var(--background)] px-2 py-1 text-[0.6875rem] text-[var(--foreground)]">
-            {characterId}
-          </code>
-          <button
-            type="button"
-            onClick={async () => {
-              const copied = await copyToClipboard(characterId);
-              if (copied) toast.success(localizeUi("ui.characters.metadatatab.characterIdCopied"));
-              else toast.error(localizeUi("ui.characters.metadatatab.couldNotCopyTheCharacterId"));
-            }}
-            className="mari-editor-action inline-flex h-8 px-2 text-[0.6875rem]"
-            title={localizeUi("ui.characters.metadatatab.copyCharacterId")}
-          >
-            <Copy size="0.75rem" />
-            {localizeUi("lorebook.editor.batch.copy")}
-          </button>
-        </div>
-      )}
-
-      {/* Profile sheet: portrait beside the key facts as a table (stacked on phones). Same fields as before. */}
-      <div className="mari-profile-sheet" data-profile-sheet="character">
-        <div className="mari-profile-sheet__portrait space-y-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {t("editor.avatar.label")}
-            <HelpTooltip text={t("editor.avatar.character.help")} />
-          </span>
-
-          {/* Avatar Crop */}
-          {avatarPreview && (
-            <AvatarCropWidget
-              src={avatarPreview}
-              alt={formData.name}
-              crop={savedCrop}
-              onChange={(next) => updateExtension("avatarCrop", next)}
-              onRemove={onRemoveAvatar}
-              removing={removingAvatar}
-            />
-          )}
-
+      {/* Info sheet: the inputs are the sheet's cells (thin table lines, small bold labels). Same fields as
+          before; the ID and version history sit under the sheet. */}
+      <div className="mari-sheet mari-sheet--profile" data-profile-sheet="character">
+        <ProfileSheetPortrait
+          src={avatarPreview}
+          alt={formData.name}
+          crop={savedCrop}
+          onCropChange={(next) => updateExtension("avatarCrop", next)}
+          onRemove={onRemoveAvatar}
+          removing={removingAvatar}
+          label={
+            <>
+              {t("editor.avatar.label")}
+              <HelpTooltip text={t("editor.avatar.character.help")} />
+            </>
+          }
+        >
           <AvatarReplaceActions
             hasAvatar={Boolean(avatarPreview)}
             uploading={avatarUploading}
@@ -2653,25 +2627,43 @@ function MetadataTab({
             onUpload={onSelectAvatar}
             onGenerate={onGenerateAvatar}
           />
-        </div>
-
-        <div className="mari-profile-sheet__fields grid gap-4 sm:grid-cols-2">
-          <label className="space-y-1.5 sm:col-span-2">
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.characters.metadatatab.name")}{" "}
-              <HelpTooltip text={localizeUi("ui.characters.metadatatab.theCharacterSDisplayNameThisIsWhatAppears")} />
-            </span>
-            <input
-              value={formData.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              onBlur={() => {
-                const trimmedName = formData.name.trim();
-                if (trimmedName !== formData.name) updateField("name", trimmedName);
-              }}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            />
-          </label>
-          <label className="space-y-1.5 sm:col-span-2">
+        </ProfileSheetPortrait>
+        <div className="mari-sheet__facts">
+          <div className="mari-sheet__row">
+            <label className="mari-sheet__cell">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.characters.metadatatab.name")}{" "}
+                <HelpTooltip text={localizeUi("ui.characters.metadatatab.theCharacterSDisplayNameThisIsWhatAppears")} />
+              </span>
+              <input
+                value={formData.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                onBlur={() => {
+                  const trimmedName = formData.name.trim();
+                  if (trimmedName !== formData.name) updateField("name", trimmedName);
+                }}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              />
+            </label>
+            <label className="mari-sheet__cell mari-sheet__cell--narrow">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.characters.metadatatab.version")}{" "}
+                <HelpTooltip
+                  text={localizeUi(
+                    "ui.characters.metadatatab.versionNumberForTrackingChangesToThisCharacterDefinition",
+                  )}
+                />
+              </span>
+              <input
+                value={formData.character_version}
+                onChange={(e) => updateField("character_version", e.target.value)}
+                disabled={formData.extensions.versioningEnabled === false}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="1.0"
+              />
+            </label>
+          </div>
+          <label className="mari-sheet__cell">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
               {localizeUi("ui.characters.metadatatab.titleComment")}{" "}
               <HelpTooltip text={localizeUi("ui.characters.metadatatab.aShortNoteShownUnderTheCharacterNameIn")} />
@@ -2683,7 +2675,7 @@ function MetadataTab({
               placeholder={localizeUi("ui.characters.metadatatab.modernAuVersion")}
             />
           </label>
-          <label className="space-y-1.5">
+          <label className="mari-sheet__cell">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
               {localizeUi("ui.characters.metadatatab.creator")}{" "}
               <HelpTooltip
@@ -2697,45 +2689,155 @@ function MetadataTab({
               placeholder={localizeUi("ui.characters.metadatatab.yourName")}
             />
           </label>
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        </div>
+        <div className="mari-sheet__cell mari-sheet__wide">
+          {/* Tags */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-                {localizeUi("ui.characters.metadatatab.version")}{" "}
+                {localizeUi("ui.characters.metadatatab.tags")}{" "}
                 <HelpTooltip
-                  text={localizeUi(
-                    "ui.characters.metadatatab.versionNumberForTrackingChangesToThisCharacterDefinition",
-                  )}
+                  text={localizeUi("ui.characters.metadatatab.labelsForOrganizingCharactersUseTagsLikeFantasySci")}
                 />
               </span>
-              <SettingsSwitch
-                checked={formData.extensions.versioningEnabled !== false}
-                onChange={(enabled) => {
-                  updateExtension("versioningEnabled", enabled);
-                  if (enabled && !formData.character_version.trim()) updateField("character_version", "1.0");
-                }}
-                label={localizeUi("ui.cardversionhistory.automaticVersioning")}
-                labelPosition="end"
-                title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
-                className="min-h-11 gap-2 rounded-md px-1 py-0"
-                labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
-              />
+              {formData.tags.length > 0 && (
+                <button
+                  type="button"
+                  onClick={removeAllTags}
+                  className="mari-chrome-accent-surface mari-accent-animated rounded-lg border px-2.5 py-1 text-[0.6875rem] font-medium transition-colors"
+                >
+                  {localizeUi("ui.characters.metadatatab.removeAll")}
+                </button>
+              )}
             </div>
-            <input
-              value={formData.character_version}
-              onChange={(e) => updateField("character_version", e.target.value)}
-              disabled={formData.extensions.versioningEnabled === false}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="1.0"
-            />
-            <CharacterVersionHistoryPanel
-              characterId={characterId}
-              currentData={formData}
-              currentComment={characterComment}
-              currentAvatarPath={avatarPreview}
-              hasUnsavedChanges={hasUnsavedChanges}
-            />
+            <div className="flex flex-wrap gap-1.5">
+              {formData.tags.map((tag) => (
+                <span key={tag} className="mari-chrome-control mari-chrome-control--compact group/tag">
+                  <Tag size="0.625rem" />
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-[var(--primary)]/15 hover:text-[var(--primary)]"
+                    title={localizeUi("ui.characters.metadatatab.removeTagValue1", { value1: tag })}
+                  >
+                    <X size="0.625rem" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <div ref={tagSuggestionsContainerRef} className="relative min-w-0 flex-1">
+                <input
+                  value={newTag}
+                  onFocus={() => {
+                    setTagCatalogRequested(true);
+                    setTagSuggestionsOpen(true);
+                    setActiveTagSuggestionIndex(-1);
+                  }}
+                  onBlur={(event) => {
+                    if (
+                      !(event.relatedTarget instanceof Node) ||
+                      !tagSuggestionsContainerRef.current?.contains(event.relatedTarget)
+                    ) {
+                      setTagSuggestionsOpen(false);
+                      setActiveTagSuggestionIndex(-1);
+                    }
+                  }}
+                  onChange={(event) => {
+                    setNewTag(event.target.value);
+                    setActiveTagSuggestionIndex(-1);
+                    setTagSuggestionsOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    // Keys pressed while an input method is composing belong to the composition.
+                    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                    if (event.key === "ArrowDown" && tagSuggestions.length > 0) {
+                      event.preventDefault();
+                      setTagSuggestionsOpen(true);
+                      setActiveTagSuggestionIndex((current) =>
+                        current < 0 ? 0 : (current + 1) % tagSuggestions.length,
+                      );
+                    } else if (event.key === "ArrowUp" && tagSuggestions.length > 0) {
+                      event.preventDefault();
+                      setTagSuggestionsOpen(true);
+                      setActiveTagSuggestionIndex((current) =>
+                        current < 0
+                          ? tagSuggestions.length - 1
+                          : (current - 1 + tagSuggestions.length) % tagSuggestions.length,
+                      );
+                    } else if (event.key === "Enter") {
+                      event.preventDefault();
+                      if (tagSuggestionsOpen && activeSuggestionIndex >= 0) {
+                        pickTagSuggestion(tagSuggestions[activeSuggestionIndex][0]);
+                      } else {
+                        addTag();
+                      }
+                    } else if (event.key === "Escape" && tagSuggestionsOpen) {
+                      event.preventDefault();
+                      setTagSuggestionsOpen(false);
+                      setActiveTagSuggestionIndex(-1);
+                    }
+                  }}
+                  role="combobox"
+                  aria-label={localizeUi("ui.characters.metadatatab.tags")}
+                  aria-autocomplete="list"
+                  aria-expanded={tagSuggestionsShown}
+                  aria-controls={tagSuggestionsShown ? tagListboxId : undefined}
+                  aria-activedescendant={
+                    tagSuggestionsShown && activeSuggestionIndex >= 0
+                      ? `${tagListboxId}-${activeSuggestionIndex}`
+                      : undefined
+                  }
+                  placeholder={localizeUi("ui.characters.metadatatab.addTag")}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)]/40"
+                />
+                {tagSuggestionsShown && (
+                  <div
+                    id={tagListboxId}
+                    role="listbox"
+                    aria-label={localizeUi("ui.characters.metadatatab.tags")}
+                    className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--background)] py-1 shadow-lg"
+                  >
+                    {tagSuggestions.map(([tag, count], index) => (
+                      <button
+                        key={tag}
+                        ref={(element) => {
+                          tagSuggestionRefs.current[index] = element;
+                        }}
+                        id={`${tagListboxId}-${index}`}
+                        type="button"
+                        role="option"
+                        tabIndex={-1}
+                        aria-selected={index === activeSuggestionIndex}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => pickTagSuggestion(tag)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors",
+                          index === activeSuggestionIndex
+                            ? "bg-[var(--primary)]/10 text-[var(--primary)]"
+                            : "text-[var(--foreground)] hover:bg-[var(--secondary)]",
+                        )}
+                      >
+                        <span className="min-w-0 truncate">{tag}</span>
+                        <span className="shrink-0 text-[0.625rem] text-[var(--muted-foreground)]">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => addTag()}
+                className="mari-chrome-control mari-chrome-control--compact mari-chrome-control--selected px-3 py-1.5"
+              >
+                {localizeUi("ui.characters.metadatatab.add")}
+              </button>
+            </div>
           </div>
-          <label className="space-y-1.5">
+        </div>
+        <div className="mari-sheet__row mari-sheet__wide">
+          <label className="mari-sheet__cell">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
               {localizeUi("ui.characters.metadatatab.talkativeness")}{" "}
               <HelpTooltip text={localizeUi("ui.characters.metadatatab.howOftenThisCharacterSpeaksInGroupChats0")} />
@@ -2753,167 +2855,75 @@ function MetadataTab({
               {Math.round(formData.extensions.talkativeness * 100)}%
             </span>
           </label>
+          <div className="mari-sheet__cell">
+            <SettingsSwitch
+              checked={formData.extensions.versioningEnabled !== false}
+              onChange={(enabled) => {
+                updateExtension("versioningEnabled", enabled);
+                if (enabled && !formData.character_version.trim()) updateField("character_version", "1.0");
+              }}
+              label={localizeUi("ui.cardversionhistory.automaticVersioning")}
+              labelPosition="end"
+              title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
+              className="min-h-11 gap-2 rounded-md px-1 py-0"
+              labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
+            />
+          </div>
+        </div>
+        <div className="mari-sheet__cell mari-sheet__wide">
+          {/* Creator Notes */}
+          <div className="block space-y-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.characters.metadatatab.creatorNotes")}{" "}
+              <HelpTooltip
+                text={localizeUi("ui.characters.metadatatab.privateNotesAboutThisCharacterTipsForUseKnown")}
+              />
+            </span>
+            <MacroTextarea
+              value={formData.creator_notes}
+              onChange={(value) => updateField("creator_notes", value)}
+              rows={4}
+              title={localizeUi("ui.characters.metadatatab.creatorNotes")}
+              showMarkdownPreview
+              selfCharacterId={characterId}
+              className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm outline-none placeholder:text-[var(--muted-foreground)]/40 focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.characters.metadatatab.notesAboutThisCharacterIntendedUseTipsForBest")}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Tags */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.characters.metadatatab.tags")}{" "}
-            <HelpTooltip
-              text={localizeUi("ui.characters.metadatatab.labelsForOrganizingCharactersUseTagsLikeFantasySci")}
-            />
-          </span>
-          {formData.tags.length > 0 && (
+      <div className="mari-sheet-manage space-y-3" data-sheet-manage="">
+        {characterId && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/70 px-3 py-2">
+            <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+              {localizeUi("ui.characters.metadatatab.characterId")}
+            </span>
+            <code className="min-w-0 flex-1 break-all rounded-lg bg-[var(--background)] px-2 py-1 text-[0.6875rem] text-[var(--foreground)]">
+              {characterId}
+            </code>
             <button
               type="button"
-              onClick={removeAllTags}
-              className="mari-chrome-accent-surface mari-accent-animated rounded-lg border px-2.5 py-1 text-[0.6875rem] font-medium transition-colors"
+              onClick={async () => {
+                const copied = await copyToClipboard(characterId);
+                if (copied) toast.success(localizeUi("ui.characters.metadatatab.characterIdCopied"));
+                else toast.error(localizeUi("ui.characters.metadatatab.couldNotCopyTheCharacterId"));
+              }}
+              className="mari-editor-action inline-flex h-8 px-2 text-[0.6875rem]"
+              title={localizeUi("ui.characters.metadatatab.copyCharacterId")}
             >
-              {localizeUi("ui.characters.metadatatab.removeAll")}
+              <Copy size="0.75rem" />
+              {localizeUi("lorebook.editor.batch.copy")}
             </button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {formData.tags.map((tag) => (
-            <span key={tag} className="mari-chrome-control mari-chrome-control--compact group/tag">
-              <Tag size="0.625rem" />
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-[var(--primary)]/15 hover:text-[var(--primary)]"
-                title={localizeUi("ui.characters.metadatatab.removeTagValue1", { value1: tag })}
-              >
-                <X size="0.625rem" />
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-1.5">
-          <div ref={tagSuggestionsContainerRef} className="relative min-w-0 flex-1">
-            <input
-              value={newTag}
-              onFocus={() => {
-                setTagCatalogRequested(true);
-                setTagSuggestionsOpen(true);
-                setActiveTagSuggestionIndex(-1);
-              }}
-              onBlur={(event) => {
-                if (
-                  !(event.relatedTarget instanceof Node) ||
-                  !tagSuggestionsContainerRef.current?.contains(event.relatedTarget)
-                ) {
-                  setTagSuggestionsOpen(false);
-                  setActiveTagSuggestionIndex(-1);
-                }
-              }}
-              onChange={(event) => {
-                setNewTag(event.target.value);
-                setActiveTagSuggestionIndex(-1);
-                setTagSuggestionsOpen(true);
-              }}
-              onKeyDown={(event) => {
-                // Keys pressed while an input method is composing belong to the composition.
-                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-                if (event.key === "ArrowDown" && tagSuggestions.length > 0) {
-                  event.preventDefault();
-                  setTagSuggestionsOpen(true);
-                  setActiveTagSuggestionIndex((current) => (current < 0 ? 0 : (current + 1) % tagSuggestions.length));
-                } else if (event.key === "ArrowUp" && tagSuggestions.length > 0) {
-                  event.preventDefault();
-                  setTagSuggestionsOpen(true);
-                  setActiveTagSuggestionIndex((current) =>
-                    current < 0
-                      ? tagSuggestions.length - 1
-                      : (current - 1 + tagSuggestions.length) % tagSuggestions.length,
-                  );
-                } else if (event.key === "Enter") {
-                  event.preventDefault();
-                  if (tagSuggestionsOpen && activeSuggestionIndex >= 0) {
-                    pickTagSuggestion(tagSuggestions[activeSuggestionIndex][0]);
-                  } else {
-                    addTag();
-                  }
-                } else if (event.key === "Escape" && tagSuggestionsOpen) {
-                  event.preventDefault();
-                  setTagSuggestionsOpen(false);
-                  setActiveTagSuggestionIndex(-1);
-                }
-              }}
-              role="combobox"
-              aria-label={localizeUi("ui.characters.metadatatab.tags")}
-              aria-autocomplete="list"
-              aria-expanded={tagSuggestionsShown}
-              aria-controls={tagSuggestionsShown ? tagListboxId : undefined}
-              aria-activedescendant={
-                tagSuggestionsShown && activeSuggestionIndex >= 0
-                  ? `${tagListboxId}-${activeSuggestionIndex}`
-                  : undefined
-              }
-              placeholder={localizeUi("ui.characters.metadatatab.addTag")}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)]/40"
-            />
-            {tagSuggestionsShown && (
-              <div
-                id={tagListboxId}
-                role="listbox"
-                aria-label={localizeUi("ui.characters.metadatatab.tags")}
-                className="absolute z-30 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--background)] py-1 shadow-lg"
-              >
-                {tagSuggestions.map(([tag, count], index) => (
-                  <button
-                    key={tag}
-                    ref={(element) => {
-                      tagSuggestionRefs.current[index] = element;
-                    }}
-                    id={`${tagListboxId}-${index}`}
-                    type="button"
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={index === activeSuggestionIndex}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => pickTagSuggestion(tag)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors",
-                      index === activeSuggestionIndex
-                        ? "bg-[var(--primary)]/10 text-[var(--primary)]"
-                        : "text-[var(--foreground)] hover:bg-[var(--secondary)]",
-                    )}
-                  >
-                    <span className="min-w-0 truncate">{tag}</span>
-                    <span className="shrink-0 text-[0.625rem] text-[var(--muted-foreground)]">{count}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-          <button
-            type="button"
-            onClick={() => addTag()}
-            className="mari-chrome-control mari-chrome-control--compact mari-chrome-control--selected px-3 py-1.5"
-          >
-            {localizeUi("ui.characters.metadatatab.add")}
-          </button>
-        </div>
-      </div>
+        )}
 
-      {/* Creator Notes */}
-      <div className="block space-y-1.5">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-          {localizeUi("ui.characters.metadatatab.creatorNotes")}{" "}
-          <HelpTooltip text={localizeUi("ui.characters.metadatatab.privateNotesAboutThisCharacterTipsForUseKnown")} />
-        </span>
-        <MacroTextarea
-          value={formData.creator_notes}
-          onChange={(value) => updateField("creator_notes", value)}
-          rows={4}
-          title={localizeUi("ui.characters.metadatatab.creatorNotes")}
-          showMarkdownPreview
-          selfCharacterId={characterId}
-          className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm outline-none placeholder:text-[var(--muted-foreground)]/40 focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-          placeholder={localizeUi("ui.characters.metadatatab.notesAboutThisCharacterIntendedUseTipsForBest")}
+        <CharacterVersionHistoryPanel
+          characterId={characterId}
+          currentData={formData}
+          currentComment={characterComment}
+          currentAvatarPath={avatarPreview}
+          hasUnsavedChanges={hasUnsavedChanges}
         />
       </div>
     </div>

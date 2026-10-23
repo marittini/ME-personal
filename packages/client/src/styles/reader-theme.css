@@ -102,3 +102,62 @@ html[data-product-theme="reader"] [data-chat-mode="conversation"] .texting-bubbl
 [data-reader-mode="conversation"] .mari-message-content {
   text-align: start;
 }
+
+/* Page colors 화이트 and 블랙 (reader settings) follow 크림 and 먹색 above with white and pure black surfaces.
+   They apply to the whole app, like the theme they belong to. */
+html[data-product-theme="reader"][data-theme="light"][data-reader-page="white"] {
+  --background: #ffffff !important;
+  --foreground: #1f1f1f !important;
+  --card: #f7f7f7 !important;
+  --card-foreground: #1f1f1f !important;
+  --popover: #ffffff !important;
+  --popover-foreground: #1f1f1f !important;
+  --secondary: #f0f0f0 !important;
+  --secondary-foreground: #1f1f1f !important;
+  --muted: #f0f0f0 !important;
+  --muted-foreground: #6b6b6b !important;
+  --border: #e0e0e0 !important;
+  --input: #e0e0e0 !important;
+  --accent: #f2ede7 !important;
+  --accent-foreground: #1f1f1f !important;
+  --sidebar: #f7f7f7 !important;
+  --sidebar-foreground: #1f1f1f !important;
+  --sidebar-accent: #f2ede7 !important;
+  --sidebar-accent-foreground: #1f1f1f !important;
+}
+html[data-product-theme="reader"][data-theme="dark"][data-reader-page="black"] {
+  --background: #000000 !important;
+  --foreground: #e2ddd6 !important;
+  --card: #0d0d0c !important;
+  --card-foreground: #e2ddd6 !important;
+  --popover: #0d0d0c !important;
+  --popover-foreground: #e2ddd6 !important;
+  --secondary: #1a1917 !important;
+  --secondary-foreground: #e2ddd6 !important;
+  --muted: #1a1917 !important;
+  --muted-foreground: #a39a8e !important;
+  --border: #2e2a25 !important;
+  --input: #2e2a25 !important;
+  --accent: #1f1b17 !important;
+  --accent-foreground: #e2ddd6 !important;
+  --sidebar: #0d0d0c !important;
+  --sidebar-foreground: #e2ddd6 !important;
+  --sidebar-accent: #1f1b17 !important;
+  --sidebar-accent-foreground: #e2ddd6 !important;
+}
+[data-reader-page-swatch="white"] {
+  background: #ffffff;
+  color: #1f1f1f;
+}
+[data-reader-page-swatch="cream"] {
+  background: #fbf8f3;
+  color: #302a25;
+}
+[data-reader-page-swatch="ink"] {
+  background: #22211f;
+  color: #eee8df;
+}
+[data-reader-page-swatch="black"] {
+  background: #000000;
+  color: #e2ddd6;
+}

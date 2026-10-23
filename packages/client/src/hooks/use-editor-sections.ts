@@ -6,9 +6,39 @@ export function useEditorSections<T extends string>(
   ready: boolean,
   initialSection: T,
   onSectionChange: (section: T) => void,
+  /**
+   * Paged: a tab shows only its own section instead of scrolling a long page. The other sections stay mounted
+   * (only hidden), so typed text, unsaved values and errors survive a tab change, and each tab keeps its own
+   * scroll position.
+   */
+  { paged = false }: { paged?: boolean } = {},
 ) {
   const contentRef = useRef<HTMLDivElement>(null);
   const navigationTargetRef = useRef<HTMLElement | null>(null);
+  const activeRef = useRef<T | null>(null);
+  const scrollBySection = useRef(new Map<string, number>());
+
+  const showSection = useCallback(
+    (section: T) => {
+      const root = contentRef.current;
+      if (!root) return;
+      const previous = activeRef.current;
+      if (previous && previous !== section) scrollBySection.current.set(previous, root.scrollTop);
+      activeRef.current = section;
+      // CSS (globals.css, "Paged editors") shows only the section named here, so a section that remounts
+      // later is still shown or hidden correctly.
+      root.dataset.editorPaged = section;
+      onSectionChange(section);
+      // After the tab's own render (its header chip can change height above the sections), so the browser's
+      // scroll anchoring does not shift the restored position.
+      const top = scrollBySection.current.get(section) ?? 0;
+      root.scrollTop = top;
+      requestAnimationFrame(() => {
+        if (activeRef.current === section) root.scrollTop = top;
+      });
+    },
+    [onSectionChange],
+  );
 
   /** Scroll to an element and keep it anchored while content around it grows, until the user scrolls. */
   const scrollToElement = useCallback((target: HTMLElement, smooth = true) => {
@@ -24,17 +54,30 @@ export function useEditorSections<T extends string>(
 
   const scrollToSection = useCallback(
     (section: T, smooth = true) => {
+      if (paged) return showSection(section);
       const target = contentRef.current?.querySelector<HTMLElement>(`[data-editor-section="${section}"]`);
       if (!target) return;
       onSectionChange(section);
       scrollToElement(target, smooth);
     },
-    [onSectionChange, scrollToElement],
+    [onSectionChange, scrollToElement, paged, showSection],
   );
 
   useEffect(() => {
     const root = contentRef.current;
-    if (!root || !ready) return;
+    if (!root || !ready || !paged) return;
+    // A new record starts on its first tab with fresh scroll positions.
+    activeRef.current = null;
+    scrollBySection.current.clear();
+    showSection(initialSection);
+    return () => {
+      delete root.dataset.editorPaged;
+    };
+  }, [editorKey, ready, initialSection, paged, showSection]);
+
+  useEffect(() => {
+    const root = contentRef.current;
+    if (!root || !ready || paged) return;
     let frame = 0;
     const sync = () => {
       frame = 0;
@@ -78,7 +121,7 @@ export function useEditorSections<T extends string>(
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [editorKey, ready, initialSection, onSectionChange, scrollToSection]);
+  }, [editorKey, ready, initialSection, onSectionChange, scrollToSection, paged]);
 
   return { contentRef, scrollToSection, scrollToElement };
 }

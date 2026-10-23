@@ -67,10 +67,44 @@ const dialogue = renderToStaticMarkup(
   ),
 );
 assert.equal((dialogue.match(/data-tts-dialogue/g) ?? []).length, 1);
-const { normalizeReaderPreferences } = await import("../../packages/client/src/lib/reader-preferences");
-assert.equal(normalizeReaderPreferences({ font: "serif" }).font, "@serif");
-assert.equal(normalizeReaderPreferences({ indent: NaN }).indent, 0);
-assert.equal(normalizeReaderPreferences({ indent: 100 }).indent, 4);
+const { normalizeReaderPreferences, readerModePreferences, effectiveReaderPage } =
+  await import("../../packages/client/src/lib/reader-preferences");
+assert.equal(normalizeReaderPreferences({ font: "serif" }).shared.font, "@serif");
+assert.equal(normalizeReaderPreferences({ indent: NaN }).roleplay.indent, 0);
+assert.equal(normalizeReaderPreferences({ indent: 100 }).roleplay.indent, 4);
+// An older flat save is read once into shared + per-mode values; its page color follows the old paper/theme.
+const legacy = normalizeReaderPreferences({ paper: "sepia", letterSpacing: 0.5, bubbleScope: "global" }, "dark");
+assert.equal(legacy.version, 2);
+assert.equal(legacy.shared.page, "cream");
+assert.equal(legacy.roleplay.letterSpacing, 0.5);
+assert.equal(legacy.conversation.letterSpacing, 0.5);
+assert.equal(legacy.conversation.bubbleScope, "global");
+for (const [paper, theme, page] of [
+  ["theme", "light", "cream"],
+  ["theme", "dark", "ink"],
+  ["white", "dark", "white"],
+  ["yellow", "dark", "cream"],
+  ["green", "light", "cream"],
+  ["gray", "light", "ink"],
+  ["black", "light", "black"],
+] as const)
+  assert.equal(normalizeReaderPreferences({ paper }, theme).shared.page, page, `${paper}/${theme}`);
+// The current format is kept as chosen, never converted again, whatever the theme.
+const current = {
+  ...legacy,
+  shared: { ...legacy.shared, page: "black" as const },
+  roleplay: { ...legacy.roleplay, letterSpacing: 2 },
+};
+assert.deepEqual(normalizeReaderPreferences(JSON.parse(JSON.stringify(current)), "light"), current);
+// Modes keep their own layout; Convo never indents.
+const split = { ...current, roleplay: { ...current.roleplay, indent: 2 } };
+assert.equal(readerModePreferences(split, "roleplay").letterSpacing, 2);
+assert.equal(readerModePreferences(split, "conversation").letterSpacing, 0.5);
+assert.equal(readerModePreferences(split, "roleplay").indent, 2);
+assert.equal(readerModePreferences(split, "conversation").indent, 0);
+assert.equal(effectiveReaderPage("black", "dark"), "black");
+assert.equal(effectiveReaderPage("black", "light"), "cream");
+assert.equal(effectiveReaderPage("white", "dark"), "ink");
 
 assert.deepEqual(splitMessageParagraphs("    code\n\n    more\n\n다음"), ["    code\n\n    more", "다음"]);
 assert.equal(hideTTSAudioCues("```html\n" + encoded), "```html\n" + encoded);

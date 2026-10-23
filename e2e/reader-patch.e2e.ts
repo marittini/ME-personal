@@ -78,9 +78,17 @@ for (const mode of ["roleplay", "conversation"] as const) {
       ).not.toBe("#ff00ff");
       const speech = workspace.locator(`[data-message-id="${message.id}"]`);
       if (mode === "conversation") {
+        // Phones open the message actions with a tap on the message, desktops on hover.
+        const revealActions = async () => {
+          if (!test.info().project.name.startsWith("mobile"))
+            return speech.locator(".mari-message-content").first().hover();
+          if (!(await speech.locator(".mari-message-actions.opacity-100").count()))
+            await speech.locator(".mari-message-content").first().click();
+          await expect(speech.locator(".mari-message-actions.opacity-100")).toHaveCount(1);
+        };
         // Conversation speaks the whole message from its actions, like the TTS extension; no per-line buttons.
         await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(0);
-        await speech.locator(".mari-message-content").first().hover();
+        await revealActions();
         await speech.getByRole("button", { name: "음성 생성", exact: true }).click();
         await expect.poll(() => calls.join(" ")).toContain("Second line.");
         expect(calls.join(" ")).toContain("First line.");
@@ -93,11 +101,11 @@ for (const mode of ["roleplay", "conversation"] as const) {
         await expect(replay).toHaveAttribute("aria-label", "음성 멈춤");
         await replay.click();
         expect(calls.length).toBe(generated);
-        await speech.locator(".mari-message-content").first().hover();
+        await revealActions();
         await speech.getByRole("button", { name: "음성 다시 생성", exact: true }).click();
         await page.getByRole("button", { name: "취소", exact: true }).click();
         expect(calls.length).toBe(generated);
-        await speech.locator(".mari-message-content").first().hover();
+        await revealActions();
         await speech.getByRole("button", { name: "음성 다시 생성", exact: true }).click();
         await page.getByRole("dialog").getByRole("button", { name: "음성 다시 생성", exact: true }).click();
         await expect.poll(() => calls.length).toBe(generated * 2);
@@ -138,13 +146,16 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await page.keyboard.press("Escape");
       await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
       await page.reload();
+      // A dev-server reload can take over 20 s in a slow sandbox before the transcript renders.
+      await expect(workspace.locator(".mari-message-content").first()).toBeVisible({ timeout: 60_000 });
       await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
       await expect(workspace).toHaveCSS("--reader-line-height", "1.9");
       await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+      // The 크림 page is the light theme (the former "화면 테마: 밝게").
       await page
         .getByRole("dialog", { name: "읽기 설정", exact: true })
-        .getByRole("combobox", { name: "화면 테마", exact: true })
-        .selectOption("light");
+        .getByRole("radio", { name: "크림", exact: true })
+        .click();
       await page.keyboard.press("Escape");
       await expect(page.locator("html")).toHaveCSS("background-color", "rgb(251, 248, 243)");
       expect(
@@ -204,7 +215,9 @@ for (const mode of ["roleplay", "conversation"] as const) {
         await expect(speech).not.toContainText(hidden);
       if (mode === "conversation") {
         await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(0);
-        await speech.locator(".mari-message-content").first().hover();
+        // Phones reveal message tools on a tap, desktops on hover.
+        if (test.info().project.name.startsWith("mobile")) await speech.locator(".mari-message-content").first().click();
+        else await speech.locator(".mari-message-content").first().hover();
         await expect(speech.getByRole("button", { name: "음성 생성", exact: true })).toBeVisible();
       } else {
         await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
@@ -287,6 +300,63 @@ for (const mode of ["roleplay", "conversation"] as const) {
     }
   });
 }
+test("conversation: the voice button stays visible without a voice and asks for one only when no default voice exists", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "목소리 없음" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "보이스 없음", mode: "conversation", characterIds: [card.id] } })
+  ).json();
+  try {
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", characterId: card.id, content: "보이스 없는 답장" },
+      })
+    ).json();
+    const config = await (await request.get("/api/tts/config")).json();
+    let voice = "";
+    let enabled = false;
+    await page.route("**/api/tts/config", (route) =>
+      route.fulfill({
+        json: { ...config, source: "openai", voice, voiceMode: "per-character", voiceAssignments: [], enabled },
+      }),
+    );
+    const calls: unknown[] = [];
+    await page.route("**/api/tts/speak", async (route) => {
+      calls.push(route.request().postDataJSON());
+      await route.fulfill({ status: 500, body: "" });
+    });
+    await quiet(page, chat.id);
+    await page.goto("/");
+    const row = page.locator(`[data-message-id="${message.id}"]`);
+    const reveal = async () => {
+      if (!test.info().project.name.startsWith("mobile")) return row.locator(".mari-message-content").first().hover();
+      if (!(await row.locator(".mari-message-actions.opacity-100").count()))
+        await row.locator(".mari-message-content").first().click();
+    };
+    // Visible with voice reading off too (as in the TTS extension); pressing it says what to turn on.
+    await reveal();
+    await row.getByRole("button", { name: "음성 생성", exact: true }).click();
+    await expect(page.getByText("음성 읽기가 꺼져 있어요. 읽기 설정의 음성에서 켜세요.")).toBeVisible();
+    enabled = true;
+    await page.reload();
+    await reveal();
+    await row.getByRole("button", { name: "음성 생성", exact: true }).click();
+    await expect(page.getByText("음성 설정에서 이 화자의 보이스를 먼저 고르세요.")).toBeVisible();
+    expect(calls).toHaveLength(0);
+    // With a default voice, a character without its own voice speaks with the default voice.
+    voice = "alloy";
+    await page.reload();
+    await reveal();
+    await row.getByRole("button", { name: "음성 생성", exact: true }).click();
+    await expect.poll(() => calls.length).toBeGreaterThan(0);
+    expect((calls[0] as { voice: string }).voice).toBe("alloy");
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
 test("settings tab opens a function hub and native voice settings", async ({ page }) => {
   await quiet(page);
   await page.goto("/");

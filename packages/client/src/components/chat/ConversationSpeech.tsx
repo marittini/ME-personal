@@ -43,12 +43,18 @@ export function useConversationSpeech({
   const { data: chat } = useChat(chatId);
   const volume = useUIStore((s) => s.ttsLineVolume);
   const id = `${chatId}:${messageId}:${swipeIndex}:message`;
-  const enabled =
-    !!config?.enabled && chat?.mode === "conversation" && chat.metadata.ttsDialogueButtonsEnabled !== false;
+  // As in the TTS extension (v4.3.7), the Convo button is always in the message actions: TTS being off is
+  // explained when it is pressed, and the per-line button switch belongs to RP only.
+  const enabled = !!config && chat?.mode === "conversation";
   const plan = useMemo(() => {
     if (!enabled || !config) return null;
+    // Same voice choice as the engine's own speech: a persona without its own voice uses the default voice.
     const voice = isUser
-      ? (config.personaVoiceAssignments?.find((row) => row.personaId === personaId)?.voice ?? "")
+      ? (config.voiceMode === "per-character"
+          ? config.personaVoiceAssignments?.find((row) => row.personaId === personaId)?.voice
+          : "") ||
+        config.voice ||
+        ""
       : resolveTTSVoiceForSpeaker(config, speaker, characterId);
     // Audio wrappers are markup; the cues inside them stay, as the voice model reads them.
     const spoken = normalizeTTSAudioMarkup(text).replace(/<\/?audio_(?:character|persona)\b[^>]*>/gi, "");
@@ -100,6 +106,15 @@ export function useConversationSpeech({
   }, [playback.id, playback.state, id]);
   const speak = async (regenerate: boolean) => {
     if (!plan?.requests.length || !config || busy) return;
+    if (!config.enabled) {
+      toast.error(i18n.t("reader.speechOff"));
+      return;
+    }
+    // The button stays visible without a voice so the missing setting is explained instead of hidden.
+    if (!plan.voice.trim()) {
+      toast.error(i18n.t("reader.voiceMissing"));
+      return;
+    }
     const version = epoch.current;
     setBusy(true);
     try {
@@ -121,8 +136,7 @@ export function useConversationSpeech({
     }
   };
   return {
-    // A persona without an assigned voice has nothing to speak with, so it shows no button.
-    available: !!plan?.requests.length && !!plan.voice.trim(),
+    available: !!plan?.requests.length,
     saved,
     busy,
     active,

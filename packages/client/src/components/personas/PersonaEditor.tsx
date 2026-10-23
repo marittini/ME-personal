@@ -110,7 +110,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { SpriteGenerationModal } from "../ui/SpriteGenerationModal";
 import { AvatarGenerationModal } from "../ui/AvatarGenerationModal";
-import { AvatarCropWidget } from "../ui/AvatarCropWidget";
+import { ProfileSheetPortrait } from "../ui/ProfileSheetPortrait";
 import { AvatarReplaceActions } from "../ui/AvatarReplaceActions";
 import { EditorAvatarTileActions } from "../ui/EditorAvatarTileActions";
 import { SpriteFrameEditor } from "../ui/SpriteFrameEditor";
@@ -1327,6 +1327,7 @@ export function PersonaEditor() {
     !!formData,
     personaInitialTab ?? "metadata",
     setActiveTab,
+    { paged: true },
   );
   const formDataRef = useRef<PersonaFormData | null>(null);
   const [baselineForm, setBaselineFormState] = useState<PersonaFormData | null>(null);
@@ -3620,54 +3621,25 @@ function PersonaMetadataTab({
         helpText={PERSONA_METADATA_HELP}
       />
 
-      {personaId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/70 px-3 py-2">
-          <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
-            {localizeUi("ui.personas.personametadatatab.personaId")}
-          </span>
-          <code className="min-w-0 flex-1 break-all rounded-lg bg-[var(--background)] px-2 py-1 text-[0.6875rem] text-[var(--foreground)]">
-            {personaId}
-          </code>
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard?.writeText(personaId);
-              toast.success(localizeUi("ui.personas.personametadatatab.personaIdCopied"));
-            }}
-            className="mari-editor-action inline-flex h-8 px-2 text-[0.6875rem]"
-            title={localizeUi("ui.personas.personametadatatab.copyPersonaId")}
-          >
-            <Copy size="0.75rem" />
-            {localizeUi("lorebook.editor.batch.copy")}
-          </button>
-        </div>
-      )}
-
-      {/* Profile sheet: portrait beside the key facts as a table (stacked on phones). Same fields as before. */}
-      <div className="mari-profile-sheet" data-profile-sheet="persona">
-        <div className="mari-profile-sheet__portrait space-y-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {t("editor.avatar.label")}
-            <HelpTooltip text={t("editor.avatar.persona.help")} />
-          </span>
-
-          {avatarPreview && (
-            <fieldset
-              disabled={avatarMutationBusy}
-              className="min-w-0 border-0 p-0 disabled:pointer-events-none disabled:opacity-60"
-            >
-              <AvatarCropWidget
-                src={avatarPreview}
-                alt={formData.name}
-                crop={formData.avatarCrop}
-                onChange={(next) => {
-                  if (avatarMutationBusy) return;
-                  updateField("avatarCrop", next);
-                }}
-              />
-            </fieldset>
-          )}
-
+      {/* Info sheet: the inputs are the sheet's cells (thin table lines, small bold labels). Same fields as
+          before; the ID and version history sit under the sheet. */}
+      <div className="mari-sheet mari-sheet--profile" data-profile-sheet="persona">
+        <ProfileSheetPortrait
+          src={avatarPreview}
+          alt={formData.name}
+          crop={formData.avatarCrop}
+          disabled={avatarMutationBusy}
+          onCropChange={(next) => {
+            if (avatarMutationBusy) return;
+            updateField("avatarCrop", next);
+          }}
+          label={
+            <>
+              {t("editor.avatar.label")}
+              <HelpTooltip text={t("editor.avatar.persona.help")} />
+            </>
+          }
+        >
           <fieldset disabled={avatarMutationBusy} className="min-w-0 border-0 p-0 disabled:opacity-60">
             <AvatarReplaceActions
               hasAvatar={Boolean(avatarPreview)}
@@ -3677,24 +3649,42 @@ function PersonaMetadataTab({
               onGenerate={onGenerateAvatar}
             />
           </fieldset>
-        </div>
-
-        <div className="mari-profile-sheet__fields grid gap-4 sm:grid-cols-2">
-          <label className="space-y-1.5 sm:col-span-2">
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.personas.personastatstab.name")}{" "}
-              <HelpTooltip
-                text={localizeUi("ui.personas.personametadatatab.yourPersonaSDisplayNameThisIsInjectedInto")}
+        </ProfileSheetPortrait>
+        <div className="mari-sheet__facts">
+          <div className="mari-sheet__row">
+            <label className="mari-sheet__cell">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.personas.personastatstab.name")}{" "}
+                <HelpTooltip
+                  text={localizeUi("ui.personas.personametadatatab.yourPersonaSDisplayNameThisIsInjectedInto")}
+                />
+              </span>
+              <input
+                value={formData.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+                placeholder={localizeUi("ui.personas.personaeditor.personaName")}
               />
-            </span>
-            <input
-              value={formData.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-              placeholder={localizeUi("ui.personas.personaeditor.personaName")}
-            />
-          </label>
-          <label className="space-y-1.5 sm:col-span-2">
+            </label>
+            <label className="mari-sheet__cell mari-sheet__cell--narrow">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.personas.personametadatatab.version")}{" "}
+                <HelpTooltip
+                  text={localizeUi(
+                    "ui.personas.personametadatatab.versionNumberForTrackingChangesToThisPersonaDefinition",
+                  )}
+                />
+              </span>
+              <input
+                value={formData.personaVersion}
+                onChange={(e) => updateField("personaVersion", e.target.value)}
+                disabled={!formData.versioningEnabled}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="1.0"
+              />
+            </label>
+          </div>
+          <label className="mari-sheet__cell">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
               {localizeUi("ui.personas.personametadatatab.titleComment")}{" "}
               <HelpTooltip text={localizeUi("ui.personas.personametadatatab.aShortNoteShownUnderThePersonaNameIn")} />
@@ -3706,7 +3696,7 @@ function PersonaMetadataTab({
               placeholder={localizeUi("ui.personas.personametadatatab.modernAuVersion")}
             />
           </label>
-          <label className="space-y-1.5">
+          <label className="mari-sheet__cell">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
               {localizeUi("ui.personas.personametadatatab.phoneticName")}{" "}
               <HelpTooltip
@@ -3722,7 +3712,7 @@ function PersonaMetadataTab({
               placeholder={formData.name}
             />
           </label>
-          <label className="space-y-1.5">
+          <label className="mari-sheet__cell">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
               {localizeUi("ui.personas.personametadatatab.creator")}{" "}
               <HelpTooltip
@@ -3736,120 +3726,135 @@ function PersonaMetadataTab({
               placeholder={localizeUi("ui.personas.personametadatatab.yourName")}
             />
           </label>
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        </div>
+        <div className="mari-sheet__cell mari-sheet__wide">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-                {localizeUi("ui.personas.personametadatatab.version")}{" "}
+                {localizeUi("ui.personas.personametadatatab.tags")}{" "}
                 <HelpTooltip
                   text={localizeUi(
-                    "ui.personas.personametadatatab.versionNumberForTrackingChangesToThisPersonaDefinition",
+                    "ui.personas.personametadatatab.labelsForOrganizingPersonasUseTagsLikeFantasyModern",
                   )}
                 />
               </span>
-              <SettingsSwitch
-                checked={formData.versioningEnabled}
-                onChange={(enabled) => {
-                  updateField("versioningEnabled", enabled);
-                  if (enabled && !formData.personaVersion.trim()) {
-                    updateField("personaVersion", "1.0");
+              {formData.tags.length > 0 && (
+                <button
+                  type="button"
+                  onClick={removeAllTags}
+                  className="mari-chrome-accent-surface mari-accent-animated rounded-lg border px-2.5 py-1 text-[0.6875rem] font-medium transition-colors"
+                >
+                  {localizeUi("ui.personas.personametadatatab.removeAll")}
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {formData.tags.map((tag) => (
+                <span key={tag} className="mari-chrome-control mari-chrome-control--compact group/tag">
+                  <Tag size="0.625rem" />
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-[var(--primary)]/15 hover:text-[var(--primary)]"
+                    title={localizeUi("ui.personas.personametadatatab.removeTagValue1", { value1: tag })}
+                  >
+                    <X size="0.625rem" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTag();
                   }
                 }}
-                label={localizeUi("ui.cardversionhistory.automaticVersioning")}
-                labelPosition="end"
-                title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
-                className="min-h-11 gap-2 rounded-md px-1 py-0"
-                labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
+                placeholder={localizeUi("ui.personas.personametadatatab.addTag")}
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)]/40"
               />
+              <button
+                type="button"
+                onClick={addTag}
+                className="mari-chrome-control mari-chrome-control--compact mari-chrome-control--selected px-3 py-1.5"
+              >
+                {localizeUi("ui.personas.personastatstab.add")}
+              </button>
             </div>
-            <input
-              value={formData.personaVersion}
-              onChange={(e) => updateField("personaVersion", e.target.value)}
-              disabled={!formData.versioningEnabled}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="1.0"
+          </div>
+        </div>
+        <div className="mari-sheet__row mari-sheet__wide">
+          <div className="mari-sheet__cell">
+            <SettingsSwitch
+              checked={formData.versioningEnabled}
+              onChange={(enabled) => {
+                updateField("versioningEnabled", enabled);
+                if (enabled && !formData.personaVersion.trim()) {
+                  updateField("personaVersion", "1.0");
+                }
+              }}
+              label={localizeUi("ui.cardversionhistory.automaticVersioning")}
+              labelPosition="end"
+              title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
+              className="min-h-11 gap-2 rounded-md px-1 py-0"
+              labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
             />
-            <PersonaVersionHistoryPanel
-              personaId={personaId}
-              currentData={formData}
-              currentAvatarPath={avatarPreview}
-              hasUnsavedChanges={hasUnsavedChanges}
+          </div>
+        </div>
+        <div className="mari-sheet__cell mari-sheet__wide">
+          <div className="block space-y-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.personas.personametadatatab.creatorNotes")}{" "}
+              <HelpTooltip
+                text={localizeUi("ui.personas.personametadatatab.privateNotesAboutThisPersonaTipsForUseKnown")}
+              />
+            </span>
+            <MacroTextarea
+              value={formData.creatorNotes}
+              onChange={(value) => updateField("creatorNotes", value)}
+              rows={4}
+              title={localizeUi("ui.personas.personametadatatab.creatorNotes")}
+              showMarkdownPreview
+              className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm outline-none placeholder:text-[var(--muted-foreground)]/40 focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.personas.personametadatatab.notesAboutThisPersonaIntendedUseTipsForBest")}
             />
           </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.personas.personametadatatab.tags")}{" "}
-            <HelpTooltip
-              text={localizeUi("ui.personas.personametadatatab.labelsForOrganizingPersonasUseTagsLikeFantasyModern")}
-            />
-          </span>
-          {formData.tags.length > 0 && (
+      <div className="mari-sheet-manage space-y-3" data-sheet-manage="">
+        {personaId && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/70 px-3 py-2">
+            <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+              {localizeUi("ui.personas.personametadatatab.personaId")}
+            </span>
+            <code className="min-w-0 flex-1 break-all rounded-lg bg-[var(--background)] px-2 py-1 text-[0.6875rem] text-[var(--foreground)]">
+              {personaId}
+            </code>
             <button
               type="button"
-              onClick={removeAllTags}
-              className="mari-chrome-accent-surface mari-accent-animated rounded-lg border px-2.5 py-1 text-[0.6875rem] font-medium transition-colors"
+              onClick={() => {
+                void navigator.clipboard?.writeText(personaId);
+                toast.success(localizeUi("ui.personas.personametadatatab.personaIdCopied"));
+              }}
+              className="mari-editor-action inline-flex h-8 px-2 text-[0.6875rem]"
+              title={localizeUi("ui.personas.personametadatatab.copyPersonaId")}
             >
-              {localizeUi("ui.personas.personametadatatab.removeAll")}
+              <Copy size="0.75rem" />
+              {localizeUi("lorebook.editor.batch.copy")}
             </button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {formData.tags.map((tag) => (
-            <span key={tag} className="mari-chrome-control mari-chrome-control--compact group/tag">
-              <Tag size="0.625rem" />
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-[var(--primary)]/15 hover:text-[var(--primary)]"
-                title={localizeUi("ui.personas.personametadatatab.removeTagValue1", { value1: tag })}
-              >
-                <X size="0.625rem" />
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-1.5">
-          <input
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addTag();
-              }
-            }}
-            placeholder={localizeUi("ui.personas.personametadatatab.addTag")}
-            className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)]/40"
-          />
-          <button
-            type="button"
-            onClick={addTag}
-            className="mari-chrome-control mari-chrome-control--compact mari-chrome-control--selected px-3 py-1.5"
-          >
-            {localizeUi("ui.personas.personastatstab.add")}
-          </button>
-        </div>
-      </div>
+          </div>
+        )}
 
-      <div className="block space-y-1.5">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-          {localizeUi("ui.personas.personametadatatab.creatorNotes")}{" "}
-          <HelpTooltip
-            text={localizeUi("ui.personas.personametadatatab.privateNotesAboutThisPersonaTipsForUseKnown")}
-          />
-        </span>
-        <MacroTextarea
-          value={formData.creatorNotes}
-          onChange={(value) => updateField("creatorNotes", value)}
-          rows={4}
-          title={localizeUi("ui.personas.personametadatatab.creatorNotes")}
-          showMarkdownPreview
-          className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm outline-none placeholder:text-[var(--muted-foreground)]/40 focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-          placeholder={localizeUi("ui.personas.personametadatatab.notesAboutThisPersonaIntendedUseTipsForBest")}
+        <PersonaVersionHistoryPanel
+          personaId={personaId}
+          currentData={formData}
+          currentAvatarPath={avatarPreview}
+          hasUnsavedChanges={hasUnsavedChanges}
         />
       </div>
     </div>

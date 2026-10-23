@@ -152,13 +152,25 @@ for (const spec of [
       await expect(editor.locator("[data-editor-section]")).toHaveCount(spec.sections);
       if (spec.kind === "Character") await expect(editor.locator('[data-editor-section="onboarding"]')).toHaveCount(1);
       await openSection(editor, spec.last);
-      await expect.poll(() => editor.locator(".mari-editor-content").evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
       const last = editor.locator(`[data-editor-section="${spec.lastId}"]`);
-      await expect(last).toBeInViewport();
+      // Character and persona editors are paged: a tab shows only its own section (the others stay mounted).
+      const paged = spec.kind === "Character" || spec.kind === "Persona";
+      if (paged) {
+        await expect(last).toBeVisible();
+        await expect(editor.locator('[data-editor-section="metadata"]')).toBeHidden();
+        await expect(editor.locator('[data-editor-section="metadata"]')).toHaveCount(1);
+      } else {
+        await expect
+          .poll(() => editor.locator(".mari-editor-content").evaluate((el) => el.scrollTop))
+          .toBeGreaterThan(0);
+        await expect(last).toBeInViewport();
+      }
       await expect
         .poll(() => editor.locator(".mari-editor-navigation-tabs [data-active]").getAttribute("aria-label"))
         .toBe(spec.last);
-      await editor.locator(".mari-editor-content").evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
+      if (paged) await openSection(editor, "Metadata");
+      else
+        await editor.locator(".mari-editor-content").evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
       await expect
         .poll(() => editor.locator(".mari-editor-navigation-tabs [data-active]").getAttribute("aria-label"))
         .not.toBe(spec.last);

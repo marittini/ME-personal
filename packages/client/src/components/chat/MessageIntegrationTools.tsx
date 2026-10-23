@@ -14,6 +14,7 @@ export function MessageIntegrationTools(
     <>
       <DialogueSpeechControls {...props} />
       <details
+        data-message-integration-tools=""
         className="my-1 text-[var(--muted-foreground)]"
         open={open}
         onToggle={(e) => setOpen(e.currentTarget.open)}

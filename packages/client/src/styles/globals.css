@@ -8733,13 +8733,42 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 [data-reader-enabled="true"]:not([data-reader-tools="true"]) .rpg-vignette {
   display: none;
 }
-[data-reader-focus="true"]:not([data-reader-streaming="true"]) .chat-input-container {
-  display: none;
+/* Focus mode (RP): only the text stays. The input, the message controls and everything floating over the page
+   hide, also while a reply is generating; the top bar slides away and comes back from the top edge. */
+html[data-reader-focus="true"]
+  :is(
+    .chat-input-container,
+    .mari-message-avatar,
+    .rpg-overlay,
+    .rpg-vignette,
+    .mari-message-actions,
+    .mari-message-swipes,
+    [data-message-integration-tools],
+    [data-dialogue-controls],
+    [data-reader-scene-tools],
+    [data-chat-settings-button],
+    [data-chat-settings-move-tip],
+    [data-component="TrackerPanelBubble"]
+  ) {
+  display: none !important;
 }
-[data-reader-focus="true"] .mari-message-avatar,
-[data-reader-focus="true"] .rpg-overlay,
-[data-reader-focus="true"] .rpg-vignette {
-  display: none;
+[data-reader-focus="true"] > [data-reader-header] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 60;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+[data-reader-focus="true"]:not([data-reader-revealed="true"]) > [data-reader-header] {
+  transform: translateY(-100%);
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-reader-focus="true"] > [data-reader-header] {
+    transition: none;
+  }
 }
 
 /* Touch message actions expand on the existing tap/focus state without reserving empty rows. */
@@ -8755,33 +8784,6 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 [data-reader-enabled] .mari-message-content p:not(blockquote p):not(li p) {
   text-indent: var(--reader-indent, 0em);
 }
-::highlight(reader-excerpts) {
-  background: color-mix(in srgb, var(--primary) 24%, transparent);
-  color: inherit;
-}
-/* Reading-note highlighters (excerpt studio colors) and a dotted underline where a private memo exists. */
-::highlight(reader-note-y) {
-  background: color-mix(in srgb, #ffdf7e 50%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-g) {
-  background: color-mix(in srgb, #b9e6b0 50%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-p) {
-  background: color-mix(in srgb, #f9c6d9 55%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-b) {
-  background: color-mix(in srgb, #b4daf7 55%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-memo) {
-  text-decoration: underline dotted var(--primary);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.2em;
-}
-
 [data-reader-enabled="true"] .mari-message-content [data-reader-prose] {
   display: block;
   text-indent: var(--reader-indent, 0em);
@@ -8889,155 +8891,286 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 /* Convo bubble colors chosen once for every character and persona (reader settings, "전역"). Unset colors keep
    the theme; "카드별" leaves each card's own look (card CSS) untouched. */
 [data-reader-bubble-scope="global"] [data-chat-mode="conversation"] .texting-bubble-other {
+  --reader-bubble-text: var(--reader-bubble-character-text, var(--secondary-foreground));
   background: var(--reader-bubble-character-bg, var(--secondary)) !important;
-  color: var(--reader-bubble-character-text, var(--secondary-foreground)) !important;
 }
 [data-reader-bubble-scope="global"] [data-chat-mode="conversation"] .texting-bubble-user {
+  --reader-bubble-text: var(--reader-bubble-persona-text, var(--primary-foreground));
   background: var(--reader-bubble-persona-bg, var(--primary)) !important;
-  color: var(--reader-bubble-persona-text, var(--primary-foreground)) !important;
+}
+/* The bubble text color wins over the chat font color, which the message text sets inline through
+   --mari-chat-resolved-text, and over a chat style's text fill. */
+[data-reader-bubble-scope="global"] [data-chat-mode="conversation"] :is(.texting-bubble-other, .texting-bubble-user) {
+  --mari-chat-resolved-text: var(--reader-bubble-text);
+  --foreground: var(--reader-bubble-text);
+  color: var(--reader-bubble-text) !important;
+  -webkit-text-fill-color: var(--reader-bubble-text) !important;
+}
+[data-reader-bubble-scope="global"]
+  [data-chat-mode="conversation"]
+  :is(.texting-bubble-other, .texting-bubble-user)
+  .mari-message-content {
+  color: inherit !important;
+}
+/* Convo bubbles keep their own content width on the speaker's side. Without this the column stretches every
+   bubble of a message to its widest sibling: a translation shown under it or a longer paragraph. */
+[data-conversation-paragraphs]:has(> .texting-bubble-user) {
+  align-items: flex-end;
+}
+[data-conversation-paragraphs]:has(> .texting-bubble-other) {
+  align-items: flex-start;
+}
+[data-conversation-paragraphs] > .texting-bubble {
+  max-width: 100%;
 }
 [data-reader-contact-slot]:not(:empty) ~ [data-reader-contact-fallback] {
   display: none;
 }
 
-/* Character/persona profile sheet: a portrait beside the key facts laid out as a table, stacked on phones. */
-.mari-profile-sheet {
-  display: grid;
-  gap: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.875rem;
-  padding: 1rem;
-  background: color-mix(in srgb, var(--secondary) 35%, transparent);
+/* Every tab of the character and persona editors takes the same sheet look: panels are table blocks with thin
+   lines, inputs lose their boxes (text inputs keep an underline), and on wider screens a card field puts its
+   label in a left cell beside the long value. Behaviour and saving are unchanged. */
+.mari-editor-content[data-editor-paged] {
+  --sheet-line: color-mix(in srgb, var(--foreground) 45%, transparent);
 }
-.mari-profile-sheet__portrait {
-  width: 100%;
-  max-width: 16rem;
-  justify-self: center;
+/* Boxes and inputs anywhere in a tab become sheet cells: square, thin lines, no fill. Buttons, chips, pictures
+   and color swatches keep their own look. */
+.mari-editor-content[data-editor-paged]
+  [data-editor-section]
+  :is(.rounded-lg, .rounded-xl, .rounded-2xl):is(.border, [class*="border-["]):not(
+    button,
+    a,
+    label:has(> input[type="checkbox"]:only-child),
+    [role="button"],
+    [role="listbox"],
+    [role="menu"],
+    [role="dialog"],
+    .mari-chrome-control,
+    .mari-editor-action,
+    img,
+    video
+  ) {
+  border-radius: 0 !important;
+  border-color: var(--sheet-line) !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.mari-editor-content[data-editor-paged]
+  [data-editor-section]
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select) {
+  border-width: 0 0 1px !important;
+  border-color: var(--sheet-line) !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.mari-editor-content[data-editor-paged] [data-editor-section] textarea {
+  border-color: var(--sheet-line) !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.mari-editor-content[data-editor-paged] .mari-editor-panel textarea {
+  border-color: transparent !important;
+}
+.mari-editor-content[data-editor-paged] [data-editor-section] :is(input, textarea, select):focus {
+  background-color: color-mix(in srgb, var(--primary) 7%, transparent) !important;
+}
+/* One section per tab: no divider or gap above it. */
+.mari-editor-content[data-editor-paged] [data-editor-section] {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+.mari-editor-content[data-editor-paged] .mari-editor-panel {
+  border: 1px solid var(--sheet-line) !important;
+  border-radius: 0 !important;
+  background: var(--background) !important;
+  box-shadow: none !important;
 }
 @media (min-width: 768px) {
-  .mari-profile-sheet {
-    grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
-    align-items: start;
-    gap: 1.5rem;
-    padding: 1.25rem;
-  }
-  .mari-profile-sheet__portrait {
-    justify-self: stretch;
-  }
-  .mari-profile-sheet__fields.grid {
-    /* Wins over the fields' own two-column grid utility: the sheet is one fact per row. */
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 0 !important;
-    border-top: 1px solid var(--border);
-  }
-  .mari-profile-sheet__fields > * {
-    /* The fields' own col-span utilities would open an implicit second column. */
-    grid-column: 1 / -1 !important;
-    margin: 0 !important;
-    padding: 0.625rem 0;
-    border-bottom: 1px solid var(--border);
-  }
-  /* Plain text facts read as table rows: label left, value right. Blocks with switches, sliders or history
-     panels keep their own layout as full-width rows. */
-  .mari-profile-sheet__fields > label:has(> input:not([type="range"]):only-of-type) {
+  .mari-editor-content[data-editor-paged] .mari-editor-panel:has(> div:first-child > h2) {
     display: grid;
-    grid-template-columns: 7.5rem minmax(0, 1fr);
-    align-items: center;
-    column-gap: 0.75rem;
+    grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr);
+    padding: 0 !important;
   }
-  .mari-profile-sheet__fields > label:has(> input:not([type="range"]):only-of-type) > * {
+  .mari-editor-content[data-editor-paged] .mari-editor-panel:has(> div:first-child > h2) > * {
+    grid-column: 2;
     margin: 0 !important;
+    padding: 0.625rem 0.75rem;
+  }
+  .mari-editor-content[data-editor-paged] .mari-editor-panel:has(> div:first-child > h2) > div:first-child {
+    grid-column: 1;
+    grid-row: 1 / span 12;
+    border-right: 1px solid var(--sheet-line);
+  }
+  .mari-editor-content[data-editor-paged] .mari-editor-panel:has(> div:first-child > h2) > div:first-child h2 {
+    font-size: 0.8125rem;
+    font-weight: 700;
   }
 }
 
-/* Reader page colors (e-book style). Scoped to the reader, so the rest of the app keeps its theme. */
-[data-reader-paper] {
+/* Paged editors (character and persona): a tab shows only its own section. The others stay mounted, so typed
+   text, unsaved values and errors survive a tab change. */
+.mari-editor-content[data-editor-paged="metadata"] [data-editor-section]:not([data-editor-section="metadata"]),
+.mari-editor-content[data-editor-paged="card"] [data-editor-section]:not([data-editor-section="card"]),
+.mari-editor-content[data-editor-paged="onboarding"] [data-editor-section]:not([data-editor-section="onboarding"]),
+.mari-editor-content[data-editor-paged="convo"] [data-editor-section]:not([data-editor-section="convo"]),
+.mari-editor-content[data-editor-paged="lorebook"] [data-editor-section]:not([data-editor-section="lorebook"]),
+.mari-editor-content[data-editor-paged="sprites"] [data-editor-section]:not([data-editor-section="sprites"]),
+.mari-editor-content[data-editor-paged="gallery"] [data-editor-section]:not([data-editor-section="gallery"]),
+.mari-editor-content[data-editor-paged="colors"] [data-editor-section]:not([data-editor-section="colors"]),
+.mari-editor-content[data-editor-paged="voice"] [data-editor-section]:not([data-editor-section="voice"]),
+.mari-editor-content[data-editor-paged="stats"] [data-editor-section]:not([data-editor-section="stats"]),
+.mari-editor-content[data-editor-paged="advanced"] [data-editor-section]:not([data-editor-section="advanced"]) {
+  display: none;
+}
+/* Character/persona info sheet (a handwritten profile sheet): the inputs are the sheet's cells. No input
+   boxes; thin table lines are the cell borders, labels are small and bold, values body size. Colors come from
+   the page color theme. */
+.mari-sheet {
+  --sheet-line: color-mix(in srgb, var(--foreground) 45%, transparent);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--sheet-line);
   background: var(--background);
   color: var(--foreground);
 }
-[data-reader-paper="white"] {
-  --background: #ffffff;
-  --foreground: #1f1f1f;
-  --card: #ffffff;
-  --card-foreground: #1f1f1f;
-  --secondary: #f1f1f1;
-  --secondary-foreground: #1f1f1f;
-  --muted-foreground: #6b6b6b;
-  --border: #e2e2e2;
+.mari-sheet__wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
-[data-reader-paper="sepia"] {
-  --background: #f4ecd8;
-  --foreground: #3b2f1e;
-  --card: #f4ecd8;
-  --card-foreground: #3b2f1e;
-  --secondary: #e9ddc2;
-  --secondary-foreground: #3b2f1e;
-  --muted-foreground: #7a6a52;
-  --border: #dccfb2;
+/* Facts take their own height; the last one fills the rest of the photo's height. */
+.mari-sheet__facts {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
 }
-[data-reader-paper="yellow"] {
-  --background: #fbf3c9;
-  --foreground: #333021;
-  --card: #fbf3c9;
-  --card-foreground: #333021;
-  --secondary: #f1e6af;
-  --secondary-foreground: #333021;
-  --muted-foreground: #77704a;
-  --border: #e5d99b;
+.mari-sheet__facts > :last-child {
+  flex: 1;
 }
-[data-reader-paper="green"] {
-  --background: #e3efdc;
-  --foreground: #22301f;
-  --card: #e3efdc;
-  --card-foreground: #22301f;
-  --secondary: #d2e3c7;
-  --secondary-foreground: #22301f;
-  --muted-foreground: #5b6e55;
-  --border: #c3d7b7;
+.mari-sheet__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
-[data-reader-paper="gray"] {
-  --background: #3a3b3d;
-  --foreground: #e6e6e6;
-  --card: #3a3b3d;
-  --card-foreground: #e6e6e6;
-  --secondary: #48494c;
-  --secondary-foreground: #e6e6e6;
-  --muted-foreground: #a6a6a6;
-  --border: #55565a;
+.mari-sheet__cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--sheet-line);
 }
-[data-reader-paper="black"] {
-  --background: #000000;
-  --foreground: #d6d6d6;
-  --card: #000000;
-  --card-foreground: #d6d6d6;
-  --secondary: #161616;
-  --secondary-foreground: #d6d6d6;
-  --muted-foreground: #8a8a8a;
-  --border: #262626;
+.mari-sheet > :first-child,
+.mari-sheet__facts > :first-child,
+.mari-sheet__facts > .mari-sheet__row:first-child > .mari-sheet__cell {
+  border-top: 0;
 }
-[data-reader-paper-swatch="white"] {
-  background: #ffffff;
-  color: #1f1f1f;
+.mari-sheet__label,
+.mari-sheet__cell > span:first-child,
+.mari-sheet__cell > div:first-child > span:first-child,
+.mari-sheet__cell > div > div:first-child > span:first-child {
+  font-size: 0.6875rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  color: var(--foreground) !important;
 }
-[data-reader-paper-swatch="sepia"] {
-  background: #f4ecd8;
-  color: #3b2f1e;
+.mari-sheet
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), textarea, select) {
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding-inline: 0 !important;
+  font-size: 0.9375rem;
 }
-[data-reader-paper-swatch="yellow"] {
-  background: #fbf3c9;
-  color: #333021;
+.mari-sheet
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+    textarea,
+    select
+  ):focus {
+  background: color-mix(in srgb, var(--primary) 7%, transparent) !important;
 }
-[data-reader-paper-swatch="green"] {
-  background: #e3efdc;
-  color: #22301f;
+/* The photo cell: a fixed 3:4 frame showing only the cropped result; a wide original never spills out. */
+.mari-sheet__portrait {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
 }
-[data-reader-paper-swatch="gray"] {
-  background: #3a3b3d;
-  color: #e6e6e6;
+.mari-sheet__photo {
+  position: relative;
+  width: 100%;
+  max-width: 20rem;
+  align-self: center;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--sheet-line);
+  background: var(--secondary);
 }
-[data-reader-paper-swatch="black"] {
-  background: #000000;
-  color: #d6d6d6;
+.mari-sheet__photo-empty {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 40%;
+  height: 40%;
+  color: var(--muted-foreground);
+}
+.mari-sheet__photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.mari-sheet-manage {
+  padding-top: 0.25rem;
+}
+@media (min-width: 640px) {
+  .mari-sheet--profile {
+    grid-template-columns: minmax(10rem, 32%) minmax(0, 1fr);
+  }
+  .mari-sheet--profile > .mari-sheet__portrait {
+    border-right: 1px solid var(--sheet-line);
+  }
+  .mari-sheet__photo {
+    max-width: none;
+  }
+  .mari-sheet__wide {
+    grid-column: 1 / -1;
+  }
+  .mari-sheet--profile > .mari-sheet__row.mari-sheet__wide {
+    border-top: 1px solid var(--sheet-line);
+  }
+  .mari-sheet__row.mari-sheet__wide > .mari-sheet__cell {
+    border-top: 0;
+  }
+  .mari-sheet__row {
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  }
+  .mari-sheet__row > .mari-sheet__cell + .mari-sheet__cell {
+    border-left: 1px solid var(--sheet-line);
+  }
+  .mari-sheet__row > .mari-sheet__cell--narrow {
+    max-width: 12rem;
+  }
+  .mari-sheet__row:has(> .mari-sheet__cell--narrow) {
+    grid-template-columns: minmax(0, 1fr) minmax(7rem, 12rem);
+  }
+}
+@media (max-width: 639px) {
+  /* The photo cell spans the width; the 3:4 frame stays a readable size in it. */
+  .mari-sheet__photo {
+    max-width: 13rem;
+  }
+  .mari-sheet--profile > .mari-sheet__portrait {
+    border-bottom: 1px solid var(--sheet-line);
+  }
+  .mari-sheet__row > .mari-sheet__cell:not(:first-child) {
+    border-top: 1px solid var(--sheet-line);
+  }
 }
 
 /* Side margins for the messages (reader settings). A transparent border adds the space on top of the

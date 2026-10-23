@@ -56,8 +56,12 @@ for (const grouped of [false, true]) {
       const bubbles = owner.locator(".texting-bubble-other");
       await expect(bubbles).toHaveCount(grouped ? 3 : 2);
       await expect(bubbles.first()).toContainText("Same bubble.");
-      await expect(bubbles.first()).toContainText("첫 문단입니다.");
-      await expect(bubbles.nth(1)).toContainText("둘째 문단입니다.");
+      // Each translation sits right under its own bubble, outside the bubble background.
+      const under = (index: number) => bubbles.nth(index).locator("xpath=following-sibling::*[1]");
+      await expect(under(0)).toHaveAttribute("data-conversation-translation", "outside");
+      await expect(under(0)).toContainText("첫 문단입니다.");
+      await expect(bubbles.first()).not.toContainText("첫 문단입니다.");
+      await expect(under(1)).toContainText("둘째 문단입니다.");
       expect(
         (await (await request.get(`/api/chats/${chat.id}/messages`)).json()).find(
           (m: { id: string }) => m.id === message.id,
@@ -67,6 +71,8 @@ for (const grouped of [false, true]) {
         data: { translation: "문단 수가 다른 전체 번역", translationSource: content },
       });
       await page.reload();
+      // A dev-server reload can take over 20 s in a slow sandbox before the transcript renders.
+      await expect(owner).toBeVisible({ timeout: 60_000 });
       await expect(owner.locator(".translation-text")).toHaveCount(1);
       await expect(bubbles.first().locator(".translation-text")).toHaveCount(0);
       await expect(owner).toContainText("문단 수가 다른 전체 번역");
@@ -85,7 +91,7 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
   request,
 }) => {
   const chat = await (
-    await request.post("/api/chats", { data: { name: "발췌 검증", mode: "conversation", characterIds: [] } })
+    await request.post("/api/chats", { data: { name: "발췌 검증", mode: "roleplay", characterIds: [] } })
   ).json();
   const message = await (
     await request.post(`/api/chats/${chat.id}/messages`, {
@@ -94,15 +100,18 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
   ).json();
   try {
     await open(page, chat.id);
-    const source = page.locator(`[data-message-id="${message.id}"] [data-tts-conversation-content]`).first();
-    await source.evaluate((el) => {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const selection = window.getSelection()!;
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.dispatchEvent(new Event("selectionchange"));
-    });
+    const source = page.locator(`[data-message-id="${message.id}"] .mari-message-content`).first();
+    await source
+      .locator("[data-reader-prose]")
+      .first()
+      .evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event("selectionchange"));
+      });
     await page.getByRole("button", { name: "발췌 스튜디오", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "발췌할 글", exact: true })).toHaveValue(
       "한국어 문단을 저장합니다.",
@@ -148,7 +157,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await expect.poll(() => page.evaluate(() => CSS.highlights.get("reader-excerpts")?.size ?? 0)).toBe(1);
     await page.getByRole("button", { name: "독서 노트", exact: true }).click();
     await page.getByRole("tab", { name: /발췌 카드/ }).click();
-    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const notes = page.getByRole("dialog", { name: "독서 노트", exact: true });
+    await notes.getByRole("button", { name: "편집", exact: true }).click();
     // Reopening restores the excerpt's own look, not the default one.
     await expect(
       page.getByRole("group", { name: "정렬", exact: true }).getByRole("button", { name: "가운데" }),
@@ -176,8 +186,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     ).toBeGreaterThan(0);
     await page.getByRole("button", { name: "독서 노트", exact: true }).click();
     await page.getByRole("tab", { name: /발췌 카드/ }).click();
-    await expect(page.getByText("수정한 발췌", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "삭제", exact: true }).click();
+    await expect(notes.getByText("수정한 발췌", { exact: true })).toBeVisible();
+    await notes.getByRole("button", { name: "삭제", exact: true }).click();
     await page
       .getByRole("dialog", { name: "삭제", exact: true })
       .getByRole("button", { name: "삭제", exact: true })
@@ -700,6 +710,198 @@ test("convo: messenger header, avatar on top, translations outside bubbles with 
     await request.delete(`/api/characters/${card.id}`);
   }
 });
+test("convo: settings-only header, no indent or note tools, content-width bubbles, global bubble text over chat font color", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "둘" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "콘보 정리", mode: "conversation", characterIds: [card.id] } })
+  ).json();
+  try {
+    const user = await (
+      await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "user", content: "짧은 말" } })
+    ).json();
+    await request.post(`/api/chats/${chat.id}/messages`, {
+      data: {
+        role: "assistant",
+        characterId: card.id,
+        content: "아주 긴 답장입니다. ".repeat(30).trim(),
+      },
+    });
+    // A translation wider than the message widens its column; the bubble must not stretch with it.
+    await request.patch(`/api/chats/${chat.id}/messages/${user.id}/extra`, {
+      data: {
+        translation: "A short message, translated into a much longer line",
+        translationSource: "짧은 말",
+        translationHidden: false,
+      },
+    });
+    await open(page, chat.id);
+    await seedUIState(page, { language: "ko", chatFontColor: "#ff0000" }, "merge");
+    await page.reload();
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const header = workspace.locator('header[data-reader-header="messenger"]');
+    // Only the reading settings stay in the Convo header: no reading notes or focus mode.
+    await expect(header.getByRole("button", { name: "읽기 설정", exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: "독서 노트", exact: true })).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "몰입 모드", exact: true })).toHaveCount(0);
+    const userBubble = workspace.locator(`[data-message-id="${user.id}"] .texting-bubble-user`);
+    await expect(userBubble).toBeVisible();
+    // A short user message is a short bubble, however wide its message column is (no indent involved).
+    const width = await userBubble.evaluate((el) => {
+      // Text nodes only: a range over the elements would report their stretched block boxes.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let text = 0;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        text = Math.max(text, range.getBoundingClientRect().width);
+      }
+      return { bubble: el.getBoundingClientRect().width, text };
+    });
+    expect(width.bubble).toBeLessThan(width.text + 40);
+    // No paragraph indent in bubbles, even with an indent saved for the novel reader.
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await expect(dialog.getByLabel("문단 들여쓰기", { exact: true })).toHaveCount(0);
+    await dialog.getByRole("combobox", { name: "말풍선 색", exact: true }).selectOption("global");
+    await dialog.getByLabel("페르소나 글자", { exact: true }).fill("#00aa00");
+    await page.keyboard.press("Escape");
+    await expect(workspace).toHaveCSS("--reader-indent", "0em");
+    // The bubble text color wins over the chat font color.
+    await expect(userBubble.locator(".mari-message-content").first()).toHaveCSS("color", "rgb(0, 170, 0)");
+    await expect(userBubble.locator(".mari-message-content").first()).toHaveCSS(
+      "-webkit-text-fill-color",
+      "rgb(0, 170, 0)",
+    );
+    // Selecting text in Convo offers the excerpt studio only: no highlighter colors or memo.
+    await userBubble.locator(".mari-message-content").first().selectText();
+    const tools = page.getByRole("toolbar", { name: "선택한 글", exact: true });
+    await expect(tools.getByRole("button", { name: "발췌 스튜디오", exact: true })).toBeVisible();
+    await expect(tools.getByRole("button")).toHaveCount(1);
+    await page.screenshot({ path: `.tmp/convo-cleanup-${test.info().project.name}.png` });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("focus mode: only text shows, the top edge brings the bar back, and it never survives a reload or a room change", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "몰입 작가" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "몰입 검증", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  const other = await (
+    await request.post("/api/chats", { data: { name: "다른 기록", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  try {
+    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "user", content: "문을 열었다." } });
+    await request.post(`/api/chats/${chat.id}/messages`, {
+      data: { role: "assistant", characterId: card.id, content: '"어서 와." 그녀가 웃었다.' },
+    });
+    await open(page, chat.id);
+    const mobile = test.info().project.name.startsWith("mobile");
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const header = workspace.locator("header[data-reader-header]");
+    const edge = page.getByRole("button", { name: "상단바 보기", exact: true });
+    // Every control a reader could see on the page, except the top edge that is the way out.
+    const visibleControls = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>("button, a[href], input, textarea, select, [role='button']")]
+          .filter((el) => !el.matches("[data-reader-focus-edge]"))
+          .filter((el) => {
+            const box = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            return (
+              box.width > 1 &&
+              box.height > 1 &&
+              box.bottom > 0 &&
+              box.right > 0 &&
+              box.top < innerHeight &&
+              box.left < innerWidth &&
+              style.visibility !== "hidden" &&
+              Number(style.opacity) > 0.05
+            );
+          })
+          .map((el) => el.getAttribute("aria-label") || el.textContent?.trim().slice(0, 30) || el.tagName),
+      );
+    await expect(page.getByText("그녀가 웃었다.")).toBeVisible();
+    // Phones tap, which never counts as hovering the top edge.
+    const press = (locator: import("@playwright/test").Locator) => (mobile ? locator.tap() : locator.click());
+    const enterFocus = async () => {
+      await press(header.getByRole("button", { name: "몰입 모드", exact: true }));
+      await expect(workspace).toHaveAttribute("data-reader-focus", "true");
+      // A mouse resting at the top keeps the bar out; away from it the bar hides.
+      if (!mobile) await page.mouse.move(400, 500);
+      await expect(header).toBeHidden({ timeout: 8_000 });
+    };
+    await enterFocus();
+    await expect(page.getByText("그녀가 웃었다.")).toBeVisible();
+    await expect.poll(visibleControls).toEqual([]);
+    await page.screenshot({ path: `.tmp/focus-${test.info().project.name}.png` });
+
+    // The top edge brings the bar back (hover on PC, tap on phones); the bar ends focus mode.
+    if (mobile) await edge.tap();
+    else await edge.hover();
+    await expect(header).toBeVisible();
+    await expect(header.getByRole("button", { name: "몰입 모드 끄기", exact: true })).toBeVisible();
+    await page.screenshot({ path: `.tmp/focus-revealed-${test.info().project.name}.png` });
+    await press(header.getByRole("button", { name: "몰입 모드 끄기", exact: true }));
+    await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    await expect(page.locator(".chat-input-container").first()).toBeVisible();
+
+    // Esc ends it on PC.
+    if (!mobile) {
+      await enterFocus();
+      await page.keyboard.press("Escape");
+      await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    }
+
+    // A floating window over the page never covers the way out.
+    await enterFocus();
+    await page.evaluate(async () => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().openRightPanel("settings");
+    });
+    const box = (await edge.boundingBox())!;
+    const topAtEdge = await page.evaluate(
+      ({ x, y }) => (document.elementFromPoint(x, y) as HTMLElement | null)?.dataset.readerFocusEdge !== undefined,
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    );
+    expect(topAtEdge).toBe(true);
+    await page.evaluate(async () => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().closeRightPanel();
+    });
+
+    // Not saved: a reload ends it.
+    await expect(workspace).toHaveAttribute("data-reader-focus", "true");
+    await page.reload();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    await expect(header).toBeVisible();
+
+    // Leaving the room ends it too: back to the work page from the revealed bar, then reopen the record.
+    await enterFocus();
+    if (mobile) await edge.tap();
+    else await edge.hover();
+    await press(header.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }));
+    const detail = page.locator('[data-component="LibraryWorkDetail"]');
+    await expect(detail).toBeVisible();
+    await detail.getByRole("navigation", { name: "목차", exact: true }).getByText("몰입 검증").click();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(header).toContainText("몰입 검증");
+    await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    await expect(header).toBeVisible();
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/chats/${other.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
 test("work information lists reading records as a table of contents with branches indented", async ({
   page,
   request,
@@ -743,13 +945,13 @@ test("work information lists reading records as a table of contents with branche
     await request.delete(`/api/characters/${card.id}`);
   }
 });
-test("character and persona editors show a profile sheet: portrait beside facts on PC, stacked on phones", async ({
+test("info sheet: inputs are the cells, a 3:4 photo cell with cropping in its own window, tabs keep their state", async ({
   page,
   request,
 }) => {
   const card = await (
     await request.post("/api/characters", {
-      data: { data: { name: "시트 캐릭터", creator: "작가", tags: ["판타지"] } },
+      data: { data: { name: "시트 캐릭터", creator: "작가", tags: ["판타지"], description: "설명 ".repeat(400) } },
     })
   ).json();
   const persona = await (await request.post("/api/characters/personas", { data: { name: "시트 페르소나" } })).json();
@@ -759,6 +961,38 @@ test("character and persona editors show a profile sheet: portrait beside facts 
   try {
     await open(page, chat.id);
     const mobile = test.info().project.name.startsWith("mobile");
+    // A wide original: before, it spilled out of the avatar area on phones.
+    const wide = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 900;
+      canvas.height = 300;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#3a6ea5";
+      context.fillRect(0, 0, 900, 300);
+      context.fillStyle = "#f2c14e";
+      context.fillRect(380, 60, 140, 180);
+      return canvas.toDataURL("image/png");
+    });
+    expect((await request.post(`/api/characters/${card.id}/avatar`, { data: { avatar: wide } })).ok()).toBeTruthy();
+    expect(
+      (await request.post(`/api/characters/personas/${persona.id}/avatar`, { data: { avatar: wide } })).ok(),
+    ).toBeTruthy();
+    await page.reload();
+    await expect(page.locator('[data-component="ReaderWorkspace"]')).toHaveAttribute("data-reader-enabled", "true", {
+      timeout: 60_000,
+    });
+    const editor = page.locator(".mari-editor-shell");
+    const openTab = async (label: string) => {
+      const compact = editor.getByRole("button", { name: "편집기 섹션", exact: true });
+      if (await compact.isVisible()) {
+        await compact.click();
+        await editor.getByRole("menuitemradio", { name: label, exact: true }).click();
+      } else
+        await editor
+          .getByRole("navigation", { name: "편집기 섹션" })
+          .getByRole("button", { name: label, exact: true })
+          .click();
+    };
     for (const [kind, id] of [
       ["character", card.id],
       ["persona", persona.id],
@@ -773,17 +1007,67 @@ test("character and persona editors show a profile sheet: portrait beside facts 
       );
       const sheet = page.locator(`[data-profile-sheet="${kind}"]`);
       await expect(sheet).toBeVisible();
-      const portrait = await sheet.locator(".mari-profile-sheet__portrait").boundingBox();
-      const fields = await sheet.locator(".mari-profile-sheet__fields").boundingBox();
-      // Same fields as before, only arranged: the name input is still there.
-      await expect(sheet.locator(".mari-profile-sheet__fields input").first()).toHaveValue(
-        kind === "character" ? "시트 캐릭터" : "시트 페르소나",
-      );
-      if (mobile) expect(fields!.y).toBeGreaterThanOrEqual(portrait!.y + portrait!.height - 1);
-      else expect(fields!.x).toBeGreaterThanOrEqual(portrait!.x + portrait!.width);
-      await sheet.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `.tmp/profile-sheet-${kind}-${test.info().project.name}.png` });
+      const name = kind === "character" ? "시트 캐릭터" : "시트 페르소나";
+      // The inputs themselves are the cells: no box of their own.
+      const nameInput = sheet.locator(".mari-sheet__facts input").first();
+      await expect(nameInput).toHaveValue(name);
+      await expect(nameInput).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(nameInput).toHaveCSS("border-top-width", "0px");
+      // A 3:4 photo cell that never lets the wide picture out.
+      const photo = sheet.locator("[data-sheet-photo]");
+      await expect(photo.locator("img")).toBeVisible();
+      const box = (await photo.boundingBox())!;
+      expect(box.width / box.height).toBeCloseTo(0.75, 1);
+      await expect(photo).toHaveCSS("overflow", "hidden");
+      const sheetBox = (await sheet.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(sheetBox.x + sheetBox.width + 1);
+      const portrait = (await sheet.locator("[data-sheet-portrait]").boundingBox())!;
+      const facts = (await sheet.locator(".mari-sheet__facts").boundingBox())!;
+      if (mobile) expect(facts.y).toBeGreaterThanOrEqual(portrait.y + portrait.height - 1);
+      else expect(facts.x).toBeGreaterThanOrEqual(portrait.x + portrait.width - 1);
+      // Cropping opens in its own window.
+      await sheet.getByRole("button", { name: "아바타 자르기", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "아바타 자르기", exact: true })).toBeVisible();
+      await page.screenshot({ path: `.tmp/sheet-crop-${kind}-${test.info().project.name}.png` });
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog", { name: "아바타 자르기", exact: true })).toHaveCount(0);
+      await page.screenshot({ path: `.tmp/profile-sheet-${kind}-${test.info().project.name}.png`, fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+
+      if (kind === "character") {
+        // One tab at a time; switching keeps typed text, each tab's scroll position and a failed save.
+        await nameInput.fill("저장 안 된 이름");
+        await openTab("카드");
+        await expect(sheet).toBeHidden();
+        const content = editor.locator(".mari-editor-content");
+        await content.evaluate((el) => (el.scrollTop = 400));
+        await page.waitForTimeout(300);
+        const cardScroll = await content.evaluate((el) => el.scrollTop);
+        expect(cardScroll).toBeGreaterThan(300);
+        await openTab("메타데이터");
+        await expect(nameInput).toHaveValue("저장 안 된 이름");
+        await expect.poll(() => content.evaluate((el) => el.scrollTop)).toBe(0);
+        await openTab("카드");
+        await expect.poll(() => content.evaluate((el) => el.scrollTop)).toBe(cardScroll);
+        await page.route(`**/api/characters/${card.id}`, (route) =>
+          route.request().method() === "PATCH" || route.request().method() === "PUT"
+            ? route.fulfill({ status: 500, json: { error: "Synthetic sheet save failure" } })
+            : route.continue(),
+        );
+        await editor.getByRole("button", { name: "저장", exact: true }).click();
+        await expect(page.getByText(/Synthetic sheet save failure/).first()).toBeVisible();
+        await openTab("메타데이터");
+        await expect(nameInput).toHaveValue("저장 안 된 이름");
+        await openTab("카드");
+        await openTab("메타데이터");
+        await expect(nameInput).toHaveValue("저장 안 된 이름");
+        await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+        await page.unroute(`**/api/characters/${card.id}`);
+        await nameInput.fill(name);
+        await editor.getByRole("button", { name: "저장", exact: true }).click();
+        // Saved once the save goes through: nothing left unsaved.
+        await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+      }
       await page.evaluate(async () => {
         const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
         useUIStore.getState().closeCharacterDetail();
@@ -796,28 +1080,84 @@ test("character and persona editors show a profile sheet: portrait beside facts 
     await request.delete(`/api/characters/${card.id}`);
   }
 });
-test("viewer settings: page colors, font size steps and side margins", async ({ page, request }) => {
-  const chat = await (
-    await request.post("/api/chats", { data: { name: "보기 설정 검증", mode: "roleplay", characterIds: [] } })
+test("viewer settings: four page colors theme the app, RP and Convo keep their own layout, old settings move once", async ({
+  page,
+  request,
+}) => {
+  const rp = await (
+    await request.post("/api/chats", { data: { name: "보기 설정 RP", mode: "roleplay", characterIds: [] } })
+  ).json();
+  const convo = await (
+    await request.post("/api/chats", { data: { name: "보기 설정 Convo", mode: "conversation", characterIds: [] } })
   ).json();
   try {
-    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content: "책처럼 읽는 문단." } });
-    await open(page, chat.id);
+    await request.post(`/api/chats/${rp.id}/messages`, { data: { role: "assistant", content: "책처럼 읽는 문단." } });
+    await request.post(`/api/chats/${convo.id}/messages`, { data: { role: "assistant", content: "메신저 말풍선." } });
+    // A save from before the split: one flat layout, a 세피아 page on the dark theme.
+    await isolateSyncedUISettings(page);
+    await seedUIState(
+      page,
+      {
+        hasCompletedOnboarding: true,
+        sidebarOpen: false,
+        rightPanelOpen: false,
+        language: "ko",
+        chatHelpSeenModes: ["roleplay", "conversation"],
+        theme: "dark",
+        readerPreferences: { paper: "sepia", letterSpacing: 0.5, indent: 1, sideMargin: 8 } as never,
+      },
+      // Only the first load: later reloads must read what the app saved, not the old save again.
+      "if-missing",
+    );
+    await page.addInitScript(
+      ({ chatId, version }) => {
+        if (!sessionStorage.getItem("seeded")) localStorage.setItem("marinara-active-chat-id", chatId);
+        sessionStorage.setItem("seeded", "1");
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { chatId: rp.id, version },
+    );
+    await page.goto("/");
+    const html = page.locator("html");
     const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    // 세피아 → 크림, and the page color is the app theme.
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).toHaveAttribute("data-reader-page", "cream");
+    await expect(html).toHaveCSS("background-color", "rgb(251, 248, 243)");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "0.5px");
+    await expect(workspace).toHaveCSS("--reader-indent", "1em");
+    // The floating room speech menu is gone; its settings live in the 음성 group.
+    await expect(page.getByRole("button", { name: "방별 음성 설정", exact: true })).toHaveCount(0);
+
     await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
-    await dialog.getByRole("radio", { name: "세피아", exact: true }).click();
-    const before = await workspace
+    await expect(dialog.getByRole("combobox", { name: "화면 테마", exact: true })).toHaveCount(0);
+    const pages = dialog.getByRole("radiogroup", { name: "화면 색", exact: true }).getByRole("radio");
+    await expect(pages).toHaveText(["화이트", "크림", "먹색", "블랙"]);
+    await expect(dialog.getByRole("radio", { name: "크림", exact: true })).toHaveAttribute("aria-checked", "true");
+    await expect(dialog.locator('[data-reader-settings-group="voice"]')).not.toHaveAttribute("open", "");
+    await dialog.getByRole("radio", { name: "블랙", exact: true }).click();
+    await dialog.getByRole("spinbutton", { name: "자간 (px)", exact: true }).fill("1");
+    const sizeBefore = await workspace
       .locator(".mari-message-content")
       .first()
       .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     await dialog.getByRole("button", { name: "글자 크기 1 늘리기", exact: true }).click();
     await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("24");
-    await page.screenshot({ path: ".tmp/viewer-settings.png" });
+    await dialog.locator('[data-reader-settings-group="voice"] summary').click();
+    const buttons = dialog.getByRole("checkbox", { name: "대사 음성 버튼 표시", exact: true });
+    await expect(buttons).toBeChecked();
+    await buttons.uncheck();
+    await expect
+      .poll(async () => (await (await request.get(`/api/chats/${rp.id}`)).json()).metadata.ttsDialogueButtonsEnabled)
+      .toBe(false);
+    await page.screenshot({ path: `.tmp/viewer-settings-${test.info().project.name}.png` });
     await page.keyboard.press("Escape");
-    await expect(workspace).toHaveCSS("background-color", "rgb(244, 236, 216)");
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await expect(html).toHaveCSS("background-color", "rgb(0, 0, 0)");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "1px");
     await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-left-width", "24px");
-    await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-right-width", "24px");
     await expect
       .poll(() =>
         workspace
@@ -825,14 +1165,37 @@ test("viewer settings: page colors, font size steps and side margins", async ({ 
           .first()
           .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
       )
-      .toBe(before + 1);
-    await page.screenshot({ path: ".tmp/viewer-sepia.png" });
-    // Reset the shared preferences other proofs read.
+      .toBe(sizeBefore + 1);
+
+    // A reload keeps the new choices: the old save is not converted again.
+    await page.reload();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(html).toHaveAttribute("data-reader-page", "black");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "1px");
+
+    // Convo shares the page color but keeps its own layout, and never indents.
+    await page.evaluate((id) => localStorage.setItem("marinara-active-chat-id", id), convo.id);
+    await page.reload();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(workspace).toHaveAttribute("data-reader-mode", "conversation");
+    await expect(html).toHaveAttribute("data-reader-page", "black");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "0.5px");
+    await expect(workspace).toHaveCSS("--reader-indent", "0em");
+    await expect(workspace).toHaveCSS("--reader-side-margin", "8px");
     await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
-    await dialog.getByRole("radio", { name: "테마 따르기", exact: true }).click();
-    await dialog.getByRole("button", { name: "글자 크기 1 줄이기", exact: true }).click();
-    await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("0");
+    await dialog.getByRole("radio", { name: "화이트", exact: true }).click();
+    await expect(dialog.getByLabel("문단 들여쓰기", { exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    // The library, outside the reader, wears the same page color.
+    await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
+    await expect(page.locator('[data-component="LibraryWorkDetail"]')).toBeVisible();
+    await expect(html).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await page.screenshot({ path: `.tmp/viewer-white-library-${test.info().project.name}.png` });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   } finally {
-    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/chats/${rp.id}?force=true`);
+    await request.delete(`/api/chats/${convo.id}?force=true`);
   }
 });

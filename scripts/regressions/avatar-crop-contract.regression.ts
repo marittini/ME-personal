@@ -272,7 +272,7 @@ assert.doesNotMatch(
 );
 
 for (const [path, pattern] of [
-  ["components/characters/CharacterEditor.tsx", /onChange=\{\(next\) => updateExtension\("avatarCrop", next\)\}/u],
+  ["components/characters/CharacterEditor.tsx", /onCropChange=\{\(next\) => updateExtension\("avatarCrop", next\)\}/u],
   ["components/personas/PersonaEditor.tsx", /updateField\("avatarCrop", next\)/u],
 ] as const) {
   assert.match(readFileSync(join(repoRoot, "packages/client/src", path), "utf8"), pattern);
@@ -293,14 +293,25 @@ assert.match(
   /avatarMutationBusy=\{mutationBusy\}/u,
   "PersonaEditor must pass its live mutation state to the metadata crop owner",
 );
+// The info sheet's photo cell owns the crop tool (in its own window): it gets the busy state, locks its crop
+// fieldset with it, and the persona handler still rejects writes while a mutation is busy.
 assert.match(
   personaEditorSource,
-  /<fieldset\b(?=[^>]*disabled=\{avatarMutationBusy\})[^>]*>(?:(?!<\/fieldset>)[\s\S])*?<AvatarCropWidget\b/u,
-  "the Persona crop fieldset must be disabled by the passed mutation state",
+  /<ProfileSheetPortrait\b(?=[^>]*disabled=\{avatarMutationBusy\})/u,
+  "the Persona photo cell must be disabled by the passed mutation state",
+);
+const portraitSource = readFileSync(
+  join(repoRoot, "packages/client/src/components/ui/ProfileSheetPortrait.tsx"),
+  "utf8",
+);
+assert.match(
+  portraitSource,
+  /<fieldset\b(?=[^>]*disabled=\{disabled\})[^>]*>(?:(?!<\/fieldset>)[\s\S])*?<AvatarCropWidget\b/u,
+  "the photo cell's crop fieldset must be disabled by its disabled state",
 );
 assert.match(
   personaEditorSource,
-  /onChange=\{\(next\) => \{\s*if \(avatarMutationBusy\) return;\s*updateField\("avatarCrop", next\);/u,
+  /onCropChange=\{\(next\) => \{\s*if \(avatarMutationBusy\) return;\s*updateField\("avatarCrop", next\);/u,
   "the Persona crop change handler must reject writes while a mutation is busy",
 );
 
