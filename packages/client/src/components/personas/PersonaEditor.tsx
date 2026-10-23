@@ -3643,135 +3643,138 @@ function PersonaMetadataTab({
         </div>
       )}
 
-      <div className="space-y-1.5">
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-          {t("editor.avatar.label")}
-          <HelpTooltip text={t("editor.avatar.persona.help")} />
-        </span>
+      {/* Profile sheet: portrait beside the key facts as a table (stacked on phones). Same fields as before. */}
+      <div className="mari-profile-sheet" data-profile-sheet="persona">
+        <div className="mari-profile-sheet__portrait space-y-1.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+            {t("editor.avatar.label")}
+            <HelpTooltip text={t("editor.avatar.persona.help")} />
+          </span>
 
-        {avatarPreview && (
-          <fieldset
-            disabled={avatarMutationBusy}
-            className="min-w-0 border-0 p-0 disabled:pointer-events-none disabled:opacity-60"
-          >
-            <AvatarCropWidget
-              src={avatarPreview}
-              alt={formData.name}
-              crop={formData.avatarCrop}
-              onChange={(next) => {
-                if (avatarMutationBusy) return;
-                updateField("avatarCrop", next);
-              }}
+          {avatarPreview && (
+            <fieldset
+              disabled={avatarMutationBusy}
+              className="min-w-0 border-0 p-0 disabled:pointer-events-none disabled:opacity-60"
+            >
+              <AvatarCropWidget
+                src={avatarPreview}
+                alt={formData.name}
+                crop={formData.avatarCrop}
+                onChange={(next) => {
+                  if (avatarMutationBusy) return;
+                  updateField("avatarCrop", next);
+                }}
+              />
+            </fieldset>
+          )}
+
+          <fieldset disabled={avatarMutationBusy} className="min-w-0 border-0 p-0 disabled:opacity-60">
+            <AvatarReplaceActions
+              hasAvatar={Boolean(avatarPreview)}
+              uploading={avatarUploading}
+              generationAvailable={imageGenerationAvailable}
+              onUpload={onSelectAvatar}
+              onGenerate={onGenerateAvatar}
             />
           </fieldset>
-        )}
+        </div>
 
-        <fieldset disabled={avatarMutationBusy} className="min-w-0 border-0 p-0 disabled:opacity-60">
-          <AvatarReplaceActions
-            hasAvatar={Boolean(avatarPreview)}
-            uploading={avatarUploading}
-            generationAvailable={imageGenerationAvailable}
-            onUpload={onSelectAvatar}
-            onGenerate={onGenerateAvatar}
-          />
-        </fieldset>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-1.5 sm:col-span-2">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.personas.personastatstab.name")}{" "}
-            <HelpTooltip
-              text={localizeUi("ui.personas.personametadatatab.yourPersonaSDisplayNameThisIsInjectedInto")}
-            />
-          </span>
-          <input
-            value={formData.name}
-            onChange={(e) => updateField("name", e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            placeholder={localizeUi("ui.personas.personaeditor.personaName")}
-          />
-        </label>
-        <label className="space-y-1.5 sm:col-span-2">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.personas.personametadatatab.titleComment")}{" "}
-            <HelpTooltip text={localizeUi("ui.personas.personametadatatab.aShortNoteShownUnderThePersonaNameIn")} />
-          </span>
-          <input
-            value={formData.comment}
-            onChange={(e) => updateField("comment", e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            placeholder={localizeUi("ui.personas.personametadatatab.modernAuVersion")}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.personas.personametadatatab.phoneticName")}{" "}
-            <HelpTooltip
-              text={localizeUi(
-                "ui.personas.personametadatatab.optionalPronunciationOverrideUsedOnlyWhenYourPersonaName",
-              )}
-            />
-          </span>
-          <input
-            value={formData.phoneticName}
-            onChange={(e) => updateField("phoneticName", e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            placeholder={formData.name}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-            {localizeUi("ui.personas.personametadatatab.creator")}{" "}
-            <HelpTooltip
-              text={localizeUi("ui.personas.personametadatatab.thePersonWhoMadeThisPersonaUsefulForCredit")}
-            />
-          </span>
-          <input
-            value={formData.creator}
-            onChange={(e) => updateField("creator", e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-            placeholder={localizeUi("ui.personas.personametadatatab.yourName")}
-          />
-        </label>
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <div className="mari-profile-sheet__fields grid gap-4 sm:grid-cols-2">
+          <label className="space-y-1.5 sm:col-span-2">
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.personas.personametadatatab.version")}{" "}
+              {localizeUi("ui.personas.personastatstab.name")}{" "}
+              <HelpTooltip
+                text={localizeUi("ui.personas.personametadatatab.yourPersonaSDisplayNameThisIsInjectedInto")}
+              />
+            </span>
+            <input
+              value={formData.name}
+              onChange={(e) => updateField("name", e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.personas.personaeditor.personaName")}
+            />
+          </label>
+          <label className="space-y-1.5 sm:col-span-2">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.personas.personametadatatab.titleComment")}{" "}
+              <HelpTooltip text={localizeUi("ui.personas.personametadatatab.aShortNoteShownUnderThePersonaNameIn")} />
+            </span>
+            <input
+              value={formData.comment}
+              onChange={(e) => updateField("comment", e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.personas.personametadatatab.modernAuVersion")}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.personas.personametadatatab.phoneticName")}{" "}
               <HelpTooltip
                 text={localizeUi(
-                  "ui.personas.personametadatatab.versionNumberForTrackingChangesToThisPersonaDefinition",
+                  "ui.personas.personametadatatab.optionalPronunciationOverrideUsedOnlyWhenYourPersonaName",
                 )}
               />
             </span>
-            <SettingsSwitch
-              checked={formData.versioningEnabled}
-              onChange={(enabled) => {
-                updateField("versioningEnabled", enabled);
-                if (enabled && !formData.personaVersion.trim()) {
-                  updateField("personaVersion", "1.0");
-                }
-              }}
-              label={localizeUi("ui.cardversionhistory.automaticVersioning")}
-              labelPosition="end"
-              title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
-              className="min-h-11 gap-2 rounded-md px-1 py-0"
-              labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
+            <input
+              value={formData.phoneticName}
+              onChange={(e) => updateField("phoneticName", e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={formData.name}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+              {localizeUi("ui.personas.personametadatatab.creator")}{" "}
+              <HelpTooltip
+                text={localizeUi("ui.personas.personametadatatab.thePersonWhoMadeThisPersonaUsefulForCredit")}
+              />
+            </span>
+            <input
+              value={formData.creator}
+              onChange={(e) => updateField("creator", e.target.value)}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+              placeholder={localizeUi("ui.personas.personametadatatab.yourName")}
+            />
+          </label>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.personas.personametadatatab.version")}{" "}
+                <HelpTooltip
+                  text={localizeUi(
+                    "ui.personas.personametadatatab.versionNumberForTrackingChangesToThisPersonaDefinition",
+                  )}
+                />
+              </span>
+              <SettingsSwitch
+                checked={formData.versioningEnabled}
+                onChange={(enabled) => {
+                  updateField("versioningEnabled", enabled);
+                  if (enabled && !formData.personaVersion.trim()) {
+                    updateField("personaVersion", "1.0");
+                  }
+                }}
+                label={localizeUi("ui.cardversionhistory.automaticVersioning")}
+                labelPosition="end"
+                title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
+                className="min-h-11 gap-2 rounded-md px-1 py-0"
+                labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
+              />
+            </div>
+            <input
+              value={formData.personaVersion}
+              onChange={(e) => updateField("personaVersion", e.target.value)}
+              disabled={!formData.versioningEnabled}
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="1.0"
+            />
+            <PersonaVersionHistoryPanel
+              personaId={personaId}
+              currentData={formData}
+              currentAvatarPath={avatarPreview}
+              hasUnsavedChanges={hasUnsavedChanges}
             />
           </div>
-          <input
-            value={formData.personaVersion}
-            onChange={(e) => updateField("personaVersion", e.target.value)}
-            disabled={!formData.versioningEnabled}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20 disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="1.0"
-          />
-          <PersonaVersionHistoryPanel
-            personaId={personaId}
-            currentData={formData}
-            currentAvatarPath={avatarPreview}
-            hasUnsavedChanges={hasUnsavedChanges}
-          />
         </div>
       </div>
 

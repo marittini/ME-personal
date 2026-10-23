@@ -730,3 +730,56 @@ test("work information lists reading records as a table of contents with branche
     await request.delete(`/api/characters/${card.id}`);
   }
 });
+test("character and persona editors show a profile sheet: portrait beside facts on PC, stacked on phones", async ({
+  page,
+  request,
+}) => {
+  const card = await (
+    await request.post("/api/characters", {
+      data: { data: { name: "시트 캐릭터", creator: "작가", tags: ["판타지"] } },
+    })
+  ).json();
+  const persona = await (await request.post("/api/characters/personas", { data: { name: "시트 페르소나" } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "시트 검증", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  try {
+    await open(page, chat.id);
+    const mobile = test.info().project.name.startsWith("mobile");
+    for (const [kind, id] of [
+      ["character", card.id],
+      ["persona", persona.id],
+    ] as const) {
+      await page.evaluate(
+        async ({ kind, id }) => {
+          const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+          if (kind === "character") useUIStore.getState().openCharacterDetail(id);
+          else useUIStore.getState().openPersonaDetail(id);
+        },
+        { kind, id },
+      );
+      const sheet = page.locator(`[data-profile-sheet="${kind}"]`);
+      await expect(sheet).toBeVisible();
+      const portrait = await sheet.locator(".mari-profile-sheet__portrait").boundingBox();
+      const fields = await sheet.locator(".mari-profile-sheet__fields").boundingBox();
+      // Same fields as before, only arranged: the name input is still there.
+      await expect(sheet.locator(".mari-profile-sheet__fields input").first()).toHaveValue(
+        kind === "character" ? "시트 캐릭터" : "시트 페르소나",
+      );
+      if (mobile) expect(fields!.y).toBeGreaterThanOrEqual(portrait!.y + portrait!.height - 1);
+      else expect(fields!.x).toBeGreaterThanOrEqual(portrait!.x + portrait!.width);
+      await sheet.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `.tmp/profile-sheet-${kind}-${test.info().project.name}.png` });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+      await page.evaluate(async () => {
+        const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+        useUIStore.getState().closeCharacterDetail();
+        useUIStore.getState().closePersonaDetail();
+      });
+    }
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/personas/${persona.id}`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});

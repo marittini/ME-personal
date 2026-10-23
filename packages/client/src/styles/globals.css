@@ -8899,3 +8899,53 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 [data-reader-contact-slot]:not(:empty) ~ [data-reader-contact-fallback] {
   display: none;
 }
+
+/* Character/persona profile sheet: a portrait beside the key facts laid out as a table, stacked on phones. */
+.mari-profile-sheet {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.875rem;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--secondary) 35%, transparent);
+}
+.mari-profile-sheet__portrait {
+  width: 100%;
+  max-width: 16rem;
+  justify-self: center;
+}
+@media (min-width: 768px) {
+  .mari-profile-sheet {
+    grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.5rem;
+    padding: 1.25rem;
+  }
+  .mari-profile-sheet__portrait {
+    justify-self: stretch;
+  }
+  .mari-profile-sheet__fields.grid {
+    /* Wins over the fields' own two-column grid utility: the sheet is one fact per row. */
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+    border-top: 1px solid var(--border);
+  }
+  .mari-profile-sheet__fields > * {
+    /* The fields' own col-span utilities would open an implicit second column. */
+    grid-column: 1 / -1 !important;
+    margin: 0 !important;
+    padding: 0.625rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  /* Plain text facts read as table rows: label left, value right. Blocks with switches, sliders or history
+     panels keep their own layout as full-width rows. */
+  .mari-profile-sheet__fields > label:has(> input:not([type="range"]):only-of-type) {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+  }
+  .mari-profile-sheet__fields > label:has(> input:not([type="range"]):only-of-type) > * {
+    margin: 0 !important;
+  }
+}
