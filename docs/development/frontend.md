@@ -42,14 +42,14 @@ Navigation is state-driven. There is no URL router. The `stores/ui.store.ts` Zus
 
 | Navigation target      | Store field          | Trigger function                                  |
 | ---------------------- | -------------------- | ------------------------------------------------- |
-| Open character editor  | `characterDetailId`  | `openCharacterDetail(id)`                          |
-| Open lorebook editor   | `lorebookDetailId`   | `openLorebookDetail(id)`                           |
-| Open preset editor     | `presetDetailId`     | `openPresetDetail(id)`                             |
-| Open connection editor | `connectionDetailId` | `openConnectionDetail(id)`                         |
-| Open agent editor      | `agentDetailId`      | `openAgentDetail(id)`                              |
-| Open persona editor    | `personaDetailId`    | `openPersonaDetail(id)`                            |
+| Open character editor  | `characterDetailId`  | `openCharacterDetail(id)`                         |
+| Open lorebook editor   | `lorebookDetailId`   | `openLorebookDetail(id)`                          |
+| Open preset editor     | `presetDetailId`     | `openPresetDetail(id)`                            |
+| Open connection editor | `connectionDetailId` | `openConnectionDetail(id)`                        |
+| Open agent editor      | `agentDetailId`      | `openAgentDetail(id)`                             |
+| Open persona editor    | `personaDetailId`    | `openPersonaDetail(id)`                           |
 | Switch right panel     | `rightPanel`         | `openRightPanel(name)` / `toggleRightPanel(name)` |
-| Open modal             | `modal`              | `openModal(type, props?)`                          |
+| Open modal             | `modal`              | `openModal(type, props?)`                         |
 
 ### Code splitting
 
@@ -179,17 +179,17 @@ All hooks live in `src/hooks/` and follow the pattern `use-{entity}.ts`.
 ### Preset hooks (`use-presets.ts`)
 
 | Hook                           | Type     | Description                                                 |
-| ------------------------------ | -------- | ---------------------------------------------------------- |
-| `usePresets()`                 | Query    | All presets                                                |
-| `usePreset(id)`                | Query    | Single preset                                              |
-| `usePresetFull(id)`            | Query    | Preset with sections, groups, and choices                  |
-| `useDefaultPreset()`           | Query    | The default preset                                         |
-| `useCreatePreset()`            | Mutation | Create preset                                              |
-| `useUpdatePreset()`            | Mutation | Update preset                                              |
-| `useDeletePreset()`            | Mutation | Delete preset                                              |
-| `usePresetSections(presetId)`  | Query    | Prompt sections for a preset                               |
-| `usePresetGroups(presetId)`    | Query    | Section groups                                             |
-| `usePresetVariables(presetId)` | Query    | Preset variables (formerly choice blocks)                  |
+| ------------------------------ | -------- | ----------------------------------------------------------- |
+| `usePresets()`                 | Query    | All presets                                                 |
+| `usePreset(id)`                | Query    | Single preset                                               |
+| `usePresetFull(id)`            | Query    | Preset with sections, groups, and choices                   |
+| `useDefaultPreset()`           | Query    | The default preset                                          |
+| `useCreatePreset()`            | Mutation | Create preset                                               |
+| `useUpdatePreset()`            | Mutation | Update preset                                               |
+| `useDeletePreset()`            | Mutation | Delete preset                                               |
+| `usePresetSections(presetId)`  | Query    | Prompt sections for a preset                                |
+| `usePresetGroups(presetId)`    | Query    | Section groups                                              |
+| `usePresetVariables(presetId)` | Query    | Preset variables (formerly choice blocks)                   |
 | `usePreviewPreset()`           | Mutation | Rendered prompt preview for `{ presetId, chatId, choices }` |
 
 ### Agent hooks (`use-agents.ts`)
@@ -223,20 +223,20 @@ The `src/hooks/` folder also contains many feature-specific hooks. A representat
 | File                           | Purpose                                   |
 | ------------------------------ | ----------------------------------------- |
 | `use-connections.ts`           | API connection CRUD plus test             |
-| `use-lorebooks.ts`             | Lorebook and entry CRUD                    |
-| `use-scene.ts`                 | Scene planning, creation, conclusion       |
-| `use-encounter.ts`             | Combat encounter init, action, summary     |
-| `use-autonomous-messaging.ts`  | Autonomous message polling and scheduling  |
-| `use-idle-detection.ts`        | 10-minute inactivity detector              |
-| `use-background-autonomous.ts` | Background polling for inactive chats      |
+| `use-lorebooks.ts`             | Lorebook and entry CRUD                   |
+| `use-scene.ts`                 | Scene planning, creation, conclusion      |
+| `use-encounter.ts`             | Combat encounter init, action, summary    |
+| `use-autonomous-messaging.ts`  | Autonomous message polling and scheduling |
+| `use-idle-detection.ts`        | 10-minute inactivity detector             |
+| `use-background-autonomous.ts` | Background polling for inactive chats     |
 | `use-translate.ts`             | Text translation                          |
-| `use-apply-regex.ts`           | Regex script execution on messages         |
-| `use-custom-tools.ts`          | Custom tool CRUD                           |
-| `use-knowledge-sources.ts`     | Knowledge source management                |
-| `use-gallery.ts`               | Chat gallery images                        |
-| `use-chat-folders.ts`          | Chat folder CRUD plus reordering           |
-| `use-regex-scripts.ts`         | Regex script CRUD                          |
-| `use-haptic.ts`                | Haptic device connection and commands      |
+| `use-apply-regex.ts`           | Regex script execution on messages        |
+| `use-custom-tools.ts`          | Custom tool CRUD                          |
+| `use-knowledge-sources.ts`     | Knowledge source management               |
+| `use-gallery.ts`               | Chat gallery images                       |
+| `use-chat-folders.ts`          | Chat folder CRUD plus reordering          |
+| `use-regex-scripts.ts`         | Regex script CRUD                         |
+| `use-haptic.ts`                | Haptic device connection and commands     |
 
 ## Component guide
 
@@ -283,14 +283,14 @@ The AI Game Master surface. It lives outside the chat folder, in `components/gam
 
 Each resource type has a full-page editor that replaces the chat area:
 
-| Editor            | File                                          | Manages                                                                         |
-| ----------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| Character Editor  | `components/characters/CharacterEditor.tsx`   | Character card fields, avatar, greeting, personality, system prompt, metadata   |
-| Lorebook Editor   | `components/lorebooks/LorebookEditor.tsx`     | Lorebook metadata and entries with keys, activation rules, injection settings   |
-| Preset Editor     | `components/presets/PresetEditor.tsx`         | Prompt sections, groups, markers, generation parameters, choice blocks          |
-| Connection Editor | `components/connections/ConnectionEditor.tsx` | API provider, base URL, model, context window, flags                            |
-| Agent Editor      | `components/agents/AgentEditor.tsx`           | Agent prompt template, phase, connection, tools, settings                       |
-| Persona Editor    | `components/personas/PersonaEditor.tsx`       | User persona with name, description, stats, avatar                              |
+| Editor            | File                                          | Manages                                                                       |
+| ----------------- | --------------------------------------------- | ----------------------------------------------------------------------------- |
+| Character Editor  | `components/characters/CharacterEditor.tsx`   | Character card fields, avatar, greeting, personality, system prompt, metadata |
+| Lorebook Editor   | `components/lorebooks/LorebookEditor.tsx`     | Lorebook metadata and entries with keys, activation rules, injection settings |
+| Preset Editor     | `components/presets/PresetEditor.tsx`         | Prompt sections, groups, markers, generation parameters, choice blocks        |
+| Connection Editor | `components/connections/ConnectionEditor.tsx` | API provider, base URL, model, context window, flags                          |
+| Agent Editor      | `components/agents/AgentEditor.tsx`           | Agent prompt template, phase, connection, tools, settings                     |
+| Persona Editor    | `components/personas/PersonaEditor.tsx`       | User persona with name, description, stats, avatar                            |
 
 ### Modal system (`components/modals/`)
 
@@ -332,7 +332,7 @@ Panels use module-level persistence. A `mountedPanels` Set tracks which panels h
 
 ### UI primitives (`components/ui/`)
 
-| Component          | Description                                                            |
+| Component          | Description                                                           |
 | ------------------ | --------------------------------------------------------------------- |
 | `Modal`            | Base modal with backdrop click, escape key, enter and exit animations |
 | `ColorPicker`      | Solid color or gradient picker with preset swatches                   |
@@ -412,16 +412,16 @@ Key files in `packages/shared/src/constants/`:
 
 All input validation uses Zod schemas from `packages/shared/src/schemas/`. Representative files:
 
-| Schema file             | Entities                                                           |
-| ----------------------- | ------------------------------------------------------------------ |
-| `agent.schema.ts`       | AgentConfig create and update, agent phases, result types          |
-| `character.schema.ts`   | Character cards, compatibility metadata, character books, groups   |
-| `chat.schema.ts`        | Chat create, message create, generation request                   |
-| `connection.schema.ts`  | API connection create and update                                   |
-| `custom-tool.schema.ts` | Custom tool definitions                                            |
-| `lorebook.schema.ts`    | Lorebook and entry create/update, activation conditions, schedules |
-| `prompt.schema.ts`      | Preset, section, group, choice block, generation parameters        |
-| `regex.schema.ts`       | Regex script create and update                                     |
+| Schema file                    | Entities                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `agent.schema.ts`              | AgentConfig create and update, agent phases, result types                     |
+| `character.schema.ts`          | Character cards, compatibility metadata, character books, groups              |
+| `chat.schema.ts`               | Chat create, message create, generation request                               |
+| `connection.schema.ts`         | API connection create and update                                              |
+| `custom-tool.schema.ts`        | Custom tool definitions                                                       |
+| `lorebook.schema.ts`           | Lorebook and entry create/update, activation conditions, schedules            |
+| `prompt.schema.ts`             | Preset, section, group, choice block, generation parameters                   |
+| `regex.schema.ts`              | Regex script create and update                                                |
 | `personal-extension.schema.ts` | Personal Extension drafts, exact-hash approval, rollback, and private storage |
 
 The folder also holds schemas for app settings, chat settings profiles, conversation calls, custom emojis and stickers, Noodle, and themes.
@@ -430,27 +430,27 @@ The folder also holds schemas for app settings, chat settings profiles, conversa
 
 Entity type definitions live in `packages/shared/src/types/`. A sample of the key files:
 
-| Type file             | Key interfaces                                                                                              |
-| --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `agent.ts`            | `AgentConfig`, `AgentResult`, `AgentContext`, `ToolDefinition`, `ToolCall`, `ToolResult`, `BUILT_IN_AGENTS` |
-| `character.ts`        | `Character`, `CharacterCardV2`, `CharacterData`, `RPGStatsConfig`                                           |
-| `chat.ts`             | `Chat`, `ChatMetadata`, `Message`, `MessageExtra`, `GenerationInfo`, `StreamEvent`                          |
-| `connection.ts`       | `APIConnection`, `ModelInfo`, `ModelCapabilities`, `ConnectionTestResult`                                   |
-| `combat-encounter.ts` | `CombatPartyMember`, `CombatEnemy`, `CombatActionResult`, `EncounterSettings`                               |
-| `game-state.ts`       | `GameState`, `PresentCharacter`, `PlayerStats`, `QuestProgress`, `InventoryItem`                            |
-| `lorebook.ts`         | `Lorebook`, `LorebookEntry`, `ActivationCondition`, `LorebookSchedule`, `QuestData`                         |
-| `persona.ts`          | `Persona`, `PersonaStatsConfig`                                                                             |
-| `personal-extension.ts` | `PersonalExtension`, runtime metadata, revisions, source, and server runtime state                         |
-| `prompt.ts`           | `PromptPreset`, `PromptSection`, `PromptGroup`, `ChoiceBlock`, `GenerationParameters`                       |
-| `scene.ts`            | `SceneMeta`, `SceneFullPlan`                                                                                |
-| `haptic.ts`           | `HapticDevice`, `HapticStatus`, `HapticDeviceCommand`                                                       |
+| Type file               | Key interfaces                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `agent.ts`              | `AgentConfig`, `AgentResult`, `AgentContext`, `ToolDefinition`, `ToolCall`, `ToolResult`, `BUILT_IN_AGENTS` |
+| `character.ts`          | `Character`, `CharacterCardV2`, `CharacterData`, `RPGStatsConfig`                                           |
+| `chat.ts`               | `Chat`, `ChatMetadata`, `Message`, `MessageExtra`, `GenerationInfo`, `StreamEvent`                          |
+| `connection.ts`         | `APIConnection`, `ModelInfo`, `ModelCapabilities`, `ConnectionTestResult`                                   |
+| `combat-encounter.ts`   | `CombatPartyMember`, `CombatEnemy`, `CombatActionResult`, `EncounterSettings`                               |
+| `game-state.ts`         | `GameState`, `PresentCharacter`, `PlayerStats`, `QuestProgress`, `InventoryItem`                            |
+| `lorebook.ts`           | `Lorebook`, `LorebookEntry`, `ActivationCondition`, `LorebookSchedule`, `QuestData`                         |
+| `persona.ts`            | `Persona`, `PersonaStatsConfig`                                                                             |
+| `personal-extension.ts` | `PersonalExtension`, runtime metadata, revisions, source, and server runtime state                          |
+| `prompt.ts`             | `PromptPreset`, `PromptSection`, `PromptGroup`, `ChoiceBlock`, `GenerationParameters`                       |
+| `scene.ts`              | `SceneMeta`, `SceneFullPlan`                                                                                |
+| `haptic.ts`             | `HapticDevice`, `HapticStatus`, `HapticDeviceCommand`                                                       |
 
 ### Utilities
 
-| File              | Purpose                                                                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `macro-engine.ts` | `resolveMacros(template, context)`: replaces macros such as `{{date}}`, `{{char}}`, `{{random}}`, `{{roll:2d6}}`, and `{{getvar::name}}`     |
-| `xml-wrapper.ts`  | `nameToXmlTag()`: converts a display name to an XML tag slug ("World Info (Before)" becomes "world_info_before")                           |
+| File              | Purpose                                                                                                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `macro-engine.ts` | `resolveMacros(template, context)`: replaces macros such as `{{date}}`, `{{char}}`, `{{random}}`, `{{roll:2d6}}`, and `{{getvar::name}}` |
+| `xml-wrapper.ts`  | `nameToXmlTag()`: converts a display name to an XML tag slug ("World Info (Before)" becomes "world_info_before")                         |
 
 ## API endpoints
 
@@ -458,9 +458,9 @@ The server (`packages/server`) exposes REST APIs under `/api`. This is a high-le
 
 ### Core resources
 
-| Prefix               | Methods                  | Description                                                                                |
+| Prefix               | Methods                  | Description                                                                               |
 | -------------------- | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `/api/characters`    | GET, POST, PATCH, DELETE | Character CRUD, groups, export (JSON or PNG)                                               |
+| `/api/characters`    | GET, POST, PATCH, DELETE | Character CRUD, groups, export (JSON or PNG)                                              |
 | `/api/chats`         | GET, POST, PATCH, DELETE | Chat CRUD, messages, metadata, connect and disconnect                                     |
 | `/api/prompts`       | GET, POST, PATCH, DELETE | Preset CRUD, sections, groups, choice blocks, export                                      |
 | `/api/connections`   | GET, POST, PATCH, DELETE | API connection CRUD, duplicate, test                                                      |
@@ -480,76 +480,76 @@ Agent memory tools use `/api/agents/memory/:agentType/:chatId`, where `agentType
 
 ### Chat features
 
-| Prefix                    | Endpoints                        | Description                  |
-| ------------------------- | -------------------------------- | ---------------------------- |
-| `/api/chat-folders`       | CRUD plus reorder                | Chat folder management       |
-| `/api/conversation`       | schedule, status, message, check | Autonomous messaging system  |
-| `/api/scene`              | create, plan, conclude           | Scene branching              |
-| `/api/encounter`          | init, action, summary            | Combat encounters            |
-| `/api/translate`          | POST                             | Text translation             |
-| `/api/game`               | CRUD and actions                 | Game Mode sessions and state |
-| `/api/game-assets`        | CRUD and upload                  | Game assets                  |
-| `/api/game-rulesets`      | import, schema, source, remove   | Imported Game Mode rulesets  |
-| `/api/game-worlds`        | library CRUD and world editing   | World library for new games and map packs |
-| `/api/game-tile-packs`    | tile packs, plus `/creatures` and `/boards` | Map, creature and fight-board art packs |
-| `/api/turn-games`         | Chess, UNO, Poker routes         | Conversation table games     |
-| `/api/conversation-calls` | call and session routes          | Conversation audio calls     |
+| Prefix                    | Endpoints                                   | Description                               |
+| ------------------------- | ------------------------------------------- | ----------------------------------------- |
+| `/api/chat-folders`       | CRUD plus reorder                           | Chat folder management                    |
+| `/api/conversation`       | schedule, status, message, check            | Autonomous messaging system               |
+| `/api/scene`              | create, plan, conclude                      | Scene branching                           |
+| `/api/encounter`          | init, action, summary                       | Combat encounters                         |
+| `/api/translate`          | POST                                        | Text translation                          |
+| `/api/game`               | CRUD and actions                            | Game Mode sessions and state              |
+| `/api/game-assets`        | CRUD and upload                             | Game assets                               |
+| `/api/game-rulesets`      | import, schema, source, remove              | Imported Game Mode rulesets               |
+| `/api/game-worlds`        | library CRUD and world editing              | World library for new games and map packs |
+| `/api/game-tile-packs`    | tile packs, plus `/creatures` and `/boards` | Map, creature and fight-board art packs   |
+| `/api/turn-games`         | Chess, UNO, Poker routes                    | Conversation table games                  |
+| `/api/conversation-calls` | call and session routes                     | Conversation audio calls                  |
 
 ### Media and assets
 
-| Prefix                        | Description                  |
-| ----------------------------- | ---------------------------- |
-| `/api/avatars/file/:filename` | Avatar image serving         |
-| `/api/backgrounds`            | Background CRUD plus upload  |
-| `/api/sprites/:characterId`   | Sprite expression management |
-| `/api/fonts`                  | Custom font management       |
-| `/api/gallery/:chatId`        | Per-chat gallery images      |
-| `/api/global-gallery`         | Global gallery images        |
-| `/api/tts`                    | Text-to-speech routes        |
-| `/api/speech-to-text`         | Speech to Text server settings and test |
+| Prefix                        | Description                                   |
+| ----------------------------- | --------------------------------------------- |
+| `/api/avatars/file/:filename` | Avatar image serving                          |
+| `/api/backgrounds`            | Background CRUD plus upload                   |
+| `/api/sprites/:characterId`   | Sprite expression management                  |
+| `/api/fonts`                  | Custom font management                        |
+| `/api/gallery/:chatId`        | Per-chat gallery images                       |
+| `/api/global-gallery`         | Global gallery images                         |
+| `/api/tts`                    | Text-to-speech routes                         |
+| `/api/speech-to-text`         | Speech to Text server settings and test       |
 | `/api/avatar-models`          | 2D and 3D avatar models for the avatar agents |
-| `/api/avatar-generation`      | Avatar drafts from sprites and the Tripo key |
+| `/api/avatar-generation`      | Avatar drafts from sprites and the Tripo key  |
 | `/api/avatar-classify`        | Avatar emotion classifier and its local model |
-| `/api/youtube`                | YouTube DJ routes            |
-| `/api/custom-emojis`          | Custom emoji assets          |
-| `/api/custom-stickers`        | Custom sticker assets        |
-| `/api/gifs/search`            | GIF search (Giphy proxy)     |
+| `/api/youtube`                | YouTube DJ routes                             |
+| `/api/custom-emojis`          | Custom emoji assets                           |
+| `/api/custom-stickers`        | Custom sticker assets                         |
+| `/api/gifs/search`            | GIF search (Giphy proxy)                      |
 
 ### External integrations
 
-| Prefix                          | Description                  |
-| ------------------------------- | ---------------------------- |
-| `/api/bot-browser/chub/*`       | Chub character search        |
-| `/api/bot-browser/janny/*`      | JannyAI search               |
-| `/api/bot-browser/pygmalion/*`  | Pygmalion search             |
-| `/api/bot-browser/wyvern/*`     | Wyvern search                |
-| `/api/bot-browser/datacat/*`    | DataCat search               |
-| `/api/haptic/*`                 | Haptic device control        |
-| `/api/spotify/*`                | Spotify auth                 |
-| `/api/knowledge-sources`        | Knowledge base for retrieval |
+| Prefix                         | Description                  |
+| ------------------------------ | ---------------------------- |
+| `/api/bot-browser/chub/*`      | Chub character search        |
+| `/api/bot-browser/janny/*`     | JannyAI search               |
+| `/api/bot-browser/pygmalion/*` | Pygmalion search             |
+| `/api/bot-browser/wyvern/*`    | Wyvern search                |
+| `/api/bot-browser/datacat/*`   | DataCat search               |
+| `/api/haptic/*`                | Haptic device control        |
+| `/api/spotify/*`               | Spotify auth                 |
+| `/api/knowledge-sources`       | Knowledge base for retrieval |
 
 ### System
 
-| Endpoint                        | Description                             |
-| ------------------------------- | --------------------------------------- |
-| `/api/updates/check`            | Version check against GitHub releases   |
-| `/api/updates/latest`           | Latest release metadata                 |
-| `/api/updates/commits-behind`   | Git install update distance             |
-| `/api/backup`                   | Full backup, export, import             |
-| `/api/import/*`                 | SillyTavern and Marinara profile import |
-| `/api/admin/clear-all`          | Full data clear                         |
-| `/api/themes`                   | Synced custom themes                    |
+| Endpoint                        | Description                                                                |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| `/api/updates/check`            | Version check against GitHub releases                                      |
+| `/api/updates/latest`           | Latest release metadata                                                    |
+| `/api/updates/commits-behind`   | Git install update distance                                                |
+| `/api/backup`                   | Full backup, export, import                                                |
+| `/api/import/*`                 | SillyTavern and Marinara profile import                                    |
+| `/api/admin/clear-all`          | Full data clear                                                            |
+| `/api/themes`                   | Synced custom themes                                                       |
 | `/api/personal-extensions`      | Sandboxed extension policy, drafts, approval, runtime, and private storage |
-| `/api/app-settings`             | Server-side app settings                |
-| `/api/sidecar`                  | Local model runtime                     |
-| `/api/chat-presets`             | Chat settings profiles (legacy endpoint name) |
-| `/api/connection-folders`       | Connection folders                      |
-| `/api/prompt-overrides`         | Built-in prompt overrides               |
-| `/api/achievements`             | Achievement unlocks                     |
-| `/api/capability-packages`      | Agent catalog, installs, updates, release notes and package assets |
-| `/api/noodle`                   | Noodle social timeline (registered by the Noodle package) |
-| `/api/professor-mari/workspace` | Professor Mari workspace operations     |
-| `/api/professor-mari/quick`     | Professor Mari quick answers and applying their edit proposals |
+| `/api/app-settings`             | Server-side app settings                                                   |
+| `/api/sidecar`                  | Local model runtime                                                        |
+| `/api/chat-presets`             | Chat settings profiles (legacy endpoint name)                              |
+| `/api/connection-folders`       | Connection folders                                                         |
+| `/api/prompt-overrides`         | Built-in prompt overrides                                                  |
+| `/api/achievements`             | Achievement unlocks                                                        |
+| `/api/capability-packages`      | Agent catalog, installs, updates, release notes and package assets         |
+| `/api/noodle`                   | Noodle social timeline (registered by the Noodle package)                  |
+| `/api/professor-mari/workspace` | Professor Mari workspace operations                                        |
+| `/api/professor-mari/quick`     | Professor Mari quick answers and applying their edit proposals             |
 
 ## PWA support
 
@@ -612,7 +612,7 @@ The lightweight Engine ships with an empty runtime agent registry. Packages inst
 | `cyoa`                   | post_processing | Generates choice prompts                                          |
 | `storyboard`             | post_processing | Plans still or animated Game and Roleplay storyboards             |
 | `conversation-calls`     | feature         | Adds Conversation audio/video calls and related settings          |
-| `hierarchical-maps`      | feature         | Adds Roleplay/Game maps, spatial context, and movement             |
+| `hierarchical-maps`      | feature         | Adds Roleplay/Game maps, spatial context, and movement            |
 | `noodle`                 | feature         | Adds the local Noodle social feed to Home                         |
 | `slurp2`                 | feature         | Adds Slurp, a private creator app for characters, to Home         |
 | `gacha-forge`            | feature         | Adds a gacha game mode to Home                                    |

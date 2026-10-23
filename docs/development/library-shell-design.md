@@ -11,20 +11,20 @@ The interface uses whitespace, editorial typography, thin dividers, and a single
 
 ## 2. Stable vocabulary
 
-| Reader UI | Engine concept | Notes |
-| --- | --- | --- |
-| Work / book | `library_works` row | Presentation and grouping only; never owns message content. |
-| Author | Primary character name or user override | A group chat may use a custom author label. |
-| Volume / reading record | Existing `chat` | One work can contain several chats and branches. |
-| Body | `roleplay` chat | Uses the existing Roleplay generation and message path. |
-| Letters | `conversation` chat | Uses the existing Conversation and call path. |
-| Adventure | `game` chat | Hidden from the quiet default surface; available in the work menu. |
-| New passage | Existing durable autonomous unread count | Never infer unread state from timestamps alone. |
-| Recent position | New per-chat reading cursor | Message ID plus optional pixel/character offset. |
-| Contents | User-created checkpoints and existing branches | No fabricated chapters. |
-| Notes | New private reader annotations | Separate from prompt context and Conversation Notes. |
-| Highlights | New text-range annotations | Never sent to the model unless the user explicitly does so. |
-| Bookmark | New message anchor | Stable message ID and swipe index. |
+| Reader UI               | Engine concept                                 | Notes                                                              |
+| ----------------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
+| Work / book             | `library_works` row                            | Presentation and grouping only; never owns message content.        |
+| Author                  | Primary character name or user override        | A group chat may use a custom author label.                        |
+| Volume / reading record | Existing `chat`                                | One work can contain several chats and branches.                   |
+| Body                    | `roleplay` chat                                | Uses the existing Roleplay generation and message path.            |
+| Letters                 | `conversation` chat                            | Uses the existing Conversation and call path.                      |
+| Adventure               | `game` chat                                    | Hidden from the quiet default surface; available in the work menu. |
+| New passage             | Existing durable autonomous unread count       | Never infer unread state from timestamps alone.                    |
+| Recent position         | New per-chat reading cursor                    | Message ID plus optional pixel/character offset.                   |
+| Contents                | User-created checkpoints and existing branches | No fabricated chapters.                                            |
+| Notes                   | New private reader annotations                 | Separate from prompt context and Conversation Notes.               |
+| Highlights              | New text-range annotations                     | Never sent to the model unless the user explicitly does so.        |
+| Bookmark                | New message anchor                             | Stable message ID and swipe index.                                 |
 
 The UI may localize these labels, but internal API and type names remain explicit and technical.
 
@@ -192,22 +192,22 @@ Optional reading-time tracking may be added later. It must count only while the 
 
 ## 7. Existing feature connections
 
-| Surface action | Existing implementation path |
-| --- | --- |
-| Open/continue | `setActiveChatId(chatId)` plus reading cursor restore |
-| Latest preview/time | home feed and `lastMessageAt` |
-| New passage badge | `unreadCounts` plus durable autonomous unread metadata |
-| Send | existing `ChatInput` / `ConversationInput` |
-| Stop | current abort controller and `stopGeneration` |
-| Edit | existing message edit mutation |
-| Regenerate | existing generation hook with message ID |
-| Swipe | existing swipe list and `activeSwipeIndex` |
-| Translate | existing saved translation flow |
-| Listen | existing TTS message action and cache |
-| Call | existing active Conversation call snapshot and call tables |
-| Branch | existing branch metadata and branch panel |
-| Memory/lorebook/agents | existing chat settings, opened through Advanced |
-| Search | existing global/chat search, presented with reader terminology |
+| Surface action         | Existing implementation path                                   |
+| ---------------------- | -------------------------------------------------------------- |
+| Open/continue          | `setActiveChatId(chatId)` plus reading cursor restore          |
+| Latest preview/time    | home feed and `lastMessageAt`                                  |
+| New passage badge      | `unreadCounts` plus durable autonomous unread metadata         |
+| Send                   | existing `ChatInput` / `ConversationInput`                     |
+| Stop                   | current abort controller and `stopGeneration`                  |
+| Edit                   | existing message edit mutation                                 |
+| Regenerate             | existing generation hook with message ID                       |
+| Swipe                  | existing swipe list and `activeSwipeIndex`                     |
+| Translate              | existing saved translation flow                                |
+| Listen                 | existing TTS message action and cache                          |
+| Call                   | existing active Conversation call snapshot and call tables     |
+| Branch                 | existing branch metadata and branch panel                      |
+| Memory/lorebook/agents | existing chat settings, opened through Advanced                |
+| Search                 | existing global/chat search, presented with reader terminology |
 
 The library shell imports these actions. It must not reproduce their business logic.
 

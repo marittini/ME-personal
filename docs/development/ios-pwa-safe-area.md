@@ -23,7 +23,10 @@ Marinara sets the status bar style to `black` instead of `black-translucent`. Th
 The viewport tag keeps `viewport-fit=cover` and the default keyboard behavior.
 
 ```html
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+/>
 ```
 
 In `black` mode iOS does not lock the bottom zone. The app shell uses `fixed inset-0` with no viewport-height override, so it paints all the way down into the safe area. The className on the shell in `packages/client/src/components/layout/AppShell.tsx` is:

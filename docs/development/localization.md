@@ -17,20 +17,20 @@ Select the language again to download it. No user content or other settings are 
 
 ## Supported interface languages
 
-| Language | Locale file | Direction |
-| --- | --- | --- |
-| Arabic | `ar.json` | Right to left |
+| Language            | Locale file    | Direction     |
+| ------------------- | -------------- | ------------- |
+| Arabic              | `ar.json`      | Right to left |
 | Chinese, Simplified | `zh-Hans.json` | Left to right |
-| English | `en.json` | Left to right |
-| French | `fr.json` | Left to right |
-| German | `de.json` | Left to right |
-| Hindi | `hi.json` | Left to right |
-| Japanese | `ja.json` | Left to right |
-| Korean | `ko.json` | Left to right |
-| Polish | `pl.json` | Left to right |
-| Portuguese, Brazil | `pt-BR.json` | Left to right |
-| Russian | `ru.json` | Left to right |
-| Spanish | `es.json` | Left to right |
+| English             | `en.json`      | Left to right |
+| French              | `fr.json`      | Left to right |
+| German              | `de.json`      | Left to right |
+| Hindi               | `hi.json`      | Left to right |
+| Japanese            | `ja.json`      | Left to right |
+| Korean              | `ko.json`      | Left to right |
+| Polish              | `pl.json`      | Left to right |
+| Portuguese, Brazil  | `pt-BR.json`   | Left to right |
+| Russian             | `ru.json`      | Left to right |
+| Spanish             | `es.json`      | Left to right |
 
 English is maintained as the source catalog. The community catalogs began as machine-assisted translations and
 are open to corrections from fluent speakers. UI extraction is still in progress, so text without a translated key
