@@ -37,9 +37,13 @@ owner asks.
 - `pnpm install --frozen-lockfile` with `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` (the CUDA add-on download
   host is blocked in the sandbox; the CPU binding still installs).
 - Useful checks: `pnpm build`, `pnpm format:check`, `pnpm --filter @marinara-engine/client lint`,
-  `pnpm check:e2e-types`, `node ./scripts/run-regressions.mjs --filter <name>`, and Playwright with
-  `PLAYWRIGHT_ONLY_PROJECT=desktop|mobile npx playwright test -c playwright.config.ts <file>
-  --project=desktop-chromium|mobile-chromium`.
+  `pnpm check:e2e-types`, `node ./scripts/run-regressions.mjs --filter <name>`, and Playwright:
+
+  ```sh
+  PLAYWRIGHT_ONLY_PROJECT=desktop npx playwright test -c playwright.config.ts <file> --project=desktop-chromium
+  PLAYWRIGHT_ONLY_PROJECT=mobile npx playwright test -c playwright.config.ts <file> --project=mobile-chromium
+  ```
+
 - Known pre-existing failures on `main` (2026-10-23, not caused by later work): 4 of 7 `pnpm smoke:ui`
-  tests (home shell panels, chat mode tabs, conversation reasoning, game GM panel). The game one relates
-  to the intentional Game mode removal.
+  tests (home shell panels, chat mode tabs, conversation reasoning, game GM panel; the game one relates to
+  the intentional Game mode removal) and `e2e/reader-handoff.e2e.ts` "reading index retains order".
