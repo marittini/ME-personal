@@ -33,9 +33,23 @@ const literalProfile = {
   example: literal,
 };
 const literalContext = { ...context, char: literal, characters: [literal], characterFields: literalProfile };
-for (const macro of ["char", "charName", "charPhonetic", "description", "personality", "backstory", "appearance", "scenario", "example"]) {
+for (const macro of [
+  "char",
+  "charName",
+  "charPhonetic",
+  "description",
+  "personality",
+  "backstory",
+  "appearance",
+  "scenario",
+  "example",
+]) {
   assert.equal(resolveMacros(`{{${macro}}}`, literalContext), literal, `global ${macro} inserts card text literally`);
-  assert.equal(resolveCharacterScopedMacros(`{{${macro}}}`, literalProfile), literal, `scoped ${macro} inserts card text literally`);
+  assert.equal(
+    resolveCharacterScopedMacros(`{{${macro}}}`, literalProfile),
+    literal,
+    `scoped ${macro} inserts card text literally`,
+  );
 }
 assert.equal(resolveMacros("{{characters}}", literalContext), literal);
 const groupContext = { ...context, characters: ["Ada", literal] };

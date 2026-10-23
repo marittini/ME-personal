@@ -113,10 +113,7 @@ assert.equal(
 // The arming flag is a PERSISTED message-extra flag - the stored content is
 // only the visible say text, so a content scan can never see the deferral
 // (CodeRabbit round 1: the substring check never armed, deadlocking Manual).
-assert.match(
-  workspaceAgent,
-  /const manualApprovalArmed = lastExtra\.mariDeferredMutations === true;/u,
-);
+assert.match(workspaceAgent, /const manualApprovalArmed = lastExtra\.mariDeferredMutations === true;/u);
 assert.match(workspaceAgent, /if \(run\.endedWithDeferral\) extraUpdate\.mariDeferredMutations = true;/u);
 // The deferral marker is retryable: the row is retained across a failed extra
 // write and the persisted flag flips only after the extras land.

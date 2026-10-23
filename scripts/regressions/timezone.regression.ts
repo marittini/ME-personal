@@ -60,10 +60,10 @@ const malformedSchedule = {
   ...timeZoneSchedule,
   days: { Tuesday: [{ activity: "missing time", status: "dnd" }] },
 } as unknown as WeekSchedule;
-assert.deepEqual(
-  getEffectiveCurrentStatus(malformedSchedule, null, scheduleInstant, "free time", newYorkScheduleNow),
-  { status: "online", activity: "free time" },
-);
+assert.deepEqual(getEffectiveCurrentStatus(malformedSchedule, null, scheduleInstant, "free time", newYorkScheduleNow), {
+  status: "online",
+  activity: "free time",
+});
 
 const overnightSchedule: WeekSchedule = {
   weekStart: "2026-07-13T00:00:00.000Z",

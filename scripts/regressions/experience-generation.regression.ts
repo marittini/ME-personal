@@ -156,8 +156,7 @@ try {
     // normalizer re-nests it, so the wire body must carry the package's
     // ACTUAL schema and name under json_schema, with strict defaulting off.
     const responseFormat = upstreamBodies[0]?.response_format as
-      | { type?: string; json_schema?: { name?: string; schema?: unknown; strict?: boolean } }
-      | undefined;
+      { type?: string; json_schema?: { name?: string; schema?: unknown; strict?: boolean } } | undefined;
     assert.equal(responseFormat?.type, "json_schema", "package schema forwarded as provider structured output");
     assert.equal(responseFormat?.json_schema?.name, "experience_generation", "schema name survives to the wire");
     assert.deepEqual(responseFormat?.json_schema?.schema, BASE_BODY.schema, "schema content survives to the wire");

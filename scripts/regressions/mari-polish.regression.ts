@@ -135,7 +135,10 @@ assert.doesNotMatch(mariChatAll, /mari-omnibar-header-menu__destinations|moreMar
 const headerNewChat = mariHeaderChromeFlat.indexOf(
   '<button type="button" onClick={() => void runRestart()} disabled={isBusy} className="mari-omnibar-header-new-chat"',
 );
-assert.ok(headerNewChat > mariHeaderChromeFlat.indexOf("{headerDestinations.map("), "New chat closes the row after Chats");
+assert.ok(
+  headerNewChat > mariHeaderChromeFlat.indexOf("{headerDestinations.map("),
+  "New chat closes the row after Chats",
+);
 // Q5 (slice 57b): the "Chats · +" group closes the row, at the right under settings and Close, so Chats is
 // the last destination (DOM order is the tab order).
 const headerDestinationIds = [

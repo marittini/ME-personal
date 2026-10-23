@@ -196,7 +196,10 @@ try {
     // The row create() just returned must always exist, even if it collided on createdAt.
     const lastId = await mk("combat_end");
     const after = await checkpointSvc.listForChat(chat.id);
-    assert.ok(after.some((r) => r.id === lastId), "the just-created checkpoint is never pruned (protectId guard)");
+    assert.ok(
+      after.some((r) => r.id === lastId),
+      "the just-created checkpoint is never pruned (protectId guard)",
+    );
     assert.equal(
       after.filter((r) => r.triggerType === "combat_end").length,
       N,

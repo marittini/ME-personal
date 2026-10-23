@@ -22,6 +22,7 @@ import { RemoteImageGate } from "../../lib/remote-image-placeholder";
 import { resolveSelfCardAssets, type ChatGalleryIndex } from "../../lib/card-asset-links";
 import { renderInlineWithCustomEmojis } from "../../lib/custom-emoji-render";
 import { markQuotedDialogue } from "../../lib/dialogue-render";
+import { hideTTSAudioCues } from "../../lib/tts-audio-tags";
 import { renderWithStickerBlocks } from "../../lib/sticker-render";
 import { applyTextareaQuoteFormat } from "../../lib/textarea-quotes";
 import { ImagePromptPanel } from "./ImagePromptPanel";
@@ -668,7 +669,7 @@ export function ConversationMessageTranslation({
           {localizeUi("ui.chat.chatmessage.translating")}
         </span>
       ) : (
-        <div className="translation-text whitespace-pre-wrap">{translatedText}</div>
+        <div className="translation-text whitespace-pre-wrap">{hideTTSAudioCues(translatedText ?? "")}</div>
       )}
     </div>
   );

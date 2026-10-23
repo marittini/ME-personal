@@ -359,7 +359,10 @@ const ENGINE_MAX_HP = 60;
   });
   const entries = gated.catalogs![0]!.entries!;
   const row = (id: string, cells: Record<string, unknown>) => ({
-    ...rowsFromCatalogEntry("knacks", entries.find((entry) => entry.id === id)!)[0]!.row,
+    ...rowsFromCatalogEntry(
+      "knacks",
+      entries.find((entry) => entry.id === id)!,
+    )[0]!.row,
     ...cells,
   });
   const ids = (rows: Record<string, unknown>[]) =>

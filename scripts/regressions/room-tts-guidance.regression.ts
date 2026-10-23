@@ -63,7 +63,13 @@ assert.match(roomTtsInstructions("roleplay", true, true, participants)!, /audio_
 assert.match(roomTtsInstructions("roleplay", true, true, participants)!, /"id":"reader"/);
 
 assert.equal(hideTTSAudioCues("[sniff] Hello [gasping] there."), "Hello there.");
-assert.equal(hideTTSAudioCues("[sniff](https://example.com) and `[gasp]`"), "[sniff](https://example.com) and `[gasp]`");
+assert.equal(
+  hideTTSAudioCues("[sniff](https://example.com) and `[gasp]`"),
+  "[sniff](https://example.com) and `[gasp]`",
+);
 
-assert.equal(hideTTSAudioCues("A [happy ending] and [angry chapter note]"), "A [happy ending] and [angry chapter note]");
+assert.equal(
+  hideTTSAudioCues("A [happy ending] and [angry chapter note]"),
+  "A [happy ending] and [angry chapter note]",
+);
 assert.equal(hideTTSAudioCues("[sighs softly] Hello [속삭임] there."), "Hello there.");

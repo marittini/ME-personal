@@ -122,7 +122,10 @@ try {
       treatAsLocalEndpoint: true,
     }),
   );
-  const overrideBook = await request("POST", "/api/lorebooks", { name: "Override proof", excludeFromVectorization: false });
+  const overrideBook = await request("POST", "/api/lorebooks", {
+    name: "Override proof",
+    excludeFromVectorization: false,
+  });
   await request("POST", `/api/lorebooks/${overrideBook.id}/entries/bulk`, {
     entries: [{ name: "Entry 0", content: "Entry 0 content", order: 0 }],
   });

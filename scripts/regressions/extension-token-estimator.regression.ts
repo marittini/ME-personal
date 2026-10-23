@@ -26,9 +26,7 @@ const samples = [
 const expected = samples.map(estimateTextTokens);
 const typedApi: PersonalExtensionTokenApi = { estimateTextTokens };
 assert.equal(typedApi.estimateTextTokens("안녕하세요"), 3);
-const isolated = runInNewContext(
-  getSerializedTextTokenEstimator(),
-) as PersonalExtensionTokenApi["estimateTextTokens"];
+const isolated = runInNewContext(getSerializedTextTokenEstimator()) as PersonalExtensionTokenApi["estimateTextTokens"];
 assert.deepEqual(samples.map(isolated), expected, "serialized estimator must include all external dependencies");
 
 // Execute the actual Full page access API factory without loading React or a GUI.

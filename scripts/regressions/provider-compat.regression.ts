@@ -4106,13 +4106,11 @@ try {
             tool_calls: identifiedResult.toolCalls,
             ...(replayMetadata ? { providerMetadata: identifiedResult.providerMetadata } : {}),
           },
-          ...identifiedResult.toolCalls.map(
-            (call, index): ChatMessage => ({
-              role: "tool",
-              tool_call_id: call.id,
-              content: JSON.stringify({ total: 17 + index }),
-            }),
-          ),
+          ...identifiedResult.toolCalls.map((call, index): ChatMessage => ({
+            role: "tool",
+            tool_call_id: call.id,
+            content: JSON.stringify({ total: 17 + index }),
+          })),
         ],
         { model: "gemini-2.0-flash", tools: [rollDiceTool], onToken: () => {} },
       );

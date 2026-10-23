@@ -42,7 +42,13 @@ const CASES: NotationCase[] = [
   { notation: "2D6", grammar: true, tool: "rolled", tagRolls: [3, 4], tagLabel: true },
   { notation: " 2d6 ", grammar: true, tool: "rolled", tagRolls: [3, 4], tagLabel: true },
   { notation: "1d020", grammar: true, tool: "rolled", tagRolls: [12], tagLabel: true },
-  { notation: "100d1000", grammar: true, tool: "rolled", tagRolls: Array.from({ length: 100 }, () => 7), tagLabel: true },
+  {
+    notation: "100d1000",
+    grammar: true,
+    tool: "rolled",
+    tagRolls: Array.from({ length: 100 }, () => 7),
+    tagLabel: true,
+  },
   // Modifiers are part of the grammar, but a dice *label* names dice only —
   // the modifier belongs in modifier=, so the tag refuses one.
   { notation: "2d6+3", grammar: true, tool: "rolled", tagRolls: [3, 4], tagLabel: false },
@@ -99,7 +105,10 @@ assert.deepEqual(
 );
 const bare = parseDiceNotation("d20");
 assert.ok(bare);
-assert.deepEqual({ dice: bare.dice, count: bare.count, modifier: bare.modifier }, { dice: "d20", count: 1, modifier: 0 });
+assert.deepEqual(
+  { dice: bare.dice, count: bare.count, modifier: bare.modifier },
+  { dice: "d20", count: 1, modifier: 0 },
+);
 
 // ── Entry 2: the /roll service ──
 
@@ -120,13 +129,14 @@ for (const testCase of CASES) {
   // for character. A clamped one reports the dice it threw instead — see the
   // sweep below for that half.
   if (isWithinDiceLimits(parsed)) {
-    assert.equal(rolled.notation, testCase.notation.trim(), `an unclamped /roll echoes its input: ${testCase.notation}`);
+    assert.equal(
+      rolled.notation,
+      testCase.notation.trim(),
+      `an unclamped /roll echoes its input: ${testCase.notation}`,
+    );
   }
   assert.equal(rolled.modifier, parsed.modifier);
-  assert.equal(
-    rolled.total,
-    rolled.rolls.reduce((sum, roll) => sum + roll, 0) + parsed.modifier,
-  );
+  assert.equal(rolled.total, rolled.rolls.reduce((sum, roll) => sum + roll, 0) + parsed.modifier);
   for (const roll of rolled.rolls) {
     assert.ok(roll >= 1 && roll <= Math.min(parsed.sides, MAX_DICE_SIDES), `die out of range for ${testCase.notation}`);
   }
@@ -244,7 +254,10 @@ for (const testCase of CASES) {
   assert.ok(Array.isArray(result.rolls));
   assert.equal((result.rolls as number[]).length, parsed.count);
   assert.equal(result.modifier, parsed.modifier);
-  assert.equal(result.sum, (result.rolls as number[]).reduce((sum, roll) => sum + roll, 0));
+  assert.equal(
+    result.sum,
+    (result.rolls as number[]).reduce((sum, roll) => sum + roll, 0),
+  );
   assert.equal(result.total, (result.sum as number) + parsed.modifier);
   assert.match(String(result.display), /^🎲 /);
 }
@@ -306,7 +319,12 @@ assert.equal(
   undefined,
 );
 assert.equal(parseDiceLabel(`1d${MAX_DICE_SIDES + 1}`, [MAX_DICE_SIDES + 1])?.resolvedResult, undefined);
-assert.ok(parseDiceLabel(`${MAX_DICE_COUNT}d20`, Array.from({ length: MAX_DICE_COUNT }, () => 7))?.resolvedResult);
+assert.ok(
+  parseDiceLabel(
+    `${MAX_DICE_COUNT}d20`,
+    Array.from({ length: MAX_DICE_COUNT }, () => 7),
+  )?.resolvedResult,
+);
 
 // The same grammar reads a rolls="..." value that is notation rather than
 // numbers, and keeps labelling it with the NdM half only.

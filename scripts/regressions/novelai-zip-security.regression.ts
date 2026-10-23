@@ -46,18 +46,18 @@ function createSingleFileZip(data: Buffer, options: ZipFixtureOptions = {}): Buf
   end.writeUInt32LE(centralDirectorySize, 12);
   end.writeUInt32LE(centralDirectoryOffset, 16);
 
-  return Buffer.concat([
-    localHeader,
-    filename,
-    compressed,
-    centralDirectory,
-    filename,
-    end,
-  ]);
+  return Buffer.concat([localHeader, filename, compressed, centralDirectory, filename, end]);
 }
 
 const image = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  0x89,
+  0x50,
+  0x4e,
+  0x47,
+  0x0d,
+  0x0a,
+  0x1a,
+  0x0a,
   ...Buffer.from("NovelAI ZIP regression", "utf8"),
 ]);
 

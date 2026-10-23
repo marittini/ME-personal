@@ -36,10 +36,7 @@ assert.equal(
 );
 assert.equal(
   illustratorRetryTargetsForFailures(
-    mergeAgentFailures(
-      [illustrationFailure],
-      [toAgentFailure({ agentType: "illustrator", error: "Legacy failure" })],
-    ),
+    mergeAgentFailures([illustrationFailure], [toAgentFailure({ agentType: "illustrator", error: "Legacy failure" })]),
   ),
   undefined,
   "mixed scoped and legacy failures must retain the full retry path",

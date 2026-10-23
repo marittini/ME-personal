@@ -3308,7 +3308,8 @@ export const ChatMessage = memo(function ChatMessage({
     () =>
       effectiveTranslationText
         ? renderContent(
-            effectiveTranslationText,
+            // Translations saved before audio markup was stripped from translation input still carry it.
+            isUser || isSystem ? effectiveTranslationText : hideTTSAudioCues(effectiveTranslationText),
             dialogueColor,
             speakerColorMap,
             boldDialogue,
@@ -3324,6 +3325,8 @@ export const ChatMessage = memo(function ChatMessage({
         : null,
     [
       effectiveTranslationText,
+      isUser,
+      isSystem,
       dialogueColor,
       speakerColorMap,
       boldDialogue,

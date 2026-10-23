@@ -12,9 +12,8 @@ import assert from "node:assert/strict";
 
 process.env.MARINARA_MEDIA_GENERATION_CONCURRENCY = "2";
 process.env.MARINARA_MEDIA_GENERATION_WAIT_TIMEOUT_MS = "0";
-const { runMediaGenerationRequest, inspectMediaGenerationConcurrencyForTests } = await import(
-  "../../packages/server/src/services/image/image-generation-queue.js"
-);
+const { runMediaGenerationRequest, inspectMediaGenerationConcurrencyForTests } =
+  await import("../../packages/server/src/services/image/image-generation-queue.js");
 
 function deferred() {
   let resolve!: () => void;
@@ -94,7 +93,11 @@ async function main() {
   //       leaks nothing ──
   process.env.MARINARA_MEDIA_GENERATION_CONCURRENCY = "1";
   const hold = deferred();
-  const holder = runMediaGenerationRequest({ connectionKey: "conn-a", queue: false, task: () => hold.promise.then(() => "held") });
+  const holder = runMediaGenerationRequest({
+    connectionKey: "conn-a",
+    queue: false,
+    task: () => hold.promise.then(() => "held"),
+  });
   await tick();
   const abortEarly = new AbortController();
   const waitingAborted = runMediaGenerationRequest({
@@ -147,7 +150,11 @@ async function main() {
   lowered = true;
   lowerGates[0]!.resolve();
   await tick();
-  assert.equal(lowerRunning, 1, "a lowered limit must converge as in-flight tasks finish, not hand off at the old width");
+  assert.equal(
+    lowerRunning,
+    1,
+    "a lowered limit must converge as in-flight tasks finish, not hand off at the old width",
+  );
   lowerGates[1]!.resolve();
   await tick();
   lowerGates[2]!.resolve();
@@ -161,7 +168,11 @@ async function main() {
   // must wake them without waiting for a release.
   process.env.MARINARA_MEDIA_GENERATION_CONCURRENCY = "1";
   const raiseHold = deferred();
-  const raiseHolder = runMediaGenerationRequest({ connectionKey: "conn-a", queue: false, task: () => raiseHold.promise });
+  const raiseHolder = runMediaGenerationRequest({
+    connectionKey: "conn-a",
+    queue: false,
+    task: () => raiseHold.promise,
+  });
   await tick();
   const parkedGates = [deferred(), deferred()];
   let parkedStarted = 0;
@@ -192,7 +203,11 @@ async function main() {
   process.env.MARINARA_MEDIA_GENERATION_CONCURRENCY = "1";
   process.env.MARINARA_MEDIA_GENERATION_WAIT_TIMEOUT_MS = "25";
   const timeoutHold = deferred();
-  const timeoutHolder = runMediaGenerationRequest({ connectionKey: "conn-a", queue: false, task: () => timeoutHold.promise });
+  const timeoutHolder = runMediaGenerationRequest({
+    connectionKey: "conn-a",
+    queue: false,
+    task: () => timeoutHold.promise,
+  });
   await tick();
   const saturatedRejection = assert.rejects(
     runMediaGenerationRequest({ connectionKey: "conn-b", queue: false, task: async () => "never" }),
@@ -321,7 +336,12 @@ async function main() {
   const preAborted = new AbortController();
   preAborted.abort(new Error("gone"));
   await assert.rejects(
-    runMediaGenerationRequest({ connectionKey: "conn-a", queue: false, signal: preAborted.signal, task: async () => "x" }),
+    runMediaGenerationRequest({
+      connectionKey: "conn-a",
+      queue: false,
+      signal: preAborted.signal,
+      task: async () => "x",
+    }),
     /gone/u,
   );
   idle();

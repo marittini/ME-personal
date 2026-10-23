@@ -4,14 +4,7 @@ import { useConversationGamesStore } from "../../packages/client/src/stores/conv
 
 const availability = {
   mode: "conversation" as const,
-  availableCapabilityIds: new Set([
-    "uno",
-    "chess",
-    "poker",
-    "eightball",
-    "tic-tac-toe",
-    "rock-paper-scissors",
-  ]),
+  availableCapabilityIds: new Set(["uno", "chess", "poker", "eightball", "tic-tac-toe", "rock-paper-scissors"]),
   conversationGames: [
     { packageId: "uno", packageName: "UNO", command: "/uno", aliases: ["uno"] },
     { packageId: "chess", packageName: "Chess", command: "/chess", aliases: ["chess"] },

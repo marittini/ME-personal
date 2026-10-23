@@ -42,7 +42,6 @@ const { normalizeNovelAiMetadata, readNovelAiMetadata } =
   await import("../../packages/server/src/services/image/novelai-metadata-import.js");
 const { crc32Buffer } = await import("../../packages/server/src/utils/crc32.js");
 const { getSharp } = await import("../../packages/server/src/services/image/sharp-runtime.js");
-const { protectTranslationMarkup } = await import("../../packages/server/src/services/translation-markup.js");
 const { importNativeIntegrationBackup } = await import("../../packages/client/src/lib/native-integration-import.js");
 const { buildDialogueSpeechGroups } = await import("../../packages/client/src/lib/tts-dialogue-groups.js");
 const { hideTTSAudioCues, parseTTSAudioLines } = await import("../../packages/client/src/lib/tts-audio-tags.js");
@@ -285,9 +284,6 @@ try {
   await assert.rejects(run("list"), /unlock/);
   assert.equal((await run("list", {}, "new-master")).entries?.length, 2);
   const source = '<audio_persona id="p">"[low, restrained voice] Hello"</audio_persona> and `[note]`';
-  const markup = protectTranslationMarkup(source);
-  assert.equal(markup.restore(markup.text.replace("Hello", "안녕")), source.replace("Hello", "안녕"));
-  await assert.rejects(async () => markup.restore(markup.text.replace(/MARI_\w+?_0_END/, "")));
   const participants = [
     { kind: "character" as const, id: "alice", name: "Alice" },
     { kind: "persona" as const, id: "p", name: "P" },

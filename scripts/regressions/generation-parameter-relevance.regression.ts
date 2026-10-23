@@ -71,9 +71,8 @@ try {
   const { relevantGenerationParameters, reasoningEffortChoices, verbosityChoices } =
     await import("../../packages/shared/src/constants/generation-parameter-relevance.js");
   const { readOpenRouterModelCapabilities } = await import("../../packages/server/src/routes/connections.routes.js");
-  const { supportsAssistantReasoningPrefill } = await import(
-    "../../packages/server/src/services/generation/generation-parameters.js"
-  );
+  const { supportsAssistantReasoningPrefill } =
+    await import("../../packages/server/src/services/generation/generation-parameters.js");
 
   assert.deepEqual(
     readOpenRouterModelCapabilities({
@@ -580,11 +579,13 @@ try {
     "an unrecognized DeepSeek model id suppresses the sampled controls",
   );
   assert.deepEqual(
-    [...relevantGenerationParameters({
-      provider: "deepseek",
-      model: "some-unknown-deepseek-model",
-      reasoningEffort: "high",
-    })]
+    [
+      ...relevantGenerationParameters({
+        provider: "deepseek",
+        model: "some-unknown-deepseek-model",
+        reasoningEffort: "high",
+      }),
+    ]
       .filter((key) => PROBED.includes(key))
       .sort(),
     ["maxTokens"],
@@ -615,7 +616,10 @@ try {
         customParameters: custom,
       });
       await request.next().catch(() => undefined);
-      const body = JSON.parse(requireRequestCapture(firstBody, "deepseek", "deepseek-flash")) as Record<string, unknown>;
+      const body = JSON.parse(requireRequestCapture(firstBody, "deepseek", "deepseek-flash")) as Record<
+        string,
+        unknown
+      >;
       return { temperature: "temperature" in body, topP: "top_p" in body, effort: body.reasoning_effort };
     };
 

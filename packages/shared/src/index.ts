@@ -304,3 +304,4 @@ export * from "./utils/message-paragraphs.js";
 export * from "./schemas/reader-excerpt.schema.js";
 export * from "./schemas/excerpt-appearance.schema.js";
 export * from "./schemas/reader-notes.schema.js";
+export * from "./utils/tts-audio-markup.js";

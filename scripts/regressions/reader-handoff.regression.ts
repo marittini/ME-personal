@@ -6,7 +6,6 @@ import {
   normalizeLibraryCustomizations,
 } from "../../packages/shared/src/index.js";
 import { hideTTSAudioCues, parseTTSAudioLines } from "../../packages/client/src/lib/tts-audio-tags";
-import { protectTranslationMarkup } from "../../packages/server/src/services/translation-markup";
 assert.deepEqual(splitMessageParagraphs("첫 문단\n이어지는 줄\n\nSecond paragraph.\n\n日本語。"), [
   "첫 문단\n이어지는 줄",
   "Second paragraph.",
@@ -27,9 +26,6 @@ assert.equal(
   hideTTSAudioCues("[참고] 설명과 [링크](https://example.com)"),
   "[참고] 설명과 [링크](https://example.com)",
 );
-const protectedMarkup = protectTranslationMarkup(encoded);
-assert.equal(protectedMarkup.restore(protectedMarkup.text), encoded);
-assert.doesNotMatch(protectedMarkup.text, /audio_character|calm, flat/);
 assert.equal(
   normalizeLibraryCustomizations({ work: { title: "한국어", displayName: "別名", description: "English" } }).work
     ?.displayName,
