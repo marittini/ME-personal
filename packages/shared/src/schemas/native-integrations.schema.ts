@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { storedExcerptAppearanceSchema } from "./excerpt-appearance.schema.js";
 
 const id = z.string().min(1).max(200);
 export const weatherLocationSchema = z.object({
@@ -90,38 +91,8 @@ export const nativeIntegrationsSchema = z.object({
         .default([]),
     })
     .default({}),
-  excerpt: z
-    .object({
-      width: z.number().int().min(320).max(2000).default(720),
-      height: z.number().int().min(0).max(5000).default(0),
-      padding: z.number().min(10).max(150).default(48),
-      fontSize: z.number().min(10).max(80).default(24),
-      lineHeight: z.number().min(1).max(3).default(1.7),
-      letterSpacing: z.number().min(-2).max(10).default(0),
-      radius: z.number().min(0).max(100).default(16),
-      fontFamily: z.string().max(200).default(""),
-      title: z.string().max(300).default(""),
-      author: z.string().max(200).default(""),
-      background: z.enum(["paper", "grain", "ruled", "grid", "image"]).default("paper"),
-      backgroundColor: z
-        .string()
-        .regex(/^#[a-fA-F0-9]{6}$/)
-        .default("#fbf8f3"),
-      textColor: z
-        .string()
-        .regex(/^#[a-fA-F0-9]{6}$/)
-        .default("#302a25"),
-      quoteColor: z
-        .string()
-        .regex(/^#[a-fA-F0-9]{6}$/)
-        .default("#936b4b"),
-      backgroundImageUrl: z
-        .string()
-        .regex(/^\/api\/avatars\/file\/library-cover-[a-f0-9-]+\.(?:webp|png|gif)$/)
-        .nullable()
-        .default(null),
-    })
-    .default({}),
+  /** Default excerpt card appearance; legacy first-port settings are migrated on read. */
+  excerpt: storedExcerptAppearanceSchema.default({}),
 });
 export type NativeIntegrations = z.infer<typeof nativeIntegrationsSchema>;
 export type WeatherLocation = z.infer<typeof weatherLocationSchema>;

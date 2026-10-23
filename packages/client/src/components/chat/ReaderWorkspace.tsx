@@ -214,7 +214,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
         open={excerpt !== null}
         onClose={() => setExcerpt(null)}
         title={t("integrations.excerpt")}
-        width="max-w-3xl"
+        width="max-w-5xl"
       >
         {excerpt !== null && (
           <div className="p-4">
@@ -223,13 +223,17 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
                 key={excerpt.id}
                 initialText={excerpt.text}
                 initialMarks={excerpt.marks}
+                initialAppearance={excerpt.appearance}
+                chatTitle={chat?.name ?? ""}
                 saving={updateMetadata.isPending}
-                onSave={(text, marks) => {
+                onSave={(text, marks, appearance) => {
                   if (!chatId) return;
+                  // The card look is saved with the excerpt, so later default changes do not alter it.
                   const result = readerExcerptSchema.safeParse({
                     ...excerpt,
                     text,
                     marks,
+                    appearance,
                     updatedAt: new Date().toISOString(),
                   });
                   if (!result.success || (excerpts.length >= 200 && !excerpts.some((row) => row.id === excerpt.id))) {
@@ -240,7 +244,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
                     { id: chatId, readerExcerpts: [...excerpts.filter((row) => row.id !== excerpt.id), result.data] },
                     {
                       onSuccess: () => {
-                        setExcerpt(result.data);
+                        // A studio closed while saving stays closed; only the still-open excerpt is refreshed.
+                        setExcerpt((current) => (current?.id === result.data.id ? result.data : current));
                         toast.success(t("integrations.saved"));
                       },
                       onError: () => toast.error(t("integrations.saveError")),

@@ -107,21 +107,52 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await expect(page.getByRole("textbox", { name: "발췌할 글", exact: true })).toHaveValue(
       "한국어 문단을 저장합니다.",
     );
+    // Extension features: colored highlighter on a selection, alignment, texture, replacement rule.
+    const studioText = page.getByRole("textbox", { name: "발췌할 글", exact: true });
+    // Select the first three characters the way a keyboard user would (React reads the textarea selection).
+    await studioText.focus();
+    await page.keyboard.press("Control+Home");
+    for (let i = 0; i < 3; i++) await page.keyboard.press("Shift+ArrowRight");
+    await page.getByRole("button", { name: "형광펜 (분홍)", exact: true }).click();
+    await page.getByRole("group", { name: "정렬", exact: true }).getByRole("button", { name: "가운데" }).click();
+    await page.getByRole("group", { name: "질감", exact: true }).getByRole("button", { name: "다크" }).click();
+    await page.getByRole("button", { name: "+ 치환 규칙 추가", exact: true }).click();
+    await page.getByRole("textbox", { name: "1번 찾기", exact: true }).fill("저장");
+    await page.getByRole("textbox", { name: "1번 바꿀 글", exact: true }).fill("보관");
     await expect(page.getByRole("button", { name: "PNG로 저장", exact: true })).toBeEnabled();
+    // The preview stays in view while the lower controls are used.
+    await page.getByRole("spinbutton", { name: "둥글기", exact: true }).scrollIntoViewIfNeeded();
+    await expect(
+      page
+        .getByRole("img", { name: "발췌 이미지 미리보기" })
+        .or(page.locator('canvas[aria-label="발췌 이미지 미리보기"]')),
+    ).toBeInViewport();
+    await page.screenshot({ path: ".tmp/excerpt-studio.png" });
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.getByRole("button", { name: "PNG로 저장", exact: true }).click(),
     ]);
-    expect(download.suggestedFilename()).toBe("marinara-excerpt.png");
+    expect(download.suggestedFilename()).toMatch(/^발췌_\d{8}_\d{6}\.png$/);
     await page.getByRole("button", { name: "발췌 저장", exact: true }).click();
     await expect
       .poll(async () => (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata.readerExcerpts?.length)
       .toBe(1);
+    const stored = (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata.readerExcerpts[0];
+    expect(stored.marks).toEqual([{ start: 0, end: 3, type: "highlight", color: "p" }]);
+    expect(stored.appearance.align).toBe("center");
+    expect(stored.appearance.background).toMatchObject({ mode: "texture", texture: "dark" });
+    expect(stored.appearance.textColor).toBe("#EFE8DA");
+    expect(stored.appearance.replaceRules).toEqual([{ find: "저장", replace: "보관" }]);
     await page.keyboard.press("Escape");
     await page.reload();
     await expect.poll(() => page.evaluate(() => CSS.highlights.get("reader-excerpts")?.size ?? 0)).toBe(1);
     await page.getByRole("button", { name: "저장한 발췌", exact: true }).click();
     await page.getByRole("button", { name: "편집", exact: true }).click();
+    // Reopening restores the excerpt's own look, not the default one.
+    await expect(
+      page.getByRole("group", { name: "정렬", exact: true }).getByRole("button", { name: "가운데" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("textbox", { name: "1번 바꿀 글", exact: true })).toHaveValue("보관");
     await page.getByRole("textbox", { name: "발췌할 글", exact: true }).fill("수정한 발췌");
     await page.getByRole("button", { name: "발췌 저장", exact: true }).click();
     await expect
