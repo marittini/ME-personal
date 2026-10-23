@@ -3628,6 +3628,7 @@ function PersonaMetadataTab({
           src={avatarPreview}
           alt={formData.name}
           crop={formData.avatarCrop}
+          disabled={avatarMutationBusy}
           onCropChange={(next) => {
             if (avatarMutationBusy) return;
             updateField("avatarCrop", next);

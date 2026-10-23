@@ -40,6 +40,7 @@ export function ProfileSheetPortrait({
   onCropChange,
   onRemove,
   removing,
+  disabled = false,
   label,
   children,
 }: {
@@ -49,6 +50,8 @@ export function ProfileSheetPortrait({
   onCropChange: (next: SourceRectAvatarCrop) => void;
   onRemove?: () => void;
   removing?: boolean;
+  /** While the record is saving or uploading, cropping is locked (the crop tool is disabled too). */
+  disabled?: boolean;
   label: ReactNode;
   /** Upload / generate actions. */
   children?: ReactNode;
@@ -76,7 +79,8 @@ export function ProfileSheetPortrait({
         {src && (
           <button
             type="button"
-            className="mari-editor-action inline-flex h-9 px-2.5 text-xs"
+            className="mari-editor-action inline-flex h-9 px-2.5 text-xs disabled:opacity-50"
+            disabled={disabled}
             onClick={() => setCropping(true)}
           >
             <Crop size="0.875rem" />
@@ -92,7 +96,10 @@ export function ProfileSheetPortrait({
         width="max-w-lg"
       >
         {src && (
-          <div className="flex justify-center p-4">
+          <fieldset
+            disabled={disabled}
+            className="flex min-w-0 justify-center border-0 p-4 disabled:pointer-events-none disabled:opacity-60"
+          >
             <AvatarCropWidget
               src={src}
               alt={alt}
@@ -108,7 +115,7 @@ export function ProfileSheetPortrait({
               }
               removing={removing}
             />
-          </div>
+          </fieldset>
         )}
       </Modal>
     </div>
