@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { nativeIntegrationsSchema, weatherLocationSchema } from "@marinara-engine/shared";
+import { nativeIntegrationsSchema, splitMessageParagraphs, weatherLocationSchema } from "@marinara-engine/shared";
 import {
   readNativeIntegrations,
   saveNativeIntegrations,
@@ -31,7 +31,12 @@ export async function nativeIntegrationsRoutes(app: FastifyInstance) {
       .parse(req.body);
     const storage = createChatsStorage(app.db);
     const message = await storage.getMessage(input.messageId);
-    if (!message || message.chatId !== input.chatId || input.source.split(/\n{2,}/).length !== input.paragraphs.length)
+    // Same paragraph boundaries as the reader display, so the saved translation aligns bubble by bubble.
+    if (
+      !message ||
+      message.chatId !== input.chatId ||
+      splitMessageParagraphs(input.source).length !== input.paragraphs.length
+    )
       return reply.status(409).send({ error: "Translation source changed" });
     const translation = input.paragraphs.join("\n\n");
     if (translation.length > 100000) return reply.status(400).send({ error: "Translation too large" });

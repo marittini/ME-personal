@@ -17,6 +17,7 @@ const {
   createChatSchema,
   createPromptPresetSchema,
   createConnectionSchema,
+  createMessageSchema,
   BUILTIN_TRANSLATION_PRESETS,
   TRANSLATION_PRESET_V2_UPGRADES,
 } = await import("../../packages/shared/src/index.js");
@@ -87,6 +88,21 @@ try {
   assert.equal(apply.statusCode, 200, apply.body);
   assert.equal(apply.json().changed, 1);
   assert.equal((await chats.getById(room.id))?.promptPresetId, preset.id);
+
+  // Paragraph translations use the reader's boundaries: a fenced block with a blank line is one paragraph.
+  const fencedSource = "Intro line.\n\n```js\na()\n\nb()\n```\n\nLast line.";
+  const fencedMessage = await chats.createMessage(
+    createMessageSchema.parse({ chatId: room.id, role: "assistant", content: fencedSource }),
+  );
+  const saveParagraphs = (paragraphs: string[]) =>
+    app.inject({
+      method: "POST",
+      url: "/api/native-integrations/translation/paragraphs",
+      payload: { chatId: room.id, messageId: fencedMessage!.id, swipeIndex: 0, source: fencedSource, paragraphs },
+    });
+  assert.equal((await saveParagraphs(["A", "B", "C", "D"])).statusCode, 409);
+  const savedParagraphs = await saveParagraphs(["소개.", "```js\na()\n\nb()\n```", "끝."]);
+  assert.equal(savedParagraphs.statusCode, 200, savedParagraphs.body);
   const latest = await readNativeIntegrations(db);
   assert.equal(latest.globalPreset.history.length, 1);
   latest.globalPreset.rooms[room.id] = { mode: "none", presetId: null, presetName: "" };

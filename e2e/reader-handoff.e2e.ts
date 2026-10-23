@@ -180,6 +180,39 @@ test("encoded formatted TTS hides wrappers and attaches controls beside each dia
     await request.delete(`/api/chats/${chat.id}?force=true`);
   }
 });
+test("paragraph translation editor uses the reader's paragraph boundaries and saves aligned rows", async ({
+  page,
+  request,
+}) => {
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "문단 경계 검증", mode: "roleplay", characterIds: [] } })
+  ).json();
+  try {
+    const content = "첫 문단입니다.\n\n```js\na()\n\nb()\n```\n\n- 하나\n\n- 둘\n\n마지막 문단.";
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content } })
+    ).json();
+    await open(page, chat.id);
+    // The editor sits after the message body (one message in this room).
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    await expect(workspace.locator(`[data-message-id="${message.id}"]`)).toContainText("마지막 문단.");
+    await workspace.locator("summary", { hasText: "번역 대조·편집" }).click();
+    const rows = workspace.getByRole("textbox", { name: /번 문단 번역$/ });
+    await expect(rows).toHaveCount(4);
+    const values = ["First paragraph.", "```js\na()\n\nb()\n```", "- one\n\n- two", "Last paragraph."];
+    for (const [index, value] of values.entries()) await rows.nth(index).fill(value);
+    await workspace.getByRole("button", { name: "문단 번역 저장", exact: true }).click();
+    await expect
+      .poll(async () => {
+        const stored = await (await request.get(`/api/chats/${chat.id}/messages`)).json();
+        const extra = stored.find((row: { id: string }) => row.id === message.id)?.extra;
+        return (typeof extra === "string" ? JSON.parse(extra) : extra)?.translation;
+      })
+      .toBe(values.join("\n\n"));
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+  }
+});
 test("translation presets and glossary are reachable inside native chat translation settings", async ({
   page,
   request,
