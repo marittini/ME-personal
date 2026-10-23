@@ -802,8 +802,19 @@ test("focus mode: only text shows, the top edge brings the bar back, and it neve
     await request.post(`/api/chats/${chat.id}/messages`, {
       data: { role: "assistant", characterId: card.id, content: '"어서 와." 그녀가 웃었다.' },
     });
+    // A section placed at the top (a bubble) and the unified-memory button must hide in focus mode too.
+    await request.patch(`/api/chats/${chat.id}/metadata`, {
+      data: {
+        committedMemory: { version: 2, ownerChatId: chat.id, enabled: true, batches: [] },
+        windowLayout: { version: 1, windows: {}, detached: ["drawer:chat-settings:chat-name"] },
+      },
+    });
     await open(page, chat.id);
     const mobile = test.info().project.name.startsWith("mobile");
+    const memoryButton = page.locator("[data-memory-commit]");
+    const topBubble = page.locator('.mari-window-bubble[data-window="drawer:chat-settings:chat-name"]');
+    await expect(memoryButton).toBeVisible();
+    if (!mobile) await expect(topBubble).toBeVisible();
     const workspace = page.locator('[data-component="ReaderWorkspace"]');
     const header = workspace.locator("header[data-reader-header]");
     const edge = page.getByRole("button", { name: "상단바 보기", exact: true });
@@ -852,6 +863,8 @@ test("focus mode: only text shows, the top edge brings the bar back, and it neve
     await press(header.getByRole("button", { name: "몰입 모드 끄기", exact: true }));
     await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
     await expect(page.locator(".chat-input-container").first()).toBeVisible();
+    await expect(memoryButton).toBeVisible();
+    if (!mobile) await expect(topBubble).toBeVisible();
 
     // Esc ends it on PC.
     if (!mobile) {

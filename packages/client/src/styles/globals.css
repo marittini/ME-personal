@@ -8748,7 +8748,10 @@ html[data-reader-focus="true"]
     [data-reader-scene-tools],
     [data-chat-settings-button],
     [data-chat-settings-move-tip],
-    [data-component="TrackerPanelBubble"]
+    [data-component="TrackerPanelBubble"],
+    .mari-window-bubble,
+    .mari-window[data-detached="true"],
+    [data-memory-commit]
   ) {
   display: none !important;
 }
