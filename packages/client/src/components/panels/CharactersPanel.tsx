@@ -1058,6 +1058,7 @@ export function CharactersPanel() {
                   value2: group.name,
                 })}
                 title={localizeUi("ui.panels.backgroundpicker.doubleClickDoubleTapOrPressF2ToRename")}
+                data-receipt-folder=""
                 className="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition-all hover:bg-[var(--sidebar-accent)]/40 max-md:pr-12 [@media(pointer:coarse)]:pr-12"
                 onClick={(event) =>
                   handleFolderRenameGesture(group.id, event, {
@@ -1607,6 +1608,7 @@ export function CharactersPanel() {
                 setDraggedCharacterId(null);
                 clearActiveChatResourceDrag();
               }}
+              data-receipt-row=""
               className={cn(
                 "group relative flex min-h-[4.5rem] shrink-0 touch-pan-y cursor-grab active:cursor-grabbing items-center gap-2.5 rounded-xl p-2 transition-all hover:bg-[var(--sidebar-accent)] max-md:min-h-16",
                 selectionMode &&
@@ -1696,6 +1698,7 @@ export function CharactersPanel() {
                   <div className="truncate text-[0.625rem] text-[var(--muted-foreground)]">{previewMetadata}</div>
                 )}
                 <div
+                  data-receipt-value=""
                   className="mari-chrome-text-muted flex items-center gap-1 text-[0.625rem]"
                   title={localizeUi(
                     "ui.panels.characterspanel.estimatedFromCharacterCardTextFieldsActualTokenizerCounts",

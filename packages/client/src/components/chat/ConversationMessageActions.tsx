@@ -1,6 +1,7 @@
 // ──────────────────────────────────────────────
 // Message action row — follows the message content
 // ──────────────────────────────────────────────
+import { MessageToolsLayout } from "./MessageToolsLayout";
 import {
   Brain,
   Copy,
@@ -225,6 +226,7 @@ export function ConversationMessageActions({
           title={localizeUi("lorebook.editor.batch.delete")}
         />
       )}
+      <MessageToolsLayout mode="conversation" />
     </div>
   );
 }

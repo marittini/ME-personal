@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { Bell, BellRing, Loader2, Play, Trash2, Upload, Volume2 } from "lucide-react";
+import { Bell, BellRing, ChevronRight, Loader2, Play, Trash2, Upload, Volume2 } from "lucide-react";
+import { flushSync } from "react-dom";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useUIStore } from "../../../stores/ui.store";
@@ -46,6 +47,29 @@ export function SettingsIntro({ children }: { children: ReactNode }) {
   );
 }
 
+const OPEN_SECTIONS_KEY = "marinara:settings-open-sections";
+/** Asks the collapsed settings section around `target` to open (for search and jump links). */
+export const SETTINGS_SECTION_OPEN_EVENT = "marinara:settings-section-open";
+
+function readOpenSections(): Record<string, boolean> {
+  try {
+    const value = JSON.parse(localStorage.getItem(OPEN_SECTIONS_KEY) ?? "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Opens every collapsed settings section that contains `target`, synchronously, so it can be measured right away. */
+export function revealSettingsTarget(target: Element | null) {
+  for (
+    let node = target?.closest("[data-settings-section]");
+    node;
+    node = node.parentElement?.closest("[data-settings-section]")
+  )
+    node.dispatchEvent(new Event(SETTINGS_SECTION_OPEN_EVENT));
+}
+
 export function SettingsSection({
   title,
   description,
@@ -57,6 +81,7 @@ export function SettingsSection({
   className,
   contentClassName,
   tone = "default",
+  collapsible = !!anchorId,
 }: {
   title: string;
   description?: ReactNode;
@@ -68,20 +93,58 @@ export function SettingsSection({
   className?: string;
   contentClassName?: string;
   tone?: "default" | "danger";
+  /** A titled group that folds to its header line; on by default for the settings tabs' sections (they have an anchor). */
+  collapsible?: boolean;
 }) {
   const localize = useLocalizedUiText();
   const localizedDescription = localizeStringNode(description, localize);
+  const contentId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
+  const [open, setOpenState] = useState(() => !collapsible || !anchorId || readOpenSections()[anchorId] === true);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    if (!anchorId) return;
+    try {
+      const stored = readOpenSections();
+      if (next) stored[anchorId] = true;
+      else delete stored[anchorId];
+      localStorage.setItem(OPEN_SECTIONS_KEY, JSON.stringify(stored));
+    } catch {
+      /* the open state is a convenience; it simply is not remembered */
+    }
+  };
+  const setOpenRef = useRef(setOpen);
+  setOpenRef.current = setOpen;
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node || !collapsible) return;
+    const reveal = () => flushSync(() => setOpenRef.current(true));
+    node.addEventListener(SETTINGS_SECTION_OPEN_EVENT, reveal);
+    return () => node.removeEventListener(SETTINGS_SECTION_OPEN_EVENT, reveal);
+  }, [collapsible]);
+  const heading = (
+    <div
+      className={cn(
+        "inline-flex items-center gap-1 text-xs font-semibold",
+        tone === "danger" ? "text-[var(--destructive)]" : "text-[var(--marinara-chat-chrome-panel-title)]",
+      )}
+    >
+      {localize(title)}
+    </div>
+  );
 
   return (
     <section
+      ref={sectionRef}
       id={anchorId}
+      data-settings-section={collapsible ? (open ? "open" : "closed") : undefined}
       className={cn(
         "overflow-hidden rounded-lg border bg-[var(--background)]/35 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_8%,transparent)]",
         tone === "danger" ? "border-[var(--destructive)]/30 bg-[var(--destructive)]/5" : "border-[var(--border)]/70",
         className,
       )}
     >
-      <div className="flex items-start gap-2 px-3 py-2.5">
+      <div className={cn("flex items-start gap-2 px-3", collapsible ? "py-2" : "py-2.5")}>
         {icon && (
           <span
             className={cn(
@@ -95,16 +158,28 @@ export function SettingsSection({
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <div
-            className={cn(
-              "inline-flex items-center gap-1 text-xs font-semibold",
-              tone === "danger" ? "text-[var(--destructive)]" : "text-[var(--marinara-chat-chrome-panel-title)]",
+          <div className="inline-flex items-center gap-1">
+            {collapsible ? (
+              <button
+                type="button"
+                className="mari-settings-section-toggle inline-flex min-h-7 items-center gap-1 text-start"
+                aria-expanded={open}
+                aria-controls={contentId}
+                onClick={() => setOpen(!open)}
+              >
+                <ChevronRight
+                  size="0.875rem"
+                  aria-hidden="true"
+                  className={cn("shrink-0 transition-transform motion-reduce:transition-none", open && "rotate-90")}
+                />
+                {heading}
+              </button>
+            ) : (
+              heading
             )}
-          >
-            {localize(title)}
             {help && <HelpTooltip text={localize(help)} />}
           </div>
-          {localizedDescription && (
+          {localizedDescription && (!collapsible || open) && (
             <div className="mt-1 text-[0.625rem] leading-relaxed text-[var(--marinara-chat-chrome-panel-muted)]">
               {localizedDescription}
             </div>
@@ -112,7 +187,13 @@ export function SettingsSection({
         </div>
         {headerAction && <div className="shrink-0">{headerAction}</div>}
       </div>
-      <div className={cn("border-t border-[var(--border)]/60 px-3 pb-3 pt-2.5", contentClassName)}>{children}</div>
+      <div
+        id={contentId}
+        hidden={!open}
+        className={cn("border-t border-[var(--border)]/60 px-3 pb-3 pt-2.5", contentClassName)}
+      >
+        {children}
+      </div>
     </section>
   );
 }

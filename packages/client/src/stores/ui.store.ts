@@ -7,6 +7,7 @@ import {
 // ──────────────────────────────────────────────
 // Zustand Store: UI Slice
 // ──────────────────────────────────────────────
+import { normalizeChatUiLayout, type ChatUiLayout, type ChatUiLayouts, type ChatUiMode } from "../lib/chat-ui-layout";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { generateClientId } from "../lib/utils";
@@ -1006,6 +1007,8 @@ interface UIState {
   customQuickReplies: CustomQuickReply[];
   /** Remembered expand/collapse state of Chat Settings sections, keyed by section id. */
   chatSettingsExpandedSections: Record<string, boolean>;
+  /** UI manager choices per chat mode: where Chat Settings items go and how message tools show (chat-ui-layout.ts). */
+  chatUiLayout: ChatUiLayouts;
   confirmBeforeDelete: boolean;
   /** When true, chat exports include saved thinking/reasoning metadata. */
   includeReasoningInExports: boolean;
@@ -1430,6 +1433,7 @@ interface UIState {
   updateCustomQuickReply: (id: string, patch: Partial<Omit<CustomQuickReply, "id">>) => void;
   removeCustomQuickReply: (id: string) => void;
   setChatSettingsSectionExpanded: (id: string, open: boolean) => void;
+  setChatUiLayout: (mode: ChatUiMode, update: (current: ChatUiLayout) => ChatUiLayout) => void;
   setConfirmBeforeDelete: (v: boolean) => void;
   setIncludeReasoningInExports: (v: boolean) => void;
   setIncludePrivateNotesInExports: (v: boolean) => void;
@@ -1712,6 +1716,7 @@ export function pickSyncedSettings(state: UIState) {
     showQuickReplyImpersonate: state.showQuickReplyImpersonate,
     customQuickReplies: state.customQuickReplies,
     chatSettingsExpandedSections: state.chatSettingsExpandedSections,
+    chatUiLayout: state.chatUiLayout,
     confirmBeforeDelete: state.confirmBeforeDelete,
     includeReasoningInExports: state.includeReasoningInExports,
     includePrivateNotesInExports: state.includePrivateNotesInExports,
@@ -1974,6 +1979,7 @@ export function pickPersistedUIState(state: UIState) {
     showQuickReplyImpersonate: state.showQuickReplyImpersonate,
     customQuickReplies: state.customQuickReplies,
     chatSettingsExpandedSections: state.chatSettingsExpandedSections,
+    chatUiLayout: state.chatUiLayout,
     confirmBeforeDelete: state.confirmBeforeDelete,
     includeReasoningInExports: state.includeReasoningInExports,
     includePrivateNotesInExports: state.includePrivateNotesInExports,
@@ -2277,6 +2283,7 @@ export const useUIStore = create<UIState>()(
         showQuickReplyImpersonate: true,
         customQuickReplies: [],
         chatSettingsExpandedSections: {},
+        chatUiLayout: {},
         confirmBeforeDelete: true,
         includeReasoningInExports: false,
         includePrivateNotesInExports: false,
@@ -3177,6 +3184,10 @@ export const useUIStore = create<UIState>()(
           })),
         removeCustomQuickReply: (id) =>
           set((state) => ({ customQuickReplies: state.customQuickReplies.filter((entry) => entry.id !== id) })),
+        setChatUiLayout: (mode, update) =>
+          set((state) => ({
+            chatUiLayout: { ...state.chatUiLayout, [mode]: update(normalizeChatUiLayout(state.chatUiLayout[mode])) },
+          })),
         setChatSettingsSectionExpanded: (id, open) =>
           set((state) => ({
             chatSettingsExpandedSections: { ...state.chatSettingsExpandedSections, [id]: open },

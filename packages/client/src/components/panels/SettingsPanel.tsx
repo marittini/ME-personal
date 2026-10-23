@@ -172,6 +172,7 @@ import {
   SETTINGS_PRIMARY_FULL_BUTTON_CLASS,
   SettingsIntro,
   SettingsSection,
+  revealSettingsTarget,
   SettingsSwitch,
   ToggleSetting,
 } from "./settings/SettingControls";
@@ -1460,6 +1461,7 @@ export function SettingsPanel() {
         const panel = activePanelRef.current;
         const target = document.getElementById(getSettingsSectionAnchorId(section.id));
         if (!panel || !target) return;
+        revealSettingsTarget(target);
         panel.scrollTo({ top: Math.max(0, target.offsetTop - 12), behavior: "smooth" });
       });
     },
@@ -1488,6 +1490,7 @@ export function SettingsPanel() {
           const target =
             document.getElementById(targetId) ?? document.getElementById(getSettingsSectionAnchorId(section.id));
           if (!panel || !target) return;
+          revealSettingsTarget(target);
           panel.scrollTo({ top: Math.max(0, target.offsetTop - 12), behavior: "smooth" });
           const focusTarget =
             result.type === "control"

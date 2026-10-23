@@ -1,4 +1,5 @@
 import { findDialogueQuotePairs, markFormattedDialogue, markHtmlDialogue } from "../../lib/dialogue-render";
+import { MessageToolsLayout } from "./MessageToolsLayout";
 import { MessageIntegrationTools } from "./MessageIntegrationTools";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
 // ──────────────────────────────────────────────
@@ -4416,6 +4417,7 @@ export const ChatMessage = memo(function ChatMessage({
                 />
               )}
               {roleplayTtsControls}
+              <MessageToolsLayout mode={chatMode} />
             </div>
           </div>
         </div>
@@ -4948,6 +4950,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <TTSLineVolumeSlider volume={ttsLineVolume} onVolumeChange={handleTTSLineVolumeChange} />
               </MessageAudioMenu>
             )}
+            <MessageToolsLayout mode={chatMode} />
           </div>
         </div>
       </div>
