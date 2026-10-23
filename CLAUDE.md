@@ -46,4 +46,8 @@ owner asks.
 
 - Known pre-existing failures on `main` (2026-10-23, not caused by later work): 4 of 7 `pnpm smoke:ui`
   tests (home shell panels, chat mode tabs, conversation reasoning, game GM panel; the game one relates to
-  the intentional Game mode removal) and `e2e/reader-handoff.e2e.ts` "reading index retains order".
+  the intentional Game mode removal), `e2e/reader-handoff.e2e.ts` "reading index retains order", and the
+  same file's "character customization …" on mobile (no TopBar on mobile; it reads its bounding box).
+- In a freshly started sandbox, the first desktop E2E test of a run can time out on "채팅 여는 중…" while the
+  dev server compiles (reproduced on unmodified `main`); rerun before treating it as a regression.
+- Korean download file names in E2E need `LANG=C.UTF-8 LC_ALL=C.UTF-8` (the sandbox has no locale).

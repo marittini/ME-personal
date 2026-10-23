@@ -3858,6 +3858,7 @@
   "libraryCustomization.emptyFallback": "Empty fields use original information. Character data and dialogue names stay unchanged.",
   "libraryCustomization.fields.description": "Description",
   "libraryCustomization.fields.displayName": "Display name",
+  "libraryCustomization.fields.personaTitle": "Subtitle",
   "libraryCustomization.fields.title": "Work title",
   "libraryCustomization.help": "Upload and crop a separate library cover here. Choose a related group work to edit its shared cover. Your character avatar and card data stay separate.",
   "libraryCustomization.keepEditing": "Keep editing",

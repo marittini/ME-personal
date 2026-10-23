@@ -3,6 +3,7 @@ export const readerKoreanMessages: Record<string, string> = {
   "libraryCustomization.discardDraft": "저장하지 않은 표지 변경을 취소하고 다른 작품으로 이동할까요?",
 
   "libraryCustomization.title": "서재 꾸미기",
+  "libraryCustomization.fields.personaTitle": "부제",
   "libraryCustomization.help":
     "이곳에서 서재 표지를 따로 올리고 자를 수 있습니다. 그룹 작품은 아래에서 선택해 공용 표지를 편집하세요. 캐릭터 아바타·카드 원본과는 별도로 저장합니다.",
   "libraryCustomization.work": "꾸밀 작품",

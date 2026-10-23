@@ -486,6 +486,44 @@ test("character customization saves display overrides separately and editor alig
     await request.delete(`/api/characters/${character.id}`);
   }
 });
+test("persona library labels are edited in the persona editor and shown on persona cards", async ({
+  page,
+  request,
+}) => {
+  const persona = await (await request.post("/api/characters/personas", { data: { name: "원본 페르소나" } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "페르소나 표시 검증", mode: "roleplay", characterIds: [] } })
+  ).json();
+  try {
+    await open(page, chat.id);
+    await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
+    await page.evaluate(async (id) => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().openPersonaDetail(id);
+    }, persona.id);
+    const custom = page.locator('[data-component="PersonaLibraryCustomization"]');
+    await custom.locator("summary").click();
+    await custom.getByRole("textbox", { name: "부제", exact: true }).fill("현대 AU 버전");
+    await custom.getByRole("textbox", { name: "표시 이름", exact: true }).fill("서재 페르소나 별명");
+    await custom.getByRole("textbox", { name: "작품 설명", exact: true }).fill("페르소나 설명\n둘째 줄");
+    await custom.getByRole("button", { name: "표시 정보 저장", exact: true }).click();
+    // The persona itself (name used in prompts) is unchanged.
+    const stored = await (await request.get(`/api/characters/personas/${persona.id}`)).json();
+    expect(stored.name).toBe("원본 페르소나");
+    await page.evaluate(async () => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().closePersonaDetail();
+      useUIStore.getState().openPersonaLibrary();
+    });
+    const library = page.locator('[data-component="CharacterLibraryView"]');
+    await expect(library.getByText("서재 페르소나 별명").first()).toBeVisible();
+    await expect(library.getByText("원본 페르소나", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: `.tmp/persona-library-${test.info().project.name}.png` });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/personas/${persona.id}`);
+  }
+});
 test("reading index retains order and opens the stored work in both themes", async ({ page, request }) => {
   const rooms: { id: string; name: string; messageId: string }[] = [];
   try {

@@ -7,9 +7,12 @@ import { INTEGRATION_INPUT as field, INTEGRATION_BUTTON as button } from "../cha
 export function LibraryCustomizationFields({
   workId,
   onDirtyChange,
+  variant = "work",
 }: {
   workId: string;
   onDirtyChange: (dirty: boolean) => void;
+  /** Persona cards have no work; their title is the card subtitle. */
+  variant?: "work" | "persona";
 }) {
   const { t } = useTranslation();
   const saved = useUIStore((s) => s.libraryCustomizations[workId]);
@@ -34,7 +37,11 @@ export function LibraryCustomizationFields({
     <section className="space-y-3 border-b border-[var(--border)] py-4" aria-label={t("libraryCustomization.labels")}>
       {(["title", "displayName", "description"] as const).map((key) => (
         <label className="block text-sm" key={key}>
-          {t(`libraryCustomization.fields.${key}`)}
+          {t(
+            variant === "persona" && key === "title"
+              ? "libraryCustomization.fields.personaTitle"
+              : `libraryCustomization.fields.${key}`,
+          )}
           {key === "description" ? (
             <textarea
               className={field}

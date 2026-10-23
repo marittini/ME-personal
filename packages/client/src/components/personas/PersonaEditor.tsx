@@ -121,6 +121,7 @@ import { requestProfessorMariOpen } from "../../lib/professor-mari-open";
 import { EditorTabNavigation } from "../ui/EditorTabNavigation";
 import { useEditorSections } from "../../hooks/use-editor-sections";
 import { useEditorLeaveSave } from "../../hooks/use-editor-leave-save";
+import { PersonaLibraryCustomization } from "./PersonaLibraryCustomization";
 import { LazyEditorSection } from "../ui/LazyEditorSection";
 import { leaveWithoutSaving } from "../../lib/editor-leave";
 import { EditorSectionAnchor, EditorSectionJumps } from "../ui/EditorSectionJumps";
@@ -1374,9 +1375,10 @@ export function PersonaEditor() {
     [formData, baselineForm],
   );
   const dirty = changedFieldKeys.length > 0;
+  const [libraryDirty, setLibraryDirty] = useState(false);
   useEffect(() => {
-    setEditorDirty(dirty);
-  }, [dirty, setEditorDirty]);
+    setEditorDirty(dirty || libraryDirty);
+  }, [dirty, libraryDirty, setEditorDirty]);
 
   const mutationBusy = mutationKind !== null;
   const saving = mutationKind === "save";
@@ -1873,7 +1875,25 @@ export function PersonaEditor() {
     closeDetail();
   }, [closeDetail]);
 
-  useEditorLeaveSave(`personaDetailId:${personaId}`, dirty, handleSave, mutationBusy);
+  useEditorLeaveSave(
+    `personaDetailId:${personaId}`,
+    dirty || libraryDirty,
+    async () => {
+      // Unsaved library labels are not part of the persona save; leaving asks before dropping them.
+      if (
+        libraryDirty &&
+        !(await showConfirmDialog({
+          title: localizeUi("reader.cancel"),
+          message: localizeUi("libraryCustomization.discardDraft"),
+          confirmLabel: localizeUi("reader.cancel"),
+          cancelLabel: localizeUi("libraryCustomization.keepEditing"),
+        }))
+      )
+        return false;
+      return dirty ? handleSave() : true;
+    },
+    mutationBusy,
+  );
 
   if (isLoading || !formData) {
     return (
@@ -2145,6 +2165,9 @@ export function PersonaEditor() {
                 hasUnsavedChanges={dirty}
                 avatarMutationBusy={mutationBusy}
               />
+              {personaId && (
+                <PersonaLibraryCustomization key={personaId} personaId={personaId} onDirtyChange={setLibraryDirty} />
+              )}
             </section>
             <section data-editor-section="card">
               <PersonaCardTab formData={formData} updateField={updateField} />
