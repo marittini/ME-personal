@@ -4565,23 +4565,10 @@ test("Character and Persona avatar actions stay separated and visually balanced"
       await expect(compactMenuButton).toBeVisible();
       await expect(compactMenuButton).toHaveText("Card");
       await openEditorSection(editor, "Metadata");
-      // Finish the animated jump before testing which item receives initial focus.
-      // During the jump the scroll spy can still select Card, then change to Metadata.
-      await expect
-        .poll(() =>
-          editor.locator(".mari-editor-content").evaluate((root) => {
-            const target = root.querySelector<HTMLElement>('[data-editor-section="metadata"]')!;
-            const destination = Math.max(
-              0,
-              Math.min(
-                root.scrollHeight - root.clientHeight,
-                root.scrollTop + target.getBoundingClientRect().top - root.getBoundingClientRect().top - 16,
-              ),
-            );
-            return Math.abs(root.scrollTop - destination);
-          }),
-        )
-        .toBeLessThanOrEqual(1);
+      // Character and persona editors are paged: the tab shows its own section instead of jumping to it.
+      await expect(editor.locator(".mari-editor-content")).toHaveAttribute("data-editor-paged", "metadata");
+      await expect(editor.locator('[data-editor-section="metadata"]')).toBeVisible();
+      await expect(editor.locator('[data-editor-section="card"]')).toBeHidden();
       await verifyCompactNavigation();
 
       await page.setViewportSize({ width: 767, height: 900 });

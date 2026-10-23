@@ -1906,6 +1906,7 @@
   "editor.avatar.actions.help": "Choose an image from this device or create one with your configured image-generation connection.",
   "editor.avatar.add.title": "Add Avatar",
   "editor.avatar.character.help": "The character image shown in the library and chats. You can replace it at any time without changing the character card.",
+  "editor.avatar.crop": "Crop avatar",
   "editor.avatar.generate": "Generate with AI",
   "editor.avatar.generate.label": "Generate avatar with AI",
   "editor.avatar.generate.unavailable": "Set up an image-generation connection to generate an avatar.",

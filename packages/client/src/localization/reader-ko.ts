@@ -589,4 +589,5 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.personaVoiceFor": "{{name}} 보이스",
   "reader.personaVoiceDefault": "비우면 기본 보이스를 씁니다",
   "reader.focusReveal": "상단바 보기",
+  "editor.avatar.crop": "아바타 자르기",
 };

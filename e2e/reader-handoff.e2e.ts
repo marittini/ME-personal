@@ -945,13 +945,13 @@ test("work information lists reading records as a table of contents with branche
     await request.delete(`/api/characters/${card.id}`);
   }
 });
-test("character and persona editors show a profile sheet: portrait beside facts on PC, stacked on phones", async ({
+test("info sheet: inputs are the cells, a 3:4 photo cell with cropping in its own window, tabs keep their state", async ({
   page,
   request,
 }) => {
   const card = await (
     await request.post("/api/characters", {
-      data: { data: { name: "시트 캐릭터", creator: "작가", tags: ["판타지"] } },
+      data: { data: { name: "시트 캐릭터", creator: "작가", tags: ["판타지"], description: "설명 ".repeat(400) } },
     })
   ).json();
   const persona = await (await request.post("/api/characters/personas", { data: { name: "시트 페르소나" } })).json();
@@ -961,6 +961,38 @@ test("character and persona editors show a profile sheet: portrait beside facts 
   try {
     await open(page, chat.id);
     const mobile = test.info().project.name.startsWith("mobile");
+    // A wide original: before, it spilled out of the avatar area on phones.
+    const wide = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 900;
+      canvas.height = 300;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#3a6ea5";
+      context.fillRect(0, 0, 900, 300);
+      context.fillStyle = "#f2c14e";
+      context.fillRect(380, 60, 140, 180);
+      return canvas.toDataURL("image/png");
+    });
+    expect((await request.post(`/api/characters/${card.id}/avatar`, { data: { avatar: wide } })).ok()).toBeTruthy();
+    expect(
+      (await request.post(`/api/characters/personas/${persona.id}/avatar`, { data: { avatar: wide } })).ok(),
+    ).toBeTruthy();
+    await page.reload();
+    await expect(page.locator('[data-component="ReaderWorkspace"]')).toHaveAttribute("data-reader-enabled", "true", {
+      timeout: 60_000,
+    });
+    const editor = page.locator(".mari-editor-shell");
+    const openTab = async (label: string) => {
+      const compact = editor.getByRole("button", { name: "편집기 섹션", exact: true });
+      if (await compact.isVisible()) {
+        await compact.click();
+        await editor.getByRole("menuitemradio", { name: label, exact: true }).click();
+      } else
+        await editor
+          .getByRole("navigation", { name: "편집기 섹션" })
+          .getByRole("button", { name: label, exact: true })
+          .click();
+    };
     for (const [kind, id] of [
       ["character", card.id],
       ["persona", persona.id],
@@ -975,17 +1007,67 @@ test("character and persona editors show a profile sheet: portrait beside facts 
       );
       const sheet = page.locator(`[data-profile-sheet="${kind}"]`);
       await expect(sheet).toBeVisible();
-      const portrait = await sheet.locator(".mari-profile-sheet__portrait").boundingBox();
-      const fields = await sheet.locator(".mari-profile-sheet__fields").boundingBox();
-      // Same fields as before, only arranged: the name input is still there.
-      await expect(sheet.locator(".mari-profile-sheet__fields input").first()).toHaveValue(
-        kind === "character" ? "시트 캐릭터" : "시트 페르소나",
-      );
-      if (mobile) expect(fields!.y).toBeGreaterThanOrEqual(portrait!.y + portrait!.height - 1);
-      else expect(fields!.x).toBeGreaterThanOrEqual(portrait!.x + portrait!.width);
-      await sheet.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `.tmp/profile-sheet-${kind}-${test.info().project.name}.png` });
+      const name = kind === "character" ? "시트 캐릭터" : "시트 페르소나";
+      // The inputs themselves are the cells: no box of their own.
+      const nameInput = sheet.locator(".mari-sheet__facts input").first();
+      await expect(nameInput).toHaveValue(name);
+      await expect(nameInput).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(nameInput).toHaveCSS("border-top-width", "0px");
+      // A 3:4 photo cell that never lets the wide picture out.
+      const photo = sheet.locator("[data-sheet-photo]");
+      await expect(photo.locator("img")).toBeVisible();
+      const box = (await photo.boundingBox())!;
+      expect(box.width / box.height).toBeCloseTo(0.75, 1);
+      await expect(photo).toHaveCSS("overflow", "hidden");
+      const sheetBox = (await sheet.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(sheetBox.x + sheetBox.width + 1);
+      const portrait = (await sheet.locator("[data-sheet-portrait]").boundingBox())!;
+      const facts = (await sheet.locator(".mari-sheet__facts").boundingBox())!;
+      if (mobile) expect(facts.y).toBeGreaterThanOrEqual(portrait.y + portrait.height - 1);
+      else expect(facts.x).toBeGreaterThanOrEqual(portrait.x + portrait.width - 1);
+      // Cropping opens in its own window.
+      await sheet.getByRole("button", { name: "아바타 자르기", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "아바타 자르기", exact: true })).toBeVisible();
+      await page.screenshot({ path: `.tmp/sheet-crop-${kind}-${test.info().project.name}.png` });
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog", { name: "아바타 자르기", exact: true })).toHaveCount(0);
+      await page.screenshot({ path: `.tmp/profile-sheet-${kind}-${test.info().project.name}.png`, fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+
+      if (kind === "character") {
+        // One tab at a time; switching keeps typed text, each tab's scroll position and a failed save.
+        await nameInput.fill("저장 안 된 이름");
+        await openTab("카드");
+        await expect(sheet).toBeHidden();
+        const content = editor.locator(".mari-editor-content");
+        await content.evaluate((el) => (el.scrollTop = 400));
+        await page.waitForTimeout(300);
+        const cardScroll = await content.evaluate((el) => el.scrollTop);
+        expect(cardScroll).toBeGreaterThan(300);
+        await openTab("메타데이터");
+        await expect(nameInput).toHaveValue("저장 안 된 이름");
+        await expect.poll(() => content.evaluate((el) => el.scrollTop)).toBe(0);
+        await openTab("카드");
+        await expect.poll(() => content.evaluate((el) => el.scrollTop)).toBe(cardScroll);
+        await page.route(`**/api/characters/${card.id}`, (route) =>
+          route.request().method() === "PATCH" || route.request().method() === "PUT"
+            ? route.fulfill({ status: 500, json: { error: "Synthetic sheet save failure" } })
+            : route.continue(),
+        );
+        await editor.getByRole("button", { name: "저장", exact: true }).click();
+        await expect(page.getByText(/Synthetic sheet save failure/).first()).toBeVisible();
+        await openTab("메타데이터");
+        await expect(nameInput).toHaveValue("저장 안 된 이름");
+        await openTab("카드");
+        await openTab("메타데이터");
+        await expect(nameInput).toHaveValue("저장 안 된 이름");
+        await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+        await page.unroute(`**/api/characters/${card.id}`);
+        await nameInput.fill(name);
+        await editor.getByRole("button", { name: "저장", exact: true }).click();
+        // Saved once the save goes through: nothing left unsaved.
+        await expect(editor.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+      }
       await page.evaluate(async () => {
         const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
         useUIStore.getState().closeCharacterDetail();
