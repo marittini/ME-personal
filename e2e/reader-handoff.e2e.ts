@@ -56,8 +56,12 @@ for (const grouped of [false, true]) {
       const bubbles = owner.locator(".texting-bubble-other");
       await expect(bubbles).toHaveCount(grouped ? 3 : 2);
       await expect(bubbles.first()).toContainText("Same bubble.");
-      await expect(bubbles.first()).toContainText("첫 문단입니다.");
-      await expect(bubbles.nth(1)).toContainText("둘째 문단입니다.");
+      // Each translation sits right under its own bubble, outside the bubble background.
+      const under = (index: number) => bubbles.nth(index).locator("xpath=following-sibling::*[1]");
+      await expect(under(0)).toHaveAttribute("data-conversation-translation", "outside");
+      await expect(under(0)).toContainText("첫 문단입니다.");
+      await expect(bubbles.first()).not.toContainText("첫 문단입니다.");
+      await expect(under(1)).toContainText("둘째 문단입니다.");
       expect(
         (await (await request.get(`/api/chats/${chat.id}/messages`)).json()).find(
           (m: { id: string }) => m.id === message.id,
@@ -85,7 +89,7 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
   request,
 }) => {
   const chat = await (
-    await request.post("/api/chats", { data: { name: "발췌 검증", mode: "conversation", characterIds: [] } })
+    await request.post("/api/chats", { data: { name: "발췌 검증", mode: "roleplay", characterIds: [] } })
   ).json();
   const message = await (
     await request.post(`/api/chats/${chat.id}/messages`, {
@@ -94,8 +98,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
   ).json();
   try {
     await open(page, chat.id);
-    const source = page.locator(`[data-message-id="${message.id}"] [data-tts-conversation-content]`).first();
-    await source.evaluate((el) => {
+    const source = page.locator(`[data-message-id="${message.id}"] .mari-message-content`).first();
+    await source.locator("[data-reader-prose]").first().evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
       const selection = window.getSelection()!;
@@ -148,7 +152,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await expect.poll(() => page.evaluate(() => CSS.highlights.get("reader-excerpts")?.size ?? 0)).toBe(1);
     await page.getByRole("button", { name: "독서 노트", exact: true }).click();
     await page.getByRole("tab", { name: /발췌 카드/ }).click();
-    await page.getByRole("button", { name: "편집", exact: true }).click();
+    const notes = page.getByRole("dialog", { name: "독서 노트", exact: true });
+    await notes.getByRole("button", { name: "편집", exact: true }).click();
     // Reopening restores the excerpt's own look, not the default one.
     await expect(
       page.getByRole("group", { name: "정렬", exact: true }).getByRole("button", { name: "가운데" }),
@@ -176,8 +181,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     ).toBeGreaterThan(0);
     await page.getByRole("button", { name: "독서 노트", exact: true }).click();
     await page.getByRole("tab", { name: /발췌 카드/ }).click();
-    await expect(page.getByText("수정한 발췌", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "삭제", exact: true }).click();
+    await expect(notes.getByText("수정한 발췌", { exact: true })).toBeVisible();
+    await notes.getByRole("button", { name: "삭제", exact: true }).click();
     await page
       .getByRole("dialog", { name: "삭제", exact: true })
       .getByRole("button", { name: "삭제", exact: true })
@@ -695,6 +700,82 @@ test("convo: messenger header, avatar on top, translations outside bubbles with 
     expect(bodySize - translationSize).toBeCloseTo(3, 0);
     await expect(bubbles.first()).toHaveCSS("background-color", "rgb(51, 102, 153)");
     await page.screenshot({ path: ".tmp/convo-messenger.png" });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("convo: settings-only header, no indent or note tools, content-width bubbles, global bubble text over chat font color", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "둘" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "콘보 정리", mode: "conversation", characterIds: [card.id] } })
+  ).json();
+  try {
+    const user = await (
+      await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "user", content: "짧은 말" } })
+    ).json();
+    await request.post(`/api/chats/${chat.id}/messages`, {
+      data: {
+        role: "assistant",
+        characterId: card.id,
+        content: "아주 긴 답장입니다. ".repeat(30).trim(),
+      },
+    });
+    // A translation wider than the message widens its column; the bubble must not stretch with it.
+    await request.patch(`/api/chats/${chat.id}/messages/${user.id}/extra`, {
+      data: {
+        translation: "A short message, translated into a much longer line",
+        translationSource: "짧은 말",
+        translationHidden: false,
+      },
+    });
+    await open(page, chat.id);
+    await seedUIState(page, { language: "ko", chatFontColor: "#ff0000" }, "merge");
+    await page.reload();
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const header = workspace.locator('header[data-reader-header="messenger"]');
+    // Only the reading settings stay in the Convo header: no reading notes or focus mode.
+    await expect(header.getByRole("button", { name: "읽기 설정", exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: "독서 노트", exact: true })).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "입력창 없이 읽기", exact: true })).toHaveCount(0);
+    const userBubble = workspace.locator(`[data-message-id="${user.id}"] .texting-bubble-user`);
+    await expect(userBubble).toBeVisible();
+    // A short user message is a short bubble, however wide its message column is (no indent involved).
+    const width = await userBubble.evaluate((el) => {
+      // Text nodes only: a range over the elements would report their stretched block boxes.
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let text = 0;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        text = Math.max(text, range.getBoundingClientRect().width);
+      }
+      return { bubble: el.getBoundingClientRect().width, text };
+    });
+    expect(width.bubble).toBeLessThan(width.text + 40);
+    // No paragraph indent in bubbles, even with an indent saved for the novel reader.
+    await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await expect(dialog.getByLabel("문단 들여쓰기", { exact: true })).toHaveCount(0);
+    await dialog.getByRole("combobox", { name: "말풍선 색", exact: true }).selectOption("global");
+    await dialog.getByLabel("페르소나 글자", { exact: true }).fill("#00aa00");
+    await page.keyboard.press("Escape");
+    await expect(workspace).toHaveCSS("--reader-indent", "0em");
+    // The bubble text color wins over the chat font color.
+    await expect(userBubble.locator(".mari-message-content").first()).toHaveCSS("color", "rgb(0, 170, 0)");
+    await expect(userBubble.locator(".mari-message-content").first()).toHaveCSS(
+      "-webkit-text-fill-color",
+      "rgb(0, 170, 0)",
+    );
+    // Selecting text in Convo offers the excerpt studio only: no highlighter colors or memo.
+    await userBubble.locator(".mari-message-content").first().selectText();
+    const tools = page.getByRole("toolbar", { name: "선택한 글", exact: true });
+    await expect(tools.getByRole("button", { name: "발췌 스튜디오", exact: true })).toBeVisible();
+    await expect(tools.getByRole("button")).toHaveCount(1);
+    await page.screenshot({ path: `.tmp/convo-cleanup-${test.info().project.name}.png` });
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
     await request.delete(`/api/characters/${card.id}`);

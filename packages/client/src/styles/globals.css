@@ -8755,33 +8755,6 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 [data-reader-enabled] .mari-message-content p:not(blockquote p):not(li p) {
   text-indent: var(--reader-indent, 0em);
 }
-::highlight(reader-excerpts) {
-  background: color-mix(in srgb, var(--primary) 24%, transparent);
-  color: inherit;
-}
-/* Reading-note highlighters (excerpt studio colors) and a dotted underline where a private memo exists. */
-::highlight(reader-note-y) {
-  background: color-mix(in srgb, #ffdf7e 50%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-g) {
-  background: color-mix(in srgb, #b9e6b0 50%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-p) {
-  background: color-mix(in srgb, #f9c6d9 55%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-b) {
-  background: color-mix(in srgb, #b4daf7 55%, transparent);
-  color: inherit;
-}
-::highlight(reader-note-memo) {
-  text-decoration: underline dotted var(--primary);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.2em;
-}
-
 [data-reader-enabled="true"] .mari-message-content [data-reader-prose] {
   display: block;
   text-indent: var(--reader-indent, 0em);
@@ -8889,12 +8862,37 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 /* Convo bubble colors chosen once for every character and persona (reader settings, "전역"). Unset colors keep
    the theme; "카드별" leaves each card's own look (card CSS) untouched. */
 [data-reader-bubble-scope="global"] [data-chat-mode="conversation"] .texting-bubble-other {
+  --reader-bubble-text: var(--reader-bubble-character-text, var(--secondary-foreground));
   background: var(--reader-bubble-character-bg, var(--secondary)) !important;
-  color: var(--reader-bubble-character-text, var(--secondary-foreground)) !important;
 }
 [data-reader-bubble-scope="global"] [data-chat-mode="conversation"] .texting-bubble-user {
+  --reader-bubble-text: var(--reader-bubble-persona-text, var(--primary-foreground));
   background: var(--reader-bubble-persona-bg, var(--primary)) !important;
-  color: var(--reader-bubble-persona-text, var(--primary-foreground)) !important;
+}
+/* The bubble text color wins over the chat font color, which the message text sets inline through
+   --mari-chat-resolved-text, and over a chat style's text fill. */
+[data-reader-bubble-scope="global"] [data-chat-mode="conversation"] :is(.texting-bubble-other, .texting-bubble-user) {
+  --mari-chat-resolved-text: var(--reader-bubble-text);
+  --foreground: var(--reader-bubble-text);
+  color: var(--reader-bubble-text) !important;
+  -webkit-text-fill-color: var(--reader-bubble-text) !important;
+}
+[data-reader-bubble-scope="global"]
+  [data-chat-mode="conversation"]
+  :is(.texting-bubble-other, .texting-bubble-user)
+  .mari-message-content {
+  color: inherit !important;
+}
+/* Convo bubbles keep their own content width on the speaker's side. Without this the column stretches every
+   bubble of a message to its widest sibling: a translation shown under it or a longer paragraph. */
+[data-conversation-paragraphs]:has(> .texting-bubble-user) {
+  align-items: flex-end;
+}
+[data-conversation-paragraphs]:has(> .texting-bubble-other) {
+  align-items: flex-start;
+}
+[data-conversation-paragraphs] > .texting-bubble {
+  max-width: 100%;
 }
 [data-reader-contact-slot]:not(:empty) ~ [data-reader-contact-fallback] {
   display: none;

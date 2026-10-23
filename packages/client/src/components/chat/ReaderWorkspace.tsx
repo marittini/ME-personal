@@ -64,7 +64,10 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
   const conversation = chat?.mode === "conversation";
-  useReaderHighlights(root, excerpts, enabled && surfaceActive, highlights);
+  // Reading notes and the highlighter belong to the novel reader (roleplay); Convo keeps only excerpts.
+  const notesActive = enabled && surfaceActive && !conversation;
+  const selectionActive = enabled && surfaceActive;
+  useReaderHighlights(root, excerpts, selectionActive, conversation ? [] : highlights);
   const saveHighlights = (next: ReaderHighlight[], onSuccess?: () => void) => {
     if (!chatId) return;
     updateMetadata.mutate(
@@ -111,6 +114,9 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   useReaderPosition(enabled ? chatId : null, root);
   useBackDismiss(enabled && surfaceActive && !overlayOpen && !dialogOpen && !focus, back);
   useBackDismiss(enabled && surfaceActive && !overlayOpen && !dialogOpen && focus, () => setFocus(false));
+  useEffect(() => {
+    if (conversation) setFocus(false);
+  }, [conversation]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -131,7 +137,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   // Tapping a highlighted sentence opens its memo, like a novel reader.
   useEffect(() => {
     const host = root.current;
-    if (!enabled || !surfaceActive || !host || !highlights.length) return;
+    if (!notesActive || !host || !highlights.length) return;
     const tap = (event: MouseEvent) => {
       if (!(event.target instanceof Element) || !event.target.closest(".mari-message-content")) return;
       if (event.target.closest("button, a, input, textarea, select, [data-dialogue-controls]")) return;
@@ -143,9 +149,9 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     };
     host.addEventListener("click", tap);
     return () => host.removeEventListener("click", tap);
-  }, [enabled, surfaceActive, highlights]);
+  }, [notesActive, highlights]);
   useEffect(() => {
-    if (!enabled || !surfaceActive) return;
+    if (!selectionActive) return;
     const selected = () => {
       const selection = window.getSelection();
       const node = selection?.anchorNode?.parentElement;
@@ -160,14 +166,17 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     };
     document.addEventListener("selectionchange", selected);
     return () => document.removeEventListener("selectionchange", selected);
-  }, [chatId, enabled, surfaceActive]);
+  }, [chatId, selectionActive]);
 
   const patch = (value: Partial<typeof preferences>) =>
     useUIStore.setState((state) => ({ readerPreferences: { ...state.readerPreferences, ...value } }));
   const control =
     "min-h-11 min-w-11 inline-flex items-center justify-center rounded-md px-2 hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]";
+  // Convo keeps only the reading settings: no reading notes, focus mode or highlighter there.
   const actions = (
     <>
+      {!conversation && (
+        <>
       <button
         className={control}
         onClick={() => setExcerptList(true)}
@@ -192,6 +201,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           <BookOpen size={20} />
         )}
       </button>
+        </>
+      )}
       <button
         className={control}
         onClick={() => setSettings(true)}
@@ -221,7 +232,8 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           "--reader-width": `${preferences.width}px`,
           "--reader-font":
             getChatWidgetFontFamily(preferences.font === "serif" ? "@serif" : preferences.font) ?? "inherit",
-          "--reader-indent": `${Number.isFinite(preferences.indent) ? Math.max(0, Math.min(4, preferences.indent)) : 0}em`,
+          // Paragraph indent is a novel-page setting; Convo bubbles never indent.
+          "--reader-indent": `${!conversation && Number.isFinite(preferences.indent) ? Math.max(0, Math.min(4, preferences.indent)) : 0}em`,
           "--reader-align": preferences.align,
           "--reader-body-size": `${fontSize}px`,
           "--reader-side-margin": `${preferences.sideMargin ?? 0}px`,
@@ -284,15 +296,19 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           className="absolute bottom-24 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--popover)] p-1.5 text-sm text-[var(--popover-foreground)] shadow-sm"
           onPointerDown={(event) => event.preventDefault()}
         >
-          <ColorSwatches onPick={(color) => highlightSelection(color)} labelKey="readerNotes.highlightWith" />
-          <button
-            type="button"
-            className="min-h-11 rounded-md px-3 hover:bg-[var(--secondary)]"
-            disabled={updateMetadata.isPending}
-            onClick={() => highlightSelection("y", true)}
-          >
-            {t("readerNotes.memo")}
-          </button>
+          {!conversation && (
+            <>
+              <ColorSwatches onPick={(color) => highlightSelection(color)} labelKey="readerNotes.highlightWith" />
+              <button
+                type="button"
+                className="min-h-11 rounded-md px-3 hover:bg-[var(--secondary)]"
+                disabled={updateMetadata.isPending}
+                onClick={() => highlightSelection("y", true)}
+              >
+                {t("readerNotes.memo")}
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="min-h-11 rounded-md px-3 hover:bg-[var(--secondary)]"
@@ -671,6 +687,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               ))}
             </select>
           </label>
+          {!conversation && (
           <label className="block text-sm">
             {t("reader.indentValue", { value: preferences.indent ?? 0 })}
             <input
@@ -684,6 +701,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               onChange={(event) => patch({ indent: Number(event.target.value) })}
             />
           </label>
+          )}
           <label className="block text-sm">
             {t("reader.sideMargin", { value: preferences.sideMargin ?? 0 })}
             <input

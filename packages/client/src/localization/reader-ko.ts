@@ -568,6 +568,7 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.papers.gray": "회색",
   "reader.papers.black": "검정",
   "reader.fontSizeLabel": "글자 크기",
+  "reader.indent": "문단 들여쓰기",
   "reader.indentValue": "문단 들여쓰기: {{value}} em",
   "reader.sideMargin": "양옆 여백: {{value}} px",
   "reader.sideMarginLabel": "양옆 여백",
