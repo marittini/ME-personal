@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, BookOpen, Check, ChevronRight, FileText, Loader2, Search, Settings2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Check,
+  ChevronRight,
+  CornerDownRight,
+  FileText,
+  Loader2,
+  Search,
+  Settings2,
+  X,
+} from "lucide-react";
 import {
   isChatProvider,
   CHAT_SUMMARY_OUTPUT_TOKENS,
@@ -29,6 +40,14 @@ import {
   SETTINGS_PRIMARY_BUTTON_CLASS,
 } from "../panels/settings/SettingControls";
 import { NEUTRAL_SURFACE_VARIABLES } from "../ui/neutral-surface-styles";
+import {
+  KnowledgeLine,
+  MEMORY_TOKEN_BUDGET,
+  MemoryEntityList,
+  MemoryOverviewDetails,
+  RecallControls,
+  useMemoryNames,
+} from "./CommittedMemoryParts";
 import "../../styles/memory-vault.css";
 
 function Source({ chatId, id, position }: { chatId: string; id: string; position: number }) {
@@ -43,12 +62,22 @@ function Source({ chatId, id, position }: { chatId: string; id: string; position
       {source.isLoading && <Loader2 className="motion-safe:animate-spin" size={16} />}
       {source.error && <p role="alert">{t("chat.committedMemory.sourceMissing")}</p>}
       {source.data && <p className="whitespace-pre-wrap break-words">{source.data.content}</p>}
+      {source.data && (
+        <button
+          type="button"
+          className={SETTINGS_BUTTON_CLASS}
+          onClick={() => useChatStore.getState().requestGotoMessage(chatId, 1, undefined, id)}
+        >
+          <CornerDownRight size={14} />
+          {t("chat.committedMemory.vault.gotoSource")}
+        </button>
+      )}
     </details>
   );
 }
-type Tab = "overview" | "promise" | "facts" | "story" | "receipt" | "settings";
+type Tab = "overview" | "promise" | "entities" | "story" | "receipt" | "settings";
 type Entry = { batch: CommittedMemoryBatch; fact?: CommittedMemoryFact };
-const TABS: Tab[] = ["overview", "promise", "facts", "story", "receipt", "settings"];
+const TABS: Tab[] = ["overview", "promise", "entities", "story", "receipt", "settings"];
 const field = "memory-vault__field";
 
 function MemoryDetail({
@@ -56,11 +85,13 @@ function MemoryDetail({
   entry,
   onBack,
   korean,
+  entityName,
 }: {
   chatId: string;
   entry: Entry;
   onBack: () => void;
   korean: boolean;
+  entityName?: string;
 }) {
   const { t } = useTranslation();
   const { batch, fact } = entry;
@@ -78,6 +109,9 @@ function MemoryDetail({
   };
   const excluded = batch.excluded || fact?.excluded;
   const display = (original: string, ko?: string) => (korean && ko?.trim() ? ko : original);
+  const name = useMemoryNames(
+    fact ? [...(fact.audience === "shared" ? [] : fact.audience), ...(fact.unknownTo ?? [])] : [],
+  );
   return (
     <article className="memory-vault__detail">
       <button className={`${SETTINGS_BUTTON_CLASS} memory-vault__back`} onClick={onBack}>
@@ -87,6 +121,7 @@ function MemoryDetail({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="memory-vault__eyebrow">
           {fact ? t(`chat.committedMemory.kind.${fact.kind}`) : t("chat.committedMemory.vault.tabs.story")} ·{" "}
+          {entityName && `${entityName}${fact?.attribute ? ` · ${fact.attribute}` : ""} · `}
           {new Date(batch.createdAt).toLocaleDateString()}
         </span>
         <span className="memory-vault__status">
@@ -232,16 +267,29 @@ function MemoryDetail({
           {edit.error.message}
         </p>
       )}
+      {fact && <KnowledgeLine fact={fact} name={name} />}
+      {fact && !batch.invalidated && !fact.invalidated && !editing && (
+        <RecallControls key={batch.revision ?? batch.createdAt} chatId={chatId} fact={fact} identity={identity} />
+      )}
+      {!!fact?.previous?.length && (
+        <details className="space-y-1" data-memory-previous="">
+          <summary className="cursor-pointer text-sm">
+            {t("chat.committedMemory.vault.previous", { count: fact.previous.length })}
+          </summary>
+          <ul className="memory-vault__list-plain">
+            {fact.previous.map((old, index) => (
+              <li key={`${old.id}:${index}`}>
+                <span className="memory-vault__eyebrow">
+                  {t("chat.committedMemory.vault.episode", { turn: old.turn })}
+                </span>{" "}
+                {display(old.content, old.contentKo)}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <details className="memory-vault__evidence">
         <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.details")}</summary>
-        {fact && (
-          <p className="memory-vault__eyebrow">
-            {fact.audience === "shared"
-              ? t("chat.committedMemory.shared")
-              : t("chat.committedMemory.restrictedAudience", { audience: fact.audience.join(", ") })}
-          </p>
-        )}
-
         <h5>
           <FileText size={14} />
           {t("chat.committedMemory.sources")}
@@ -282,6 +330,8 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("active");
   const [progressFilter, setProgressFilter] = useState("all");
+  /** Entities tab: null = every fact, "" = facts without an entity, otherwise one entity. */
+  const [entityFilter, setEntityFilter] = useState<string | null>(null);
   const preview = useMemoryPreview(chatId, search, tab === "receipt");
   const data = status.data;
   const korean = metadata?.committedMemoryDisplayKorean !== false;
@@ -311,8 +361,27 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
       : batches.flatMap((batch) =>
           batch.facts
             .filter((f) => (tab === "promise" ? f.kind === "promise" : f.kind !== "promise"))
+            .filter((f) => tab !== "entities" || entityFilter === null || (f.entityId ?? "") === entityFilter)
             .map((fact) => ({ batch, fact })),
         );
+  const entities = data?.state.entities ?? [];
+  const entityNames = new Map(entities.map((entity) => [entity.id, entity.name]));
+  const entityFactCount = (entityId: string | null) =>
+    batches.reduce(
+      (sum, batch) =>
+        sum +
+        (batch.invalidated || batch.excluded
+          ? 0
+          : batch.facts.filter(
+              (f) =>
+                f.kind !== "promise" &&
+                !f.excluded &&
+                !f.invalidated &&
+                !f.archived &&
+                (entityId === null || (f.entityId ?? "") === entityId),
+            ).length),
+      0,
+    );
   const visible = entries.filter(({ batch, fact }) => {
     const state =
       batch.invalidated || fact?.invalidated ? "invalidated" : batch.excluded || fact?.excluded ? "excluded" : "active";
@@ -335,6 +404,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
     setQuery("");
     setFilter("active");
     setProgressFilter("all");
+    setEntityFilter(null);
   };
   const textConnections = (connections ?? []).filter(
     (c): c is APIConnection =>
@@ -444,6 +514,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
       {data && tab === "overview" && (
         <div className="memory-vault__body space-y-5">
           <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">{t("chat.committedMemory.help")}</p>
+          {data.state.enabled && <p className="memory-vault__hint">{t("chat.committedMemory.vault.replacesOthers")}</p>}
           <ToggleSetting
             label={t("chat.committedMemory.enabled")}
             checked={data.state.enabled}
@@ -451,7 +522,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             onChange={(enabled) => toggle.mutate(enabled)}
           />
           <div className="memory-vault__index">
-            {(["promise", "facts", "story"] as const).map((kind) => (
+            {(["promise", "entities", "story"] as const).map((kind) => (
               <button key={kind} onClick={() => switchTab(kind)}>
                 <span>{t(`chat.committedMemory.vault.tabs.${kind}`)}</span>
                 <strong>
@@ -488,10 +559,29 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
               <p className="memory-vault__empty">{t("chat.committedMemory.empty")}</p>
             )}
           </div>
+          <MemoryOverviewDetails
+            chatId={chatId}
+            data={data}
+            busy={busy || streaming}
+            onOpenEntities={() => switchTab("entities")}
+          />
         </div>
       )}
-      {data && ["promise", "facts", "story"].includes(tab) && (
+      {data && ["promise", "entities", "story"].includes(tab) && (
         <>
+          {tab === "entities" && (
+            <MemoryEntityList
+              chatId={chatId}
+              entities={entities}
+              factCount={entityFactCount}
+              selected={entityFilter}
+              busy={busy || streaming}
+              onSelect={(id) => {
+                setEntityFilter(id);
+                setSelected(null);
+              }}
+            />
+          )}
           {tab === "promise" && (
             <nav className="memory-vault__tabs" aria-label={t("chat.committedMemory.vault.progressLabel")}>
               {["all", "pending", "in_progress", "completed", "cancelled"].map((value) => (
@@ -555,6 +645,11 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                               : `chat.committedMemory.factStatus.${fact.status}`,
                           )
                         : t("chat.committedMemory.vault.episode", { turn: batch.turn })}
+                      {fact?.entityId && entityNames.has(fact.entityId) && ` · ${entityNames.get(fact.entityId)}`}
+                      {fact?.activation === "always" &&
+                        fact.kind !== "promise" &&
+                        ` · ${t("chat.committedMemory.vault.activation.always")}`}
+                      {fact?.archived && ` · ${t("chat.committedMemory.vault.archived")}`}
                       {(batch.excluded || fact?.excluded) && ` · ${t("chat.committedMemory.vault.excluded")}`}
                       {batch.invalidated && ` · ${t("chat.committedMemory.invalidated")}`}
                     </span>
@@ -576,6 +671,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                 chatId={chatId}
                 korean={korean}
                 entry={current}
+                entityName={current.fact?.entityId ? entityNames.get(current.fact.entityId) : undefined}
                 onBack={() => setSelected(null)}
               />
             ) : (
@@ -663,6 +759,11 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             disabled={busy || streaming}
             onChange={(enabled) => toggle.mutate(enabled)}
           />
+          {data.state.enabled && (
+            <p className="memory-vault__notice" role="note" data-memory-replaces="">
+              {t("chat.committedMemory.vault.replacesOthers")}
+            </p>
+          )}
           <label className="block text-sm">
             {t("chat.committedMemory.vault.batchSize")}
             <input
@@ -701,7 +802,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
-                  ["tokenBudget", 256, 32000, 2000],
+                  ["tokenBudget", 256, 32000, MEMORY_TOKEN_BUDGET],
+                  ["alwaysTokens", 0, 32000, 600],
+                  ["recallLimit", 0, 100, 12],
                   ["recentMessages", 0, 1000, 30],
                   ["longTermMessages", 0, 10000, 300],
                   ["topK", 1, 100, 20],
@@ -715,8 +818,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                     min={min}
                     max={max}
                     key={`${key}:${data.state.recall?.[key]}`}
-                    defaultValue={data.state.recall?.[key] ?? (key === "tokenBudget" ? "" : fallback)}
-                    placeholder={key === "tokenBudget" ? t("chat.committedMemory.vault.legacyBudget") : undefined}
+                    defaultValue={data.state.recall?.[key] ?? fallback}
                     disabled={configure.isPending}
                     onBlur={(e) => {
                       const n = Number(e.target.value);
