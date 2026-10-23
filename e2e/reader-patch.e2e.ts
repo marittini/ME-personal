@@ -215,7 +215,9 @@ for (const mode of ["roleplay", "conversation"] as const) {
         await expect(speech).not.toContainText(hidden);
       if (mode === "conversation") {
         await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(0);
-        await speech.locator(".mari-message-content").first().hover();
+        // Phones reveal message tools on a tap, desktops on hover.
+        if (test.info().project.name.startsWith("mobile")) await speech.locator(".mari-message-content").first().click();
+        else await speech.locator(".mari-message-content").first().hover();
         await expect(speech.getByRole("button", { name: "음성 생성", exact: true })).toBeVisible();
       } else {
         await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
