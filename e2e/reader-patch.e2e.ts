@@ -151,10 +151,11 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await expect(workspace.locator(".mari-message-content").first()).toHaveCSS("letter-spacing", "0.7px");
       await expect(workspace).toHaveCSS("--reader-line-height", "1.9");
       await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
+      // The 크림 page is the light theme (the former "화면 테마: 밝게").
       await page
         .getByRole("dialog", { name: "읽기 설정", exact: true })
-        .getByRole("combobox", { name: "화면 테마", exact: true })
-        .selectOption("light");
+        .getByRole("radio", { name: "크림", exact: true })
+        .click();
       await page.keyboard.press("Escape");
       await expect(page.locator("html")).toHaveCSS("background-color", "rgb(251, 248, 243)");
       expect(

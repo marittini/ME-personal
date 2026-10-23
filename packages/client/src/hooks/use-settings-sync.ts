@@ -1,4 +1,4 @@
-import { normalizeReaderPreferences } from "../lib/reader-preferences";
+import { isCurrentReaderPreferences, normalizeReaderPreferences, readerPageTheme } from "../lib/reader-preferences";
 import { normalizeLibraryCustomizations } from "@marinara-engine/shared";
 // ──────────────────────────────────────────────
 // Hook: Cross-device UI settings sync
@@ -72,8 +72,16 @@ const LOCAL_ONLY_SETTING_KEYS = [
 
 export function omitLocalOnlySettings(settings: ParsedSettings): ParsedSettings {
   const sanitized = { ...settings };
-  if ("readerPreferences" in sanitized)
-    sanitized.readerPreferences = normalizeReaderPreferences(sanitized.readerPreferences);
+  if ("readerPreferences" in sanitized) {
+    // An older device's flat save is read the same way the store converts it once; current saves stay as chosen.
+    const legacy = !isCurrentReaderPreferences(sanitized.readerPreferences);
+    const preferences = normalizeReaderPreferences(
+      sanitized.readerPreferences,
+      sanitized.theme === "light" ? "light" : "dark",
+    );
+    sanitized.readerPreferences = preferences;
+    if (legacy) sanitized.theme = readerPageTheme(preferences.shared.page);
+  }
   if ("libraryCustomizations" in sanitized)
     sanitized.libraryCustomizations = normalizeLibraryCustomizations(sanitized.libraryCustomizations);
   if ("libraryCovers" in sanitized) sanitized.libraryCovers = normalizeLibraryCovers(sanitized.libraryCovers);

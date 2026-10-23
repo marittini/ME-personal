@@ -1,4 +1,9 @@
-import { normalizeReaderPreferences, type ReaderPreferences } from "../lib/reader-preferences";
+import {
+  isCurrentReaderPreferences,
+  normalizeReaderPreferences,
+  readerPageTheme,
+  type ReaderPreferences,
+} from "../lib/reader-preferences";
 // ──────────────────────────────────────────────
 // Zustand Store: UI Slice
 // ──────────────────────────────────────────────
@@ -413,6 +418,19 @@ export function getDefaultAppAccentColor() {
 export function getDefaultAppAccentPulseMode() {
   // Device input, not window width: a narrow desktop window still gets the desktop default.
   return typeof window !== "undefined" && !window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+}
+
+/**
+ * Reader preferences in the current format are only cleaned up. An older save is converted once, and its page
+ * color becomes the app theme (a 블랙 page is a dark app). Saving writes the current format, so a reload or a
+ * later sync never converts the user's choices again.
+ */
+function migrateReaderPreferences(persisted: Record<string, unknown>) {
+  const theme = persisted.theme === "light" ? "light" : "dark";
+  const readerPreferences = normalizeReaderPreferences(persisted.readerPreferences, theme);
+  if (isCurrentReaderPreferences(persisted.readerPreferences) || persisted.readerPreferences === undefined)
+    return { readerPreferences };
+  return { readerPreferences, theme: readerPageTheme(readerPreferences.shared.page) };
 }
 
 export function getDefaultAppBackgroundColor(theme: "dark" | "light") {
@@ -2193,23 +2211,7 @@ export const useUIStore = create<UIState>()(
         detailReturnRightPanel: null,
 
         // Settings defaults
-        readerPreferences: {
-          letterSpacing: 0,
-          lineHeight: 1.8,
-          paragraphGap: 1,
-          width: 720,
-          font: "inherit",
-          indent: 0,
-          align: "start",
-          translationSizeOffset: 0,
-          bubbleScope: "card",
-          paper: "theme",
-          sideMargin: 0,
-          bubbleCharacterBg: "",
-          bubbleCharacterText: "",
-          bubblePersonaBg: "",
-          bubblePersonaText: "",
-        },
+        readerPreferences: normalizeReaderPreferences({ version: 2 }),
         readerPositions: {},
         libraryCovers: {},
         libraryCustomizations: {},
@@ -4186,7 +4188,7 @@ export const useUIStore = create<UIState>()(
           ...persisted,
           libraryCovers: normalizeLibraryCovers(persisted.libraryCovers),
           libraryCustomizations: normalizeLibraryCustomizations(persisted.libraryCustomizations),
-          readerPreferences: normalizeReaderPreferences(persisted.readerPreferences),
+          ...migrateReaderPreferences(persisted),
           mariWindowHeightRem: normalizeMariWindowHeightRem(persisted.mariWindowHeightRem),
           mariWindowWidthRem: normalizeMariWindowWidthRem(persisted.mariWindowWidthRem),
           omnibarWindowWidthRem: normalizeOmnibarWindowWidthRem(persisted.omnibarWindowWidthRem),

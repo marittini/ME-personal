@@ -882,28 +882,84 @@ test("character and persona editors show a profile sheet: portrait beside facts 
     await request.delete(`/api/characters/${card.id}`);
   }
 });
-test("viewer settings: page colors, font size steps and side margins", async ({ page, request }) => {
-  const chat = await (
-    await request.post("/api/chats", { data: { name: "보기 설정 검증", mode: "roleplay", characterIds: [] } })
+test("viewer settings: four page colors theme the app, RP and Convo keep their own layout, old settings move once", async ({
+  page,
+  request,
+}) => {
+  const rp = await (
+    await request.post("/api/chats", { data: { name: "보기 설정 RP", mode: "roleplay", characterIds: [] } })
+  ).json();
+  const convo = await (
+    await request.post("/api/chats", { data: { name: "보기 설정 Convo", mode: "conversation", characterIds: [] } })
   ).json();
   try {
-    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content: "책처럼 읽는 문단." } });
-    await open(page, chat.id);
+    await request.post(`/api/chats/${rp.id}/messages`, { data: { role: "assistant", content: "책처럼 읽는 문단." } });
+    await request.post(`/api/chats/${convo.id}/messages`, { data: { role: "assistant", content: "메신저 말풍선." } });
+    // A save from before the split: one flat layout, a 세피아 page on the dark theme.
+    await isolateSyncedUISettings(page);
+    await seedUIState(
+      page,
+      {
+        hasCompletedOnboarding: true,
+        sidebarOpen: false,
+        rightPanelOpen: false,
+        language: "ko",
+        chatHelpSeenModes: ["roleplay", "conversation"],
+        theme: "dark",
+        readerPreferences: { paper: "sepia", letterSpacing: 0.5, indent: 1, sideMargin: 8 } as never,
+      },
+      // Only the first load: later reloads must read what the app saved, not the old save again.
+      "if-missing",
+    );
+    await page.addInitScript(
+      ({ chatId, version }) => {
+        if (!sessionStorage.getItem("seeded")) localStorage.setItem("marinara-active-chat-id", chatId);
+        sessionStorage.setItem("seeded", "1");
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { chatId: rp.id, version },
+    );
+    await page.goto("/");
+    const html = page.locator("html");
     const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    // 세피아 → 크림, and the page color is the app theme.
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).toHaveAttribute("data-reader-page", "cream");
+    await expect(html).toHaveCSS("background-color", "rgb(251, 248, 243)");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "0.5px");
+    await expect(workspace).toHaveCSS("--reader-indent", "1em");
+    // The floating room speech menu is gone; its settings live in the 음성 group.
+    await expect(page.getByRole("button", { name: "방별 음성 설정", exact: true })).toHaveCount(0);
+
     await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
-    await dialog.getByRole("radio", { name: "세피아", exact: true }).click();
-    const before = await workspace
+    await expect(dialog.getByRole("combobox", { name: "화면 테마", exact: true })).toHaveCount(0);
+    const pages = dialog.getByRole("radiogroup", { name: "화면 색", exact: true }).getByRole("radio");
+    await expect(pages).toHaveText(["화이트", "크림", "먹색", "블랙"]);
+    await expect(dialog.getByRole("radio", { name: "크림", exact: true })).toHaveAttribute("aria-checked", "true");
+    await expect(dialog.locator('[data-reader-settings-group="voice"]')).not.toHaveAttribute("open", "");
+    await dialog.getByRole("radio", { name: "블랙", exact: true }).click();
+    await dialog.getByRole("spinbutton", { name: "자간 (px)", exact: true }).fill("1");
+    const sizeBefore = await workspace
       .locator(".mari-message-content")
       .first()
       .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     await dialog.getByRole("button", { name: "글자 크기 1 늘리기", exact: true }).click();
     await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("24");
-    await page.screenshot({ path: ".tmp/viewer-settings.png" });
+    await dialog.locator('[data-reader-settings-group="voice"] summary').click();
+    const buttons = dialog.getByRole("checkbox", { name: "대사 음성 버튼 표시", exact: true });
+    await expect(buttons).toBeChecked();
+    await buttons.uncheck();
+    await expect
+      .poll(async () => (await (await request.get(`/api/chats/${rp.id}`)).json()).metadata.ttsDialogueButtonsEnabled)
+      .toBe(false);
+    await page.screenshot({ path: `.tmp/viewer-settings-${test.info().project.name}.png` });
     await page.keyboard.press("Escape");
-    await expect(workspace).toHaveCSS("background-color", "rgb(244, 236, 216)");
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await expect(html).toHaveCSS("background-color", "rgb(0, 0, 0)");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "1px");
     await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-left-width", "24px");
-    await expect(workspace.locator("[data-chat-scroll]").first()).toHaveCSS("border-right-width", "24px");
     await expect
       .poll(() =>
         workspace
@@ -911,14 +967,37 @@ test("viewer settings: page colors, font size steps and side margins", async ({ 
           .first()
           .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
       )
-      .toBe(before + 1);
-    await page.screenshot({ path: ".tmp/viewer-sepia.png" });
-    // Reset the shared preferences other proofs read.
+      .toBe(sizeBefore + 1);
+
+    // A reload keeps the new choices: the old save is not converted again.
+    await page.reload();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(html).toHaveAttribute("data-reader-page", "black");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "1px");
+
+    // Convo shares the page color but keeps its own layout, and never indents.
+    await page.evaluate((id) => localStorage.setItem("marinara-active-chat-id", id), convo.id);
+    await page.reload();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(workspace).toHaveAttribute("data-reader-mode", "conversation");
+    await expect(html).toHaveAttribute("data-reader-page", "black");
+    await expect(workspace).toHaveCSS("--reader-letter-spacing", "0.5px");
+    await expect(workspace).toHaveCSS("--reader-indent", "0em");
+    await expect(workspace).toHaveCSS("--reader-side-margin", "8px");
     await workspace.getByRole("button", { name: "읽기 설정", exact: true }).click();
-    await dialog.getByRole("radio", { name: "테마 따르기", exact: true }).click();
-    await dialog.getByRole("button", { name: "글자 크기 1 줄이기", exact: true }).click();
-    await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("0");
+    await dialog.getByRole("radio", { name: "화이트", exact: true }).click();
+    await expect(dialog.getByLabel("문단 들여쓰기", { exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await expect(html).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    // The library, outside the reader, wears the same page color.
+    await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
+    await expect(page.locator('[data-component="LibraryWorkDetail"]')).toBeVisible();
+    await expect(html).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await page.screenshot({ path: `.tmp/viewer-white-library-${test.info().project.name}.png` });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   } finally {
-    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/chats/${rp.id}?force=true`);
+    await request.delete(`/api/chats/${convo.id}?force=true`);
   }
 });

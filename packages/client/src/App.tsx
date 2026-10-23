@@ -68,6 +68,7 @@ import { getStoreBackLayers } from "./lib/back-layers";
 import { initBackNavigation, syncBackNavigation } from "./lib/back-navigation";
 import { setCustomNotificationSoundUrl } from "./lib/notification-sound";
 import { PHONE_TOAST_TOP_VARIABLE, watchPhoneToastTop } from "./lib/phone-toast-top";
+import { effectiveReaderPage } from "./lib/reader-preferences";
 
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 // Against a frozen host the connection opens but is never answered; without a
@@ -584,6 +585,11 @@ export function App() {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
+  // 화이트/블랙 pages restyle the whole app; 크림/먹색 are the light/dark themes themselves.
+  const readerPage = useUIStore((state) => effectiveReaderPage(state.readerPreferences.shared.page, state.theme));
+  useEffect(() => {
+    document.documentElement.dataset.readerPage = readerPage;
+  }, [readerPage]);
 
   useEffect(() => {
     const root = document.documentElement;
