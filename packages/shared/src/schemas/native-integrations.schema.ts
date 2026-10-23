@@ -48,7 +48,10 @@ export const nativeIntegrationsSchema = z.object({
             id,
             name: z.string().min(1).max(200),
             prompt: z.string().max(5000),
-            targetLanguage: z.string().max(100).default("Korean"),
+            /** false keeps the chat's own translation prompt; custom presets replace it like the extension did. */
+            replace: z.boolean().default(true),
+            /** Empty follows the chat's translation language. */
+            targetLanguage: z.string().max(100).optional(),
             connectionId: id.optional(),
           }),
         )

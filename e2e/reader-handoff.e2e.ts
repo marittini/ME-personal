@@ -200,10 +200,16 @@ test("translation presets and glossary are reachable inside native chat translat
     await page.getByRole("button", { name: "단어 추가", exact: true }).click();
     await page.getByRole("textbox", { name: "원어", exact: true }).fill("Alice");
     await page.getByRole("textbox", { name: "번역어", exact: true }).fill("앨리스");
-    await page
-      .locator('[data-component="TranslationIntegratedTools"]')
-      .getByRole("button", { name: "저장", exact: true })
-      .click();
+    // Built-in presets from the translation extension are selectable for incoming and outgoing translation.
+    const tools = page.locator('[data-component="TranslationIntegratedTools"]');
+    await tools.getByRole("combobox", { name: "번역 프리셋", exact: true }).selectOption({ label: "자연스러운 RP" });
+    await tools
+      .getByRole("combobox", { name: "입력 번역 프리셋", exact: true })
+      .selectOption("builtin-literary-roleplay-input");
+    await expect(tools.getByRole("combobox", { name: "번역 프리셋", exact: true }).locator("option")).toHaveCount(
+      1 + 15 + 1,
+    );
+    await tools.getByRole("button", { name: "저장", exact: true }).click();
     await expect
       .poll(
         async () =>
@@ -211,6 +217,13 @@ test("translation presets and glossary are reachable inside native chat translat
             ?.glossary[0]?.target,
       )
       .toBe("앨리스");
+    const saved = (await (await request.get("/api/native-integrations/settings")).json()).translation;
+    expect(saved.rooms[chat.id].presetId).toBe("builtin-roleplay");
+    expect(saved.rooms[chat.id].outgoingPresetId).toBe("builtin-literary-roleplay-input");
+    const added = saved.presets.find((preset: { name: string }) => preset.name === "한국어 검증");
+    expect(added.replace).toBe(true);
+    expect(added.targetLanguage).toBeUndefined();
+    await page.screenshot({ path: ".tmp/translation-builtin-presets.png" });
   } finally {
     const latest = await (await request.get("/api/native-integrations/settings")).json();
     await request.put("/api/native-integrations/settings", { data: { ...snapshot, revision: latest.revision } });

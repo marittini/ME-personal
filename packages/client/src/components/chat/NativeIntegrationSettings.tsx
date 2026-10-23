@@ -3,7 +3,12 @@ import { importNativeIntegrationBackup } from "../../lib/native-integration-impo
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { type NativeIntegrations, type WeatherLocation } from "@marinara-engine/shared";
+import {
+  BUILTIN_TRANSLATION_PRESETS,
+  INHERIT_TRANSLATION_PRESET_ID,
+  type NativeIntegrations,
+  type WeatherLocation,
+} from "@marinara-engine/shared";
 import {
   useNativeIntegrations,
   useSaveNativeIntegrations,
@@ -20,6 +25,31 @@ import { generateClientId } from "../../lib/utils";
 import { showConfirmDialog } from "../../lib/app-dialogs";
 
 import { INTEGRATION_INPUT, INTEGRATION_BUTTON } from "./IntegrationControls";
+
+/** Built-in presets ship with the engine (read-only); custom presets are the editable ones above. */
+function TranslationPresetOptions({ custom }: { custom: NativeIntegrations["translation"]["presets"] }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <optgroup label={t("integrations.builtinPresets")}>
+        {BUILTIN_TRANSLATION_PRESETS.filter((preset) => preset.id !== INHERIT_TRANSLATION_PRESET_ID).map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {preset.name}
+          </option>
+        ))}
+      </optgroup>
+      {custom.length > 0 && (
+        <optgroup label={t("integrations.customPresets")}>
+          {custom.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+}
 
 function LocationPicker({
   value,
@@ -267,14 +297,15 @@ export function NativeIntegrationSettings({
               <input
                 aria-label={t("integrations.targetLanguage")}
                 className={INTEGRATION_INPUT}
-                value={preset.targetLanguage}
+                placeholder={t("integrations.followChatLanguage")}
+                value={preset.targetLanguage ?? ""}
                 onChange={(e) =>
                   patch({
                     ...draft,
                     translation: {
                       ...draft.translation,
                       presets: draft.translation.presets.map((row, i) =>
-                        i === index ? { ...row, targetLanguage: e.target.value } : row,
+                        i === index ? { ...row, targetLanguage: e.target.value || undefined } : row,
                       ),
                     },
                   })
@@ -342,7 +373,7 @@ export function NativeIntegrationSettings({
                       name: t("integrations.newPreset"),
                       prompt:
                         "Translate faithfully into {{targetLanguage}}. Preserve all markup and audio delivery tags. Return only the translation.",
-                      targetLanguage: "Korean",
+                      replace: true,
                     },
                   ],
                 },
@@ -451,11 +482,7 @@ export function NativeIntegrationSettings({
             onChange={(e) => updateTranslation({ ...roomTranslation, presetId: e.target.value || null })}
           >
             <option value="">{t("integrations.keepTranslation")}</option>
-            {draft.translation.presets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}
-              </option>
-            ))}
+            <TranslationPresetOptions custom={draft.translation.presets} />
           </select>
           <label className="block text-sm">
             {t("integrations.inputPreset")}
@@ -465,11 +492,7 @@ export function NativeIntegrationSettings({
               onChange={(e) => updateTranslation({ ...roomTranslation, outgoingPresetId: e.target.value || null })}
             >
               <option value="">{t("integrations.keepTranslation")}</option>
-              {draft.translation.presets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.name}
-                </option>
-              ))}
+              <TranslationPresetOptions custom={draft.translation.presets} />
             </select>
           </label>
           <label className="block text-sm">

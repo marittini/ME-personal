@@ -17,6 +17,8 @@ const {
   createChatSchema,
   createPromptPresetSchema,
   createConnectionSchema,
+  BUILTIN_TRANSLATION_PRESETS,
+  TRANSLATION_PRESET_V2_UPGRADES,
 } = await import("../../packages/shared/src/index.js");
 const { createFileNativeDB } = await import("../../packages/server/src/db/file-backed-store.js");
 const { createAppSettingsStorage } = await import("../../packages/server/src/services/storage/app-settings.storage.js");
@@ -29,6 +31,7 @@ const {
   saveNativeIntegrations,
   resolveIntegratedPreset,
   integratedTranslationInput,
+  fillTranslationPromptMacros,
   weatherInjection,
 } = await import("../../packages/server/src/services/native-integrations.js");
 const { operateKeyVault } = await import("../../packages/server/src/services/connection-key-vault.js");
@@ -96,8 +99,8 @@ try {
   );
   const translated = await readNativeIntegrations(db);
   translated.translation.presets = [
-    { id: "out", name: "Out", prompt: "Outgoing {{targetLanguage}}", targetLanguage: "English" },
-    { id: "in", name: "In", prompt: "Incoming {{targetLanguage}}", targetLanguage: "Korean" },
+    { id: "out", name: "Out", prompt: "Outgoing {{targetLanguage}}", replace: true, targetLanguage: "English" },
+    { id: "in", name: "In", prompt: "Incoming {{targetLanguage}}", replace: true, targetLanguage: "Korean" },
   ];
   translated.translation.defaults = {
     ...translated.translation.defaults,
@@ -131,6 +134,51 @@ try {
     ).targetLanguage,
     "English",
   );
+  // Built-in presets resolve by id, fill {{voice}}/{{vocab}} in place and keep the chat's language.
+  assert.equal(BUILTIN_TRANSLATION_PRESETS.length, 16);
+  assert.equal(new Set(BUILTIN_TRANSLATION_PRESETS.map((preset) => preset.id)).size, 16);
+  const roleplayPreset = BUILTIN_TRANSLATION_PRESETS.find((preset) => preset.id === "builtin-roleplay")!;
+  await saveNativeIntegrations(db, {
+    ...(await readNativeIntegrations(db)),
+    translation: {
+      ...translated.translation,
+      defaults: { ...translated.translation.defaults, presetId: "builtin-roleplay", style: "Alice speaks curtly." },
+    },
+  });
+  const builtinOutput = await integratedTranslationInput(db, {
+    chatId: room.id,
+    text: "Alice arrived",
+    provider: "ai",
+    targetLanguage: "Japanese",
+    systemPrompt: "Chat prompt",
+    direction: "output",
+  });
+  assert.equal(builtinOutput.targetLanguage, "Japanese");
+  assert.ok(builtinOutput.systemPrompt!.startsWith(roleplayPreset.prompt.slice(0, 60)));
+  assert.doesNotMatch(builtinOutput.systemPrompt!, /\{\{\s*(?:voice|vocab)\s*\}\}|Chat prompt/);
+  assert.equal(builtinOutput.systemPrompt!.match(/앨리스/g)?.length, 1);
+  assert.equal(builtinOutput.systemPrompt!.match(/Alice speaks curtly/g)?.length, 1);
+  await saveNativeIntegrations(db, {
+    ...(await readNativeIntegrations(db)),
+    translation: {
+      ...translated.translation,
+      defaults: { ...translated.translation.defaults, presetId: "builtin-inherit", glossary: [] },
+    },
+  });
+  const inherited = await integratedTranslationInput(db, {
+    chatId: room.id,
+    text: "Alice arrived",
+    provider: "ai",
+    targetLanguage: "Japanese",
+    systemPrompt: "Chat prompt",
+    direction: "output",
+  });
+  assert.equal(inherited.systemPrompt, "Chat prompt");
+  assert.deepEqual(fillTranslationPromptMacros("A\n{{voice}}\nB {{vocab}}", { voice: "", vocab: "V" }), {
+    text: "A\nB V",
+    used: { voice: true, vocab: true },
+  });
+  await saveNativeIntegrations(db, { ...(await readNativeIntegrations(db)), translation: translated.translation });
   const connection = await createConnectionsStorage(db).create(
     createConnectionSchema.parse({
       name: "Vault target",
@@ -251,6 +299,38 @@ try {
     room.id,
   );
   assert.equal(imported.translation.rooms[room.id]!.freeContext, "World");
+  // Extension backups keep built-in choices, map a saved v2 prompt copy to its built-in and keep context defaults.
+  const v2Upgrade = TRANSLATION_PRESET_V2_UPGRADES[0]!;
+  const v2Builtin = BUILTIN_TRANSLATION_PRESETS.find((preset) => preset.id === v2Upgrade.id)!;
+  const restored = importNativeIntegrationBackup(
+    {
+      kind: "translation-presets-glossary.backup",
+      v: 1,
+      type: "all",
+      presets: [
+        { id: v2Upgrade.sourceId, name: v2Builtin.name, prompt: v2Builtin.prompt },
+        { id: "custom-mine", name: "Mine", prompt: "Mine {{vocab}}" },
+        { id: "builtin-roleplay", name: "Spoofed", prompt: "Spoofed" },
+      ],
+      defaults: { incomingPresetId: "builtin-literary-roleplay", outgoingPresetId: v2Upgrade.sourceId },
+      chats: { [room.id]: { incomingPresetId: "custom-mine", contextEnabled: true, contextMessageCount: 40 } },
+    },
+    translated,
+  );
+  assert.equal(restored.translation.defaults.presetId, "builtin-literary-roleplay");
+  assert.equal(restored.translation.defaults.outgoingPresetId, v2Upgrade.id);
+  const mine = restored.translation.presets.find((preset) => preset.id === "custom-mine")!;
+  assert.equal(mine.replace, true);
+  assert.equal(mine.targetLanguage, undefined);
+  assert.ok(
+    !restored.translation.presets.some(
+      (preset) => preset.id === "builtin-roleplay" || preset.id === v2Upgrade.sourceId,
+    ),
+  );
+  assert.equal(restored.translation.rooms[room.id]!.presetId, "custom-mine");
+  assert.equal(restored.translation.rooms[room.id]!.contextMessages, 10);
+  assert.equal(restored.translation.rooms[room.id]!.contextIncludeTranslation, true);
+  assert.equal(restored.translation.rooms[room.id]!.contextIncludeUserInput, false);
   assert.throws(() => importNativeIntegrationBackup({}, translated), /Unsupported/);
   const migrated = importNativeIntegrationBackup(
     { weatherSettings: { enabled: false, roomIds: ["old"], rooms: { old: { enabled: false } } } },
