@@ -9294,11 +9294,6 @@ html[data-reader-focus="true"]
 .mari-message-actions > [data-chat-tool-placement="more"] {
   display: none !important;
 }
-/* Placement is chosen in the UI manager, so the per-drawer pop-out buttons stay out of Chat Settings
-   (a drawer's title can still be dragged out of the window). */
-.mari-chat-settings-drawer [data-chat-settings-tab] [data-drawer-control="pop-out"] {
-  display: none !important;
-}
 .mari-ui-manager__list {
   display: flex;
   flex-direction: column;

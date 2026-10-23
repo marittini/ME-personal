@@ -77,7 +77,8 @@ for (const mode of ["roleplay", "conversation"] as const) {
       await page.goto("/");
       const row = page.locator(`[data-message-id="${message.id}"]`).first();
       await expect(row).toBeVisible();
-      if (info.project.name.includes("mobile")) await row.getByText("The complete translation belongs here.", { exact: true }).tap();
+      if (info.project.name.includes("mobile"))
+        await row.getByText("The complete translation belongs here.", { exact: true }).tap();
       else await row.hover();
       await row.getByRole("button", { name: "Translate", exact: true }).click();
       await expect(row).toContainText("KONIEC PEŁNEGO TŁUMACZENIA");

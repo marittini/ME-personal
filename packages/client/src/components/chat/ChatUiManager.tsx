@@ -81,6 +81,8 @@ export function applyChatUiPlacements(layout: ChatUiLayout | undefined, list: HT
   }
 }
 
+const knownTitles = new Map<string, string>();
+
 function collectSettings(layout: ChatUiLayout): SettingsItem[] {
   const list = document.querySelector<HTMLElement>('[data-window="chat-settings"] [data-chat-settings-tab]');
   if (!list) return [];
@@ -93,6 +95,22 @@ function collectSettings(layout: ChatUiLayout): SettingsItem[] {
   ];
   const seen = new Set<string>();
   const items: SettingsItem[] = [];
+  // A drawer minimized to a top bubble renders no window; list it from the window store under its known title.
+  const prefix = drawerWindowId("");
+  for (const windowId of Object.keys(detached)) {
+    if (!detached[windowId] || !windowId.startsWith(prefix)) continue;
+    const id = windowId.slice(prefix.length);
+    const node = document.querySelector(`[data-chat-settings-section="${CSS.escape(id)}"]`);
+    if (node) continue;
+    seen.add(id);
+    items.push({
+      id,
+      title: knownTitles.get(id) ?? id,
+      category: chatSettingsCategory(id),
+      canTop: true,
+      placement: layout.placement[id] === "hidden" ? "hidden" : "top",
+    });
+  }
   for (const node of nodes) {
     const id = sectionIdOf(node);
     if (!id || seen.has(id) || id === "settings-profiles") continue;
@@ -101,6 +119,7 @@ function collectSettings(layout: ChatUiLayout): SettingsItem[] {
       node.querySelector(".mari-drawer__title")?.textContent?.trim() ||
       node.querySelector(".mari-window__title, [data-window-title]")?.textContent?.trim() ||
       id;
+    knownTitles.set(id, title);
     const isControl = node.hasAttribute("data-docked-chat-control");
     items.push({
       id,

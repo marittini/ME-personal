@@ -169,8 +169,7 @@ for (const spec of [
         .poll(() => editor.locator(".mari-editor-navigation-tabs [data-active]").getAttribute("aria-label"))
         .toBe(spec.last);
       if (paged) await openSection(editor, "Metadata");
-      else
-        await editor.locator(".mari-editor-content").evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
+      else await editor.locator(".mari-editor-content").evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
       await expect
         .poll(() => editor.locator(".mari-editor-navigation-tabs [data-active]").getAttribute("aria-label"))
         .not.toBe(spec.last);
