@@ -237,10 +237,7 @@ async function selectText(page: Page, messageId: string, text: string) {
     { messageId, text },
   );
 }
-test("reading notes: colored highlights, private memos, bookmarks and excerpt cards from notes", async ({
-  page,
-  request,
-}) => {
+test("reading notes: colored highlights, private memos and excerpt cards from notes", async ({ page, request }) => {
   // An unreachable fixture connection lets the dry run build the real prompt without calling a model.
   const connection = await (
     await request.post("/api/connections", {
@@ -301,7 +298,8 @@ test("reading notes: colored highlights, private memos, bookmarks and excerpt ca
     expect(prompt).not.toContain("나만 보는 비밀 메모");
 
     await page.reload();
-    await expect.poll(() => painted("reader-note-b")).toBe(1);
+    // A reload recompiles the roleplay surface in a cold dev server; allow it the time a page open gets.
+    await expect.poll(() => painted("reader-note-b"), { timeout: 30_000 }).toBe(1);
     await expect.poll(() => painted("reader-note-g")).toBe(1);
     // Tapping the memo sentence opens it again, like a novel reader.
     const point = await page.evaluate(() => {
@@ -319,15 +317,13 @@ test("reading notes: colored highlights, private memos, bookmarks and excerpt ca
     );
     await page.keyboard.press("Escape");
 
-    await workspace.getByRole("button", { name: "여기에 책갈피 꽂기", exact: true }).click();
-    await expect.poll(async () => (await metadata()).readerBookmarks?.[0]?.messageId).toBe(message.id);
+    // The reader bar keeps only back, title, notes, focus and settings (owner request 2026-10-23).
+    await expect(workspace.locator("header button")).toHaveCount(4);
     await workspace.getByRole("button", { name: "독서 노트", exact: true }).click();
     const notes = page.getByRole("dialog", { name: "독서 노트", exact: true });
     await expect(notes.getByText("나만 보는 비밀 메모", { exact: true })).toBeVisible();
-    await notes.getByRole("tab", { name: /책갈피/ }).click();
-    await expect(notes.getByRole("button", { name: "이 위치로 이동", exact: true })).toBeVisible();
+    await expect(notes.getByRole("tab")).toHaveText([/형광펜/, /발췌 카드/, /메시지 북마크/]);
     await page.screenshot({ path: ".tmp/reading-notes.png" });
-    await notes.getByRole("tab", { name: /형광펜/ }).click();
     await notes.getByRole("button", { name: "메모 편집", exact: true }).click();
     await editor.getByRole("button", { name: "형광펜 삭제", exact: true }).click();
     await page
@@ -374,7 +370,7 @@ test("paragraph translation editor uses the reader's paragraph boundaries and sa
     await request.delete(`/api/chats/${chat.id}?force=true`);
   }
 });
-test("translation presets and glossary are reachable inside native chat translation settings", async ({
+test("translation presets write into the native prompt fields and the panel saves its glossary", async ({
   page,
   request,
 }) => {
@@ -382,42 +378,47 @@ test("translation presets and glossary are reachable inside native chat translat
   const chat = await (
     await request.post("/api/chats", { data: { name: "번역 진입 검증", mode: "conversation", characterIds: [] } })
   ).json();
+  await request.patch(`/api/chats/${chat.id}/metadata`, { data: { translationProvider: "ai" } });
+  const metadata = async () => (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata;
+  const room = async () =>
+    (await (await request.get("/api/native-integrations/settings")).json()).translation.rooms[chat.id];
   try {
     await open(page, chat.id);
-    await page.getByRole("button", { name: "엔진 도구 보기", exact: true }).click();
     await page.locator("[data-chat-settings-button]").click();
     const section = page.locator('[data-chat-settings-section="translation"]');
     await section.locator("[data-drawer-toggle]").click();
-    await page.locator('[data-component="TranslationIntegratedTools"] summary').click();
-    await page.getByRole("button", { name: "프리셋 추가", exact: true }).click();
-    await page.getByRole("textbox", { name: "프리셋 이름", exact: true }).fill("한국어 검증");
-    await page.getByRole("button", { name: "단어 추가", exact: true }).click();
-    await page.getByRole("textbox", { name: "원어", exact: true }).fill("Alice");
-    await page.getByRole("textbox", { name: "번역어", exact: true }).fill("앨리스");
-    // Built-in presets from the translation extension are selectable for incoming and outgoing translation.
-    const tools = page.locator('[data-component="TranslationIntegratedTools"]');
-    await tools.getByRole("combobox", { name: "번역 프리셋", exact: true }).selectOption({ label: "자연스러운 RP" });
-    await tools
-      .getByRole("combobox", { name: "입력 번역 프리셋", exact: true })
-      .selectOption("builtin-literary-roleplay-input");
-    await expect(tools.getByRole("combobox", { name: "번역 프리셋", exact: true }).locator("option")).toHaveCount(
-      1 + 15 + 1,
-    );
-    await tools.getByRole("button", { name: "저장", exact: true }).click();
+    // The panel sits inside the native section, as the extension placed it (no separate form to open).
+    const panel = section.locator('[data-component="TranslationPresetPanel"]');
+    await expect(panel.getByRole("heading", { name: "번역 프롬프트", exact: true })).toBeVisible();
+    const incoming = panel.getByRole("combobox", { name: "캐릭터 응답 번역 프롬프트 프리셋", exact: true });
+    await expect(incoming.locator("option")).toHaveCount(16);
+    await incoming.selectOption({ label: "자연스러운 RP" });
+    await expect(panel.getByRole("status")).toHaveText("캐릭터 응답 번역 프롬프트에 적용했습니다.");
+    // The chosen prompt is what the native field shows and what the chat stores.
+    const nativeIncoming = section.locator("textarea").nth(1);
+    await expect(nativeIncoming).toHaveValue(/^You are an expert literary and roleplay translator/);
     await expect
-      .poll(
-        async () =>
-          (await (await request.get("/api/native-integrations/settings")).json()).translation.rooms[chat.id]
-            ?.glossary[0]?.target,
-      )
-      .toBe("앨리스");
+      .poll(async () => (await metadata()).translationOutputPrompt)
+      .toMatch(/^You are an expert literary and roleplay translator/);
+    await expect.poll(async () => (await room())?.presetId).toBe("builtin-roleplay");
+    expect((await room()).presetsInNative).toBe(true);
+    // "채팅 설정 유지" restores the prompt the field had before the preset.
+    await incoming.selectOption({ label: "채팅 설정 유지" });
+    await expect.poll(async () => (await metadata()).translationOutputPrompt ?? null).toBeNull();
+    await expect.poll(async () => (await room())?.presetId).toBeNull();
+
+    await panel.getByRole("button", { name: "+ 단어 추가", exact: true }).click();
+    await panel.getByRole("textbox", { name: "원문 단어", exact: true }).fill("Alice");
+    await panel.getByRole("textbox", { name: "번역 단어", exact: true }).fill("앨리스");
+    await panel.getByRole("button", { name: "새 프리셋", exact: true }).click();
+    await panel.getByRole("textbox", { name: "프리셋 이름", exact: true }).fill("한국어 검증");
+    await panel.getByRole("button", { name: "저장", exact: true }).click();
+    await expect.poll(async () => (await room())?.glossary[0]?.target).toBe("앨리스");
     const saved = (await (await request.get("/api/native-integrations/settings")).json()).translation;
-    expect(saved.rooms[chat.id].presetId).toBe("builtin-roleplay");
-    expect(saved.rooms[chat.id].outgoingPresetId).toBe("builtin-literary-roleplay-input");
-    const added = saved.presets.find((preset: { name: string }) => preset.name === "한국어 검증");
-    expect(added.replace).toBe(true);
-    expect(added.targetLanguage).toBeUndefined();
-    await page.screenshot({ path: ".tmp/translation-builtin-presets.png" });
+    expect(saved.presets.find((preset: { name: string }) => preset.name === "한국어 검증")?.replace).toBe(true);
+    await expect(incoming.locator("option", { hasText: "사용자 정의 · 한국어 검증" })).toHaveCount(1);
+    await panel.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: ".tmp/translation-panel.png", fullPage: false });
   } finally {
     const latest = await (await request.get("/api/native-integrations/settings")).json();
     await request.put("/api/native-integrations/settings", { data: { ...snapshot, revision: latest.revision } });

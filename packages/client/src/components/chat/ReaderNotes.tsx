@@ -5,7 +5,6 @@ import {
   EXCERPT_HIGHLIGHT_COLORS,
   type ExcerptMarkColor,
   type Message,
-  type ReaderBookmark,
   type ReaderExcerpt,
   type ReaderHighlight,
 } from "@marinara-engine/shared";
@@ -114,20 +113,16 @@ export function HighlightEditor({
   );
 }
 
-type Tab = "highlights" | "bookmarks" | "excerpts" | "messages";
+type Tab = "highlights" | "excerpts" | "messages";
 
-/** Reading notes like a novel reader: highlights and memos, bookmarks, excerpt cards and message bookmarks. */
+/** Reading notes like a novel reader: highlights and memos, excerpt cards and message bookmarks. */
 export function ReaderNotesPanel({
   chatId,
   highlights,
-  bookmarks,
   excerpts,
   busy,
   onOpenHighlight,
   onGotoHighlight,
-  onGotoBookmark,
-  onRenameBookmark,
-  onDeleteBookmark,
   onEditExcerpt,
   onGotoExcerpt,
   onDeleteExcerpt,
@@ -135,14 +130,10 @@ export function ReaderNotesPanel({
 }: {
   chatId: string;
   highlights: ReaderHighlight[];
-  bookmarks: ReaderBookmark[];
   excerpts: ReaderExcerpt[];
   busy: boolean;
   onOpenHighlight: (highlight: ReaderHighlight) => void;
   onGotoHighlight: (highlight: ReaderHighlight) => void;
-  onGotoBookmark: (bookmark: ReaderBookmark) => void;
-  onRenameBookmark: (bookmark: ReaderBookmark) => void;
-  onDeleteBookmark: (bookmark: ReaderBookmark) => void;
   onEditExcerpt: (excerpt: ReaderExcerpt) => void;
   onGotoExcerpt: (excerpt: ReaderExcerpt) => void;
   onDeleteExcerpt: (excerpt: ReaderExcerpt) => void;
@@ -160,7 +151,6 @@ export function ReaderNotesPanel({
   });
   const tabs: Array<[Tab, string, number | null]> = [
     ["highlights", t("readerNotes.highlights"), highlights.length],
-    ["bookmarks", t("readerNotes.bookmarks"), bookmarks.length],
     ["excerpts", t("readerNotes.excerpts"), excerpts.length],
     ["messages", t("readerNotes.messageBookmarks"), null],
   ];
@@ -210,30 +200,6 @@ export function ReaderNotesPanel({
               </article>
             ))
           : empty(t("readerNotes.noHighlights")))}
-      {tab === "bookmarks" &&
-        (bookmarks.length
-          ? [...bookmarks].reverse().map((bookmark) => (
-              <article key={bookmark.id} className="space-y-2 rounded-lg border border-[var(--border)] p-3">
-                <p className="text-sm font-medium">
-                  {bookmark.label || t("readerNotes.bookmarkNumber", { number: bookmark.messageNumber })}
-                </p>
-                {bookmark.snippet && (
-                  <p className="line-clamp-2 break-words text-sm text-[var(--muted-foreground)]">{bookmark.snippet}</p>
-                )}
-                <div className="flex flex-wrap gap-2 text-sm">
-                  <button className={control} type="button" onClick={() => onGotoBookmark(bookmark)}>
-                    {t("readerNotes.openBookmark")}
-                  </button>
-                  <button className={control} type="button" disabled={busy} onClick={() => onRenameBookmark(bookmark)}>
-                    {t("readerNotes.renameBookmark")}
-                  </button>
-                  <button className={control} type="button" disabled={busy} onClick={() => onDeleteBookmark(bookmark)}>
-                    {t("readerNotes.deleteBookmark")}
-                  </button>
-                </div>
-              </article>
-            ))
-          : empty(t("readerNotes.noBookmarks")))}
       {tab === "excerpts" &&
         (excerpts.length
           ? [...excerpts].reverse().map((entry) => (

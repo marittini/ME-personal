@@ -63,14 +63,18 @@ export function importNativeIntegrationBackup(
       return translationRoomSchema.parse({
         presetId: resolve(old.incomingPresetId),
         outgoingPresetId: resolve(old.outgoingPresetId),
+        incomingOriginalPrompt: string(old.incomingOriginalPrompt),
+        outgoingOriginalPrompt: string(old.outgoingOriginalPrompt),
         glossary,
-        style: old.incomingVoiceEnabled ? string(old.incomingVoicePrompt) : "",
-        freeContext: old.freeContextEnabled ? string(old.freeContext) : "",
-        loreEntries: old.freeContextEnabled ? (old.loreEntries ?? []) : [],
+        // Text is kept even while a section is off, as in the extension; the switches decide what is sent.
+        style: string(old.incomingVoicePrompt),
+        voiceEnabled: old.incomingVoiceEnabled === true,
+        freeContext: string(old.freeContext),
+        freeContextEnabled: old.freeContextEnabled === true,
+        loreEntries: old.loreEntries ?? [],
         // Same defaults and 1-10 range as the extension's normalizeScope.
-        contextMessages: old.contextEnabled
-          ? Math.min(10, Math.max(1, Number.parseInt(String(old.contextMessageCount ?? ""), 10) || 3))
-          : 0,
+        contextMessages: Math.min(10, Math.max(1, Number.parseInt(String(old.contextMessageCount ?? ""), 10) || 3)),
+        contextEnabled: old.contextEnabled === true,
         contextIncludeOriginal: old.contextIncludeOriginal !== false,
         contextIncludeTranslation: old.contextIncludeTranslation !== false,
         contextIncludeUserInput: old.contextIncludeUserInput === true,

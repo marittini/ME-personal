@@ -36,6 +36,7 @@ const {
   weatherInjection,
 } = await import("../../packages/server/src/services/native-integrations.js");
 const { operateKeyVault } = await import("../../packages/server/src/services/connection-key-vault.js");
+const { parseTranslationScan } = await import("../../packages/server/src/services/translation.service.js");
 const { nativeIntegrationsRoutes } = await import("../../packages/server/src/routes/native-integrations.routes.js");
 const { errorHandler } = await import("../../packages/server/src/middleware/error-handler.js");
 const { normalizeNovelAiMetadata, readNovelAiMetadata } =
@@ -165,21 +166,64 @@ try {
     targetLanguage: "Japanese",
     direction: "output",
   });
-  assert.equal(output.targetLanguage, "Korean");
-  assert.match(output.systemPrompt!, /앨리스/);
-  assert.doesNotMatch(output.systemPrompt!, /무관/);
+  // Presets never change the chat's language; a room saved before presets moved into the chat's prompt fields
+  // (no presetsInNative) keeps using its preset prompt.
+  assert.equal(output.targetLanguage, "Japanese");
+  assert.ok(output.systemPrompt!.startsWith("Incoming"));
+  const outgoing = await integratedTranslationInput(db, {
+    chatId: room.id,
+    text: "Alice",
+    provider: "ai",
+    targetLanguage: "Korean",
+    direction: "input",
+  });
+  assert.equal(outgoing.targetLanguage, "Korean");
+  assert.ok(outgoing.systemPrompt!.startsWith("Outgoing"));
+  // Saved from the panel: the chat's own prompt (where the preset was written) is the only base prompt, and
+  // each reference follows its switch.
+  await saveNativeIntegrations(db, {
+    ...(await readNativeIntegrations(db)),
+    translation: {
+      ...translated.translation,
+      defaults: {
+        ...translated.translation.defaults,
+        presetsInNative: true,
+        style: "[Alice]\nCurt.",
+        voiceEnabled: false,
+        freeContext: "Space opera",
+        freeContextEnabled: true,
+        contextMessages: 3,
+        contextEnabled: false,
+      },
+    },
+  });
+  const native = await integratedTranslationInput(db, {
+    chatId: room.id,
+    text: "Alice arrived",
+    provider: "ai",
+    targetLanguage: "Japanese",
+    systemPrompt: "Chat prompt",
+    direction: "output",
+  });
+  assert.ok(native.systemPrompt!.startsWith("Chat prompt"));
+  assert.doesNotMatch(native.systemPrompt!, /Incoming|Curt\.|Previous conversation/);
+  assert.match(native.systemPrompt!, /Space opera/);
+  assert.match(native.systemPrompt!, /앨리스/);
   assert.equal(
-    (
-      await integratedTranslationInput(db, {
-        chatId: room.id,
-        text: "Alice",
-        provider: "ai",
-        targetLanguage: "Korean",
-        direction: "input",
-      })
-    ).targetLanguage,
-    "English",
+    parseTranslationScan(
+      "glossary",
+      '```json\n{"glossary":[{"original":"Alice","translation":"앨리스"},{"original":"","translation":"x"}]}\n```',
+    ).entries?.length,
+    1,
   );
+  assert.deepEqual(
+    parseTranslationScan(
+      "speech",
+      '{"characters":[{"character":"Alice","age":"20","relations":"","speech":"- 반말","samples":["안녕"]}]}',
+    ),
+    { entries: [{ name: "Alice", style: '- 나이: 20\n- 반말\n- 대사 예시: "안녕"' }] },
+  );
+  assert.deepEqual(parseTranslationScan("world", "```\n판타지\n```"), { text: "판타지" });
   // Built-in presets resolve by id, fill {{voice}}/{{vocab}} in place and keep the chat's language.
   assert.equal(BUILTIN_TRANSLATION_PRESETS.length, 16);
   assert.equal(new Set(BUILTIN_TRANSLATION_PRESETS.map((preset) => preset.id)).size, 16);

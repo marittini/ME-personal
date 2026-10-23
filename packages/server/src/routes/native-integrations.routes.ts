@@ -13,12 +13,12 @@ import { safeFetch } from "../utils/security.js";
 import { createChatsStorage } from "../services/storage/chats.storage.js";
 import { vaultExists, operateKeyVault } from "../services/connection-key-vault.js";
 import { readNovelAiMetadata } from "../services/image/novelai-metadata-import.js";
-import { extractTranslationGlossary } from "../services/translation.service.js";
+import { scanTranslationReferences } from "../services/translation.service.js";
 
 export async function nativeIntegrationsRoutes(app: FastifyInstance) {
   app.get("/vault", () => vaultExists(app.db));
   app.post("/vault", (req) => operateKeyVault(app.db, req.body));
-  app.post("/translation/extract", (req) => extractTranslationGlossary(app.db, req.body));
+  app.post("/translation/scan", (req) => scanTranslationReferences(app.db, req.body));
   app.post("/translation/paragraphs", async (req, reply) => {
     const input = z
       .object({

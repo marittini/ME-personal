@@ -9300,6 +9300,7 @@ export function ChatSettingsDrawer({
           <div style={{ order: CHAT_SETTINGS_ORDER.translation }}>
             <TranslationSection
               chatId={chat.id}
+              chatName={chat.name}
               metadata={metadata}
               textConnections={textConnectionsList}
               onMetadataChange={(patch) => updateTranslationMeta.mutate({ id: chat.id, ...patch })}

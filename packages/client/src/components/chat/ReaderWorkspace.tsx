@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, BookOpen, Bookmark, ChevronDown, NotebookPen, PencilLine, Settings2, Wrench } from "lucide-react";
+import { ArrowLeft, BookOpen, NotebookPen, PencilLine, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
@@ -7,23 +7,20 @@ import { useReaderPosition } from "../../hooks/use-reader-position";
 import { useChatStore } from "../../stores/chat.store";
 import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
-import { requestChatScrollToBottom } from "../../lib/chat-scroll-events";
 import {
-  readerBookmarksSchema,
   readerExcerptsSchema,
   readerExcerptSchema,
   readerHighlightsSchema,
   type ExcerptMarkColor,
-  type ReaderBookmark,
   type ReaderExcerpt,
   type ReaderExcerptAnchor,
   type ReaderHighlight,
 } from "@marinara-engine/shared";
-import { captureReadingBookmark, highlightAtPoint, sameAnchors } from "../../lib/reader-notes";
+import { highlightAtPoint, sameAnchors } from "../../lib/reader-notes";
 import { ColorSwatches, HighlightEditor, ReaderNotesPanel } from "./ReaderNotes";
 import { captureExcerptAnchors } from "../../lib/reader-excerpt-anchors";
 import { useReaderHighlights } from "../../hooks/use-reader-highlights";
-import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
+import { showConfirmDialog } from "../../lib/app-dialogs";
 import { Modal } from "../ui/Modal";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
@@ -49,7 +46,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
   const [focus, setFocus] = useState(false);
-  const [tools, setTools] = useState(false);
   const [settings, setSettings] = useState(false);
   const [excerptSelection, setExcerptSelection] = useState("");
   const [excerpt, setExcerpt] = useState<ReaderExcerpt | null>(null);
@@ -64,10 +60,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     const parsed = readerHighlightsSchema.safeParse(chat?.metadata.readerHighlights ?? []);
     return parsed.success ? parsed.data : [];
   }, [chat?.metadata.readerHighlights]);
-  const bookmarks = useMemo(() => {
-    const parsed = readerBookmarksSchema.safeParse(chat?.metadata.readerBookmarks ?? []);
-    return parsed.success ? parsed.data : [];
-  }, [chat?.metadata.readerBookmarks]);
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
   useReaderHighlights(root, excerpts, enabled && surfaceActive, highlights);
@@ -75,13 +67,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     if (!chatId) return;
     updateMetadata.mutate(
       { id: chatId, readerHighlights: next },
-      { onSuccess, onError: () => toast.error(t("integrations.saveError")) },
-    );
-  };
-  const saveBookmarks = (next: ReaderBookmark[], onSuccess?: () => void) => {
-    if (!chatId) return;
-    updateMetadata.mutate(
-      { id: chatId, readerBookmarks: next },
       { onSuccess, onError: () => toast.error(t("integrations.saveError")) },
     );
   };
@@ -114,24 +99,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     setEditingHighlight(null);
     useChatStore.getState().requestGotoMessage(chatId, anchor.messageNumber, undefined, anchor.messageId);
   };
-  const addBookmark = () => {
-    const spot = root.current ? captureReadingBookmark(root.current) : null;
-    if (!spot) {
-      toast.error(t("readerNotes.bookmarkUnavailable"));
-      return;
-    }
-    if (bookmarks.length >= 500) {
-      toast.error(t("readerNotes.limit"));
-      return;
-    }
-    const bookmark: ReaderBookmark = {
-      id: crypto.randomUUID(),
-      label: "",
-      ...spot,
-      createdAt: new Date().toISOString(),
-    };
-    saveBookmarks([...bookmarks, bookmark], () => toast.success(t("readerNotes.bookmarkAdded")));
-  };
   const back = () => {
     if (chat) {
       const workId = libraryChatGroupKey(chat);
@@ -145,14 +112,13 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
 
   useEffect(() => {
     if (!enabled) return;
-    document.documentElement.dataset.readerWorkspace = tools ? "tools" : "quiet";
+    document.documentElement.dataset.readerWorkspace = "quiet";
     return () => {
       delete document.documentElement.dataset.readerWorkspace;
     };
-  }, [enabled, tools]);
+  }, [enabled]);
   useEffect(() => {
     setFocus(false);
-    setTools(false);
     setSettings(false);
     setExcerpt(null);
     setExcerptSelection("");
@@ -207,7 +173,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       data-reader-mode={enabled ? chat?.mode : undefined}
       data-reader-focus={(enabled && focus) || undefined}
       data-reader-streaming={streaming || undefined}
-      data-reader-tools={tools || undefined}
       style={
         {
           "--reader-line-height": preferences.lineHeight,
@@ -231,15 +196,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
             <ArrowLeft size={20} />
           </button>
           <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
-          <button
-            className={control}
-            onClick={addBookmark}
-            disabled={updateMetadata.isPending}
-            aria-label={t("readerNotes.addBookmark")}
-            title={t("readerNotes.addBookmark")}
-          >
-            <Bookmark size={18} />
-          </button>
           <button
             className={control}
             onClick={() => setExcerptList(true)}
@@ -266,28 +222,11 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           </button>
           <button
             className={control}
-            onClick={() => requestChatScrollToBottom({ chatId: chatId!, behavior: "auto" })}
-            aria-label={t("reader.latest")}
-            title={t("reader.latest")}
-          >
-            <ChevronDown size={20} />
-          </button>
-          <button
-            className={control}
             onClick={() => setSettings(true)}
             aria-label={t("reader.settings")}
             title={t("reader.settings")}
           >
             <Settings2 size={20} />
-          </button>
-          <button
-            className={control}
-            onClick={() => setTools(!tools)}
-            aria-pressed={tools}
-            aria-label={t("reader.tools")}
-            title={t("reader.tools")}
-          >
-            <Wrench size={18} />
           </button>
         </header>
       )}
@@ -381,7 +320,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           <ReaderNotesPanel
             chatId={chatId}
             highlights={highlights}
-            bookmarks={bookmarks}
             excerpts={excerpts}
             busy={updateMetadata.isPending}
             onOpenHighlight={(highlight) => {
@@ -389,34 +327,6 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
               setEditingHighlight(highlight);
             }}
             onGotoHighlight={(highlight) => gotoAnchor(highlight.anchors[0])}
-            onGotoBookmark={(bookmark) => {
-              setExcerptList(false);
-              useChatStore
-                .getState()
-                .requestGotoMessage(chatId, bookmark.messageNumber, bookmark.offset, bookmark.messageId);
-            }}
-            onRenameBookmark={async (bookmark) => {
-              const label = await showPromptDialog({
-                title: t("readerNotes.renameBookmark"),
-                message: bookmark.snippet,
-                defaultValue: bookmark.label,
-              });
-              if (label === null) return;
-              saveBookmarks(
-                bookmarks.map((row) => (row.id === bookmark.id ? { ...row, label: label.trim().slice(0, 200) } : row)),
-              );
-            }}
-            onDeleteBookmark={async (bookmark) => {
-              if (
-                await showConfirmDialog({
-                  title: t("readerNotes.deleteBookmark"),
-                  message: bookmark.label || bookmark.snippet,
-                  confirmLabel: t("readerNotes.deleteBookmark"),
-                  cancelLabel: t("reader.cancel"),
-                })
-              )
-                saveBookmarks(bookmarks.filter((row) => row.id !== bookmark.id));
-            }}
             onEditExcerpt={(entry) => {
               setExcerptList(false);
               setExcerpt(entry);
