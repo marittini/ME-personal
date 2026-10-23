@@ -1,4 +1,5 @@
 import type { ReaderExcerpt } from "../schemas/reader-excerpt.schema.js";
+import type { ReaderBookmark, ReaderHighlight } from "../schemas/reader-notes.schema.js";
 import type { CommittedMemoryState } from "./committed-memory.js";
 // ──────────────────────────────────────────────
 // Chat & Message Types
@@ -299,6 +300,10 @@ export interface ChatMetadata {
   ttsTaggedDialogue?: boolean;
   /** Display-only reading annotations, never prompt content. */
   readerExcerpts?: ReaderExcerpt[];
+  /** Display-only sentence highlights with private memos, never prompt content. */
+  readerHighlights?: ReaderHighlight[];
+  /** Display-only reading-position bookmarks. */
+  readerBookmarks?: ReaderBookmark[];
   ttsDialogueButtonsEnabled?: boolean;
   ttsMenuPosition?: { x: number; y: number };
   /** Fresh, explicitly reviewed setup for an optional shared session. */

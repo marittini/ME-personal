@@ -8759,6 +8759,28 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
   background: color-mix(in srgb, var(--primary) 24%, transparent);
   color: inherit;
 }
+/* Reading-note highlighters (excerpt studio colors) and a dotted underline where a private memo exists. */
+::highlight(reader-note-y) {
+  background: color-mix(in srgb, #ffdf7e 50%, transparent);
+  color: inherit;
+}
+::highlight(reader-note-g) {
+  background: color-mix(in srgb, #b9e6b0 50%, transparent);
+  color: inherit;
+}
+::highlight(reader-note-p) {
+  background: color-mix(in srgb, #f9c6d9 55%, transparent);
+  color: inherit;
+}
+::highlight(reader-note-b) {
+  background: color-mix(in srgb, #b4daf7 55%, transparent);
+  color: inherit;
+}
+::highlight(reader-note-memo) {
+  text-decoration: underline dotted var(--primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
 
 [data-reader-enabled="true"] .mari-message-content [data-reader-prose] {
   display: block;

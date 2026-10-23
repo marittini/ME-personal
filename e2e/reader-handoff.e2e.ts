@@ -146,7 +146,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
     await page.keyboard.press("Escape");
     await page.reload();
     await expect.poll(() => page.evaluate(() => CSS.highlights.get("reader-excerpts")?.size ?? 0)).toBe(1);
-    await page.getByRole("button", { name: "저장한 발췌", exact: true }).click();
+    await page.getByRole("button", { name: "독서 노트", exact: true }).click();
+    await page.getByRole("tab", { name: /발췌 카드/ }).click();
     await page.getByRole("button", { name: "편집", exact: true }).click();
     // Reopening restores the excerpt's own look, not the default one.
     await expect(
@@ -173,7 +174,8 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
         .first()
         .evaluate((node) => Number.parseFloat(getComputedStyle(node).textIndent)),
     ).toBeGreaterThan(0);
-    await page.getByRole("button", { name: "저장한 발췌", exact: true }).click();
+    await page.getByRole("button", { name: "독서 노트", exact: true }).click();
+    await page.getByRole("tab", { name: /발췌 카드/ }).click();
     await expect(page.getByText("수정한 발췌", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     await page
@@ -209,6 +211,134 @@ test("encoded formatted TTS hides wrappers and attaches controls beside each dia
     await expect(owner.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
+  }
+});
+async function selectText(page: Page, messageId: string, text: string) {
+  await expect(page.locator(`[data-message-id="${messageId}"] .mari-message-content`).first()).toContainText(text);
+  await page.evaluate(
+    ({ messageId, text }) => {
+      const message = document.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)!;
+      const walker = document.createTreeWalker(message, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const at = node.textContent!.indexOf(text);
+        if (at < 0 || !node.parentElement?.closest(".mari-message-content")) continue;
+        const range = document.createRange();
+        range.setStart(node, at);
+        range.setEnd(node, at + text.length);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event("selectionchange"));
+        return;
+      }
+      throw new Error(`text not found: ${text}`);
+    },
+    { messageId, text },
+  );
+}
+test("reading notes: colored highlights, private memos, bookmarks and excerpt cards from notes", async ({
+  page,
+  request,
+}) => {
+  // An unreachable fixture connection lets the dry run build the real prompt without calling a model.
+  const connection = await (
+    await request.post("/api/connections", {
+      data: {
+        name: "Reading notes privacy",
+        provider: "custom",
+        baseUrl: "http://127.0.0.1:1/v1",
+        apiKey: "fixture",
+        model: "notes-fixture",
+        maxContext: 32768,
+      },
+    })
+  ).json();
+  const chat = await (
+    await request.post("/api/chats", {
+      data: { name: "독서 노트 검증", mode: "roleplay", characterIds: [], connectionId: connection.id },
+    })
+  ).json();
+  try {
+    const content = "첫 문장은 분홍으로 칠합니다. 둘째 문장에는 메모를 남깁니다.\n\nThe last paragraph stays plain.";
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content } })
+    ).json();
+    const metadata = async () => (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata;
+    const painted = (name: string) => page.evaluate((name) => CSS.highlights.get(name)?.size ?? 0, name);
+    await open(page, chat.id);
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const toolbar = workspace.getByRole("toolbar", { name: "선택한 글", exact: true });
+
+    await selectText(page, message.id, "첫 문장은 분홍으로 칠합니다.");
+    await toolbar.getByRole("button", { name: "분홍 형광펜", exact: true }).click();
+    await expect.poll(async () => (await metadata()).readerHighlights?.[0]?.color).toBe("p");
+    await expect.poll(() => painted("reader-note-p")).toBe(1);
+    // Highlighting the same sentence again changes its color instead of stacking a copy.
+    await selectText(page, message.id, "첫 문장은 분홍으로 칠합니다.");
+    await toolbar.getByRole("button", { name: "파랑 형광펜", exact: true }).click();
+    await expect
+      .poll(async () => (await metadata()).readerHighlights?.map((row: { color: string }) => row.color))
+      .toEqual(["b"]);
+
+    await selectText(page, message.id, "둘째 문장에는 메모를 남깁니다.");
+    await toolbar.getByRole("button", { name: "메모", exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "형광펜 · 메모", exact: true });
+    await editor.getByRole("textbox", { name: "메모", exact: true }).fill("나만 보는 비밀 메모");
+    await editor.getByRole("button", { name: "초록", exact: true }).click();
+    await editor.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(editor).toBeHidden();
+    await expect
+      .poll(async () => (await metadata()).readerHighlights?.find((row: { note: string }) => row.note)?.note)
+      .toBe("나만 보는 비밀 메모");
+    await expect.poll(() => painted("reader-note-memo")).toBe(1);
+
+    // Memos are display-only: the prompt the AI would receive never contains them.
+    const dryRun = await request.post("/api/generate/dryRun", { data: { chatId: chat.id, returnPrompt: true } });
+    expect(dryRun.ok(), await dryRun.text()).toBeTruthy();
+    const prompt = JSON.stringify((await dryRun.json()).prompt.messages);
+    expect(prompt).toContain("The last paragraph stays plain.");
+    expect(prompt).not.toContain("나만 보는 비밀 메모");
+
+    await page.reload();
+    await expect.poll(() => painted("reader-note-b")).toBe(1);
+    await expect.poll(() => painted("reader-note-g")).toBe(1);
+    // Tapping the memo sentence opens it again, like a novel reader.
+    const point = await page.evaluate(() => {
+      const range = [...CSS.highlights.get("reader-note-memo")!][0] as Range;
+      const rect = range.getClientRects()[0]!;
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.click(point.x, point.y);
+    await expect(editor.getByRole("textbox", { name: "메모", exact: true })).toHaveValue("나만 보는 비밀 메모");
+    await page.screenshot({ path: ".tmp/reading-note-editor.png" });
+    // The excerpt card carries only the sentence, not the memo.
+    await editor.getByRole("button", { name: "발췌 카드로 만들기", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "발췌할 글", exact: true })).toHaveValue(
+      "둘째 문장에는 메모를 남깁니다.",
+    );
+    await page.keyboard.press("Escape");
+
+    await workspace.getByRole("button", { name: "여기에 책갈피 꽂기", exact: true }).click();
+    await expect.poll(async () => (await metadata()).readerBookmarks?.[0]?.messageId).toBe(message.id);
+    await workspace.getByRole("button", { name: "독서 노트", exact: true }).click();
+    const notes = page.getByRole("dialog", { name: "독서 노트", exact: true });
+    await expect(notes.getByText("나만 보는 비밀 메모", { exact: true })).toBeVisible();
+    await notes.getByRole("tab", { name: /책갈피/ }).click();
+    await expect(notes.getByRole("button", { name: "이 위치로 이동", exact: true })).toBeVisible();
+    await page.screenshot({ path: ".tmp/reading-notes.png" });
+    await notes.getByRole("tab", { name: /형광펜/ }).click();
+    await notes.getByRole("button", { name: "메모 편집", exact: true }).click();
+    await editor.getByRole("button", { name: "형광펜 삭제", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "형광펜 삭제", exact: true })
+      .getByRole("button", { name: "형광펜 삭제", exact: true })
+      .click();
+    await expect.poll(async () => (await metadata()).readerHighlights?.length).toBe(1);
+    expect(JSON.stringify(await metadata())).not.toContain("나만 보는 비밀 메모");
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/connections/${connection.id}`);
   }
 });
 test("paragraph translation editor uses the reader's paragraph boundaries and saves aligned rows", async ({

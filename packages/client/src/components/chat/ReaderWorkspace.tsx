@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from "react";
-import { ArrowLeft, BookOpen, ChevronDown, PencilLine, Settings2, Wrench } from "lucide-react";
+import { ArrowLeft, BookOpen, Bookmark, ChevronDown, NotebookPen, PencilLine, Settings2, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useBackDismiss } from "../../hooks/use-back-dismiss";
@@ -9,14 +9,21 @@ import { useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
 import { requestChatScrollToBottom } from "../../lib/chat-scroll-events";
 import {
+  readerBookmarksSchema,
   readerExcerptsSchema,
   readerExcerptSchema,
+  readerHighlightsSchema,
+  type ExcerptMarkColor,
+  type ReaderBookmark,
   type ReaderExcerpt,
   type ReaderExcerptAnchor,
+  type ReaderHighlight,
 } from "@marinara-engine/shared";
+import { captureReadingBookmark, highlightAtPoint, sameAnchors } from "../../lib/reader-notes";
+import { ColorSwatches, HighlightEditor, ReaderNotesPanel } from "./ReaderNotes";
 import { captureExcerptAnchors } from "../../lib/reader-excerpt-anchors";
 import { useReaderHighlights } from "../../hooks/use-reader-highlights";
-import { showConfirmDialog } from "../../lib/app-dialogs";
+import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import { Modal } from "../ui/Modal";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { useSetTTSEnabled, useTTSConfig } from "../../hooks/use-tts";
@@ -47,14 +54,84 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const [excerptSelection, setExcerptSelection] = useState("");
   const [excerpt, setExcerpt] = useState<ReaderExcerpt | null>(null);
   const [excerptList, setExcerptList] = useState(false);
+  const [editingHighlight, setEditingHighlight] = useState<ReaderHighlight | null>(null);
   const selectionAnchors = useRef<ReaderExcerptAnchor[]>([]);
   const excerpts = useMemo(() => {
     const parsed = readerExcerptsSchema.safeParse(chat?.metadata.readerExcerpts ?? []);
     return parsed.success ? parsed.data : [];
   }, [chat?.metadata.readerExcerpts]);
+  const highlights = useMemo(() => {
+    const parsed = readerHighlightsSchema.safeParse(chat?.metadata.readerHighlights ?? []);
+    return parsed.success ? parsed.data : [];
+  }, [chat?.metadata.readerHighlights]);
+  const bookmarks = useMemo(() => {
+    const parsed = readerBookmarksSchema.safeParse(chat?.metadata.readerBookmarks ?? []);
+    return parsed.success ? parsed.data : [];
+  }, [chat?.metadata.readerBookmarks]);
   const root = useRef<HTMLDivElement>(null);
   const enabled = !!chatId && chat?.mode !== "game";
-  useReaderHighlights(root, excerpts, enabled && surfaceActive);
+  useReaderHighlights(root, excerpts, enabled && surfaceActive, highlights);
+  const saveHighlights = (next: ReaderHighlight[], onSuccess?: () => void) => {
+    if (!chatId) return;
+    updateMetadata.mutate(
+      { id: chatId, readerHighlights: next },
+      { onSuccess, onError: () => toast.error(t("integrations.saveError")) },
+    );
+  };
+  const saveBookmarks = (next: ReaderBookmark[], onSuccess?: () => void) => {
+    if (!chatId) return;
+    updateMetadata.mutate(
+      { id: chatId, readerBookmarks: next },
+      { onSuccess, onError: () => toast.error(t("integrations.saveError")) },
+    );
+  };
+  /** Highlight the current selection; the same sentence again only changes its color. */
+  const highlightSelection = (color: ExcerptMarkColor, openMemo = false) => {
+    const anchors = selectionAnchors.current;
+    if (!anchors.length || !excerptSelection.trim()) return;
+    if (excerptSelection.length > 20000) {
+      toast.error(t("integrations.excerptLimit"));
+      return;
+    }
+    const now = new Date().toISOString();
+    const existing = highlights.find((row) => sameAnchors(row.anchors, anchors));
+    const highlight: ReaderHighlight = existing
+      ? { ...existing, color: openMemo ? existing.color : color, updatedAt: now }
+      : { id: crypto.randomUUID(), color, note: "", text: excerptSelection, anchors, createdAt: now, updatedAt: now };
+    if (!existing && highlights.length >= 2000) {
+      toast.error(t("readerNotes.limit"));
+      return;
+    }
+    saveHighlights([...highlights.filter((row) => row.id !== highlight.id), highlight], () => {
+      window.getSelection()?.removeAllRanges();
+      setExcerptSelection("");
+      if (openMemo) setEditingHighlight(highlight);
+    });
+  };
+  const gotoAnchor = (anchor: ReaderExcerptAnchor | undefined) => {
+    if (!chatId || !anchor) return;
+    setExcerptList(false);
+    setEditingHighlight(null);
+    useChatStore.getState().requestGotoMessage(chatId, anchor.messageNumber, undefined, anchor.messageId);
+  };
+  const addBookmark = () => {
+    const spot = root.current ? captureReadingBookmark(root.current) : null;
+    if (!spot) {
+      toast.error(t("readerNotes.bookmarkUnavailable"));
+      return;
+    }
+    if (bookmarks.length >= 500) {
+      toast.error(t("readerNotes.limit"));
+      return;
+    }
+    const bookmark: ReaderBookmark = {
+      id: crypto.randomUUID(),
+      label: "",
+      ...spot,
+      createdAt: new Date().toISOString(),
+    };
+    saveBookmarks([...bookmarks, bookmark], () => toast.success(t("readerNotes.bookmarkAdded")));
+  };
   const back = () => {
     if (chat) {
       const workId = libraryChatGroupKey(chat);
@@ -80,8 +157,25 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     setExcerpt(null);
     setExcerptSelection("");
     setExcerptList(false);
+    setEditingHighlight(null);
     selectionAnchors.current = [];
   }, [chatId]);
+  // Tapping a highlighted sentence opens its memo, like a novel reader.
+  useEffect(() => {
+    const host = root.current;
+    if (!enabled || !surfaceActive || !host || !highlights.length) return;
+    const tap = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(".mari-message-content")) return;
+      if (event.target.closest("button, a, input, textarea, select, [data-dialogue-controls]")) return;
+      if (!window.getSelection()?.isCollapsed) return;
+      const hit = highlightAtPoint(host, highlights, event.clientX, event.clientY);
+      if (!hit) return;
+      event.stopPropagation();
+      setEditingHighlight(hit);
+    };
+    host.addEventListener("click", tap);
+    return () => host.removeEventListener("click", tap);
+  }, [enabled, surfaceActive, highlights]);
   useEffect(() => {
     if (!enabled || !surfaceActive) return;
     const selected = () => {
@@ -139,11 +233,20 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">{chat?.name}</span>
           <button
             className={control}
-            onClick={() => setExcerptList(true)}
-            aria-label={t("reader.excerpts")}
-            title={t("reader.excerpts")}
+            onClick={addBookmark}
+            disabled={updateMetadata.isPending}
+            aria-label={t("readerNotes.addBookmark")}
+            title={t("readerNotes.addBookmark")}
           >
-            <PencilLine size={18} />
+            <Bookmark size={18} />
+          </button>
+          <button
+            className={control}
+            onClick={() => setExcerptList(true)}
+            aria-label={t("readerNotes.title")}
+            title={t("readerNotes.title")}
+          >
+            <NotebookPen size={18} />
           </button>
           <button
             className={control}
@@ -190,25 +293,41 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       )}
       {children}
       {enabled && surfaceActive && chat?.mode === "roleplay" && <TTSRoomMenu key={chat.id} chat={chat} />}
-      {excerptSelection.trim() && !excerpt && (
-        <button
-          type="button"
-          className="absolute bottom-24 right-4 z-30 min-h-11 rounded-md border border-[var(--border)] bg-[var(--popover)] px-4 text-sm text-[var(--popover-foreground)] shadow-sm"
+      {excerptSelection.trim() && !excerpt && !editingHighlight && (
+        // Bottom bar instead of a popup at the selection, so it never fights the mobile selection menu.
+        <div
+          role="toolbar"
+          aria-label={t("readerNotes.selectionTools")}
+          className="absolute bottom-24 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--popover)] p-1.5 text-sm text-[var(--popover-foreground)] shadow-sm"
           onPointerDown={(event) => event.preventDefault()}
-          onClick={() => {
-            if (excerptSelection.length > 20000) toast.error(t("integrations.excerptLimit"));
-            else
-              setExcerpt({
-                id: crypto.randomUUID(),
-                text: excerptSelection,
-                marks: [],
-                anchors: selectionAnchors.current,
-                updatedAt: new Date().toISOString(),
-              });
-          }}
         >
-          {t("integrations.excerpt")}
-        </button>
+          <ColorSwatches onPick={(color) => highlightSelection(color)} labelKey="readerNotes.highlightWith" />
+          <button
+            type="button"
+            className="min-h-11 rounded-md px-3 hover:bg-[var(--secondary)]"
+            disabled={updateMetadata.isPending}
+            onClick={() => highlightSelection("y", true)}
+          >
+            {t("readerNotes.memo")}
+          </button>
+          <button
+            type="button"
+            className="min-h-11 rounded-md px-3 hover:bg-[var(--secondary)]"
+            onClick={() => {
+              if (excerptSelection.length > 20000) toast.error(t("integrations.excerptLimit"));
+              else
+                setExcerpt({
+                  id: crypto.randomUUID(),
+                  text: excerptSelection,
+                  marks: [],
+                  anchors: selectionAnchors.current,
+                  updatedAt: new Date().toISOString(),
+                });
+            }}
+          >
+            {t("integrations.excerpt")}
+          </button>
+        </div>
       )}
       <Modal
         open={excerpt !== null}
@@ -257,65 +376,124 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           </div>
         )}
       </Modal>
-      <Modal open={excerptList} onClose={() => setExcerptList(false)} title={t("reader.excerpts")}>
-        <div className="space-y-3 p-4">
-          {!excerpts.length && (
-            <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">{t("reader.noExcerpts")}</p>
-          )}
-          {[...excerpts].reverse().map((entry) => (
-            <article key={entry.id} className="space-y-3 rounded-lg border border-[var(--border)] p-3">
-              <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm">{entry.text}</p>
-              <div className="flex flex-wrap gap-2 text-sm">
-                <button
-                  className={control}
-                  onClick={() => {
-                    setExcerptList(false);
-                    setExcerpt(entry);
-                  }}
-                >
-                  {t("reader.editExcerpt")}
-                </button>
-                <button
-                  className={control}
-                  disabled={!entry.anchors.length}
-                  onClick={() => {
-                    const anchor = entry.anchors[0];
-                    if (chatId && anchor) {
-                      setExcerptList(false);
-                      useChatStore
-                        .getState()
-                        .requestGotoMessage(chatId, anchor.messageNumber, undefined, anchor.messageId);
-                    }
-                  }}
-                >
-                  {t("reader.excerptSource")}
-                </button>
-                <button
-                  className={control}
-                  disabled={updateMetadata.isPending}
-                  onClick={async () => {
-                    if (
-                      !chatId ||
-                      !(await showConfirmDialog({
-                        title: t("reader.deleteExcerpt"),
-                        message: t("reader.deleteExcerptConfirm"),
-                        confirmLabel: t("reader.deleteExcerpt"),
-                        cancelLabel: t("reader.cancel"),
-                      }))
-                    )
-                      return;
-                    updateMetadata.mutate(
-                      { id: chatId, readerExcerpts: excerpts.filter((row) => row.id !== entry.id) },
-                      { onError: () => toast.error(t("integrations.saveError")) },
-                    );
-                  }}
-                >
-                  {t("reader.deleteExcerpt")}
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+      <Modal open={excerptList} onClose={() => setExcerptList(false)} title={t("readerNotes.title")}>
+        {chatId && (
+          <ReaderNotesPanel
+            chatId={chatId}
+            highlights={highlights}
+            bookmarks={bookmarks}
+            excerpts={excerpts}
+            busy={updateMetadata.isPending}
+            onOpenHighlight={(highlight) => {
+              setExcerptList(false);
+              setEditingHighlight(highlight);
+            }}
+            onGotoHighlight={(highlight) => gotoAnchor(highlight.anchors[0])}
+            onGotoBookmark={(bookmark) => {
+              setExcerptList(false);
+              useChatStore
+                .getState()
+                .requestGotoMessage(chatId, bookmark.messageNumber, bookmark.offset, bookmark.messageId);
+            }}
+            onRenameBookmark={async (bookmark) => {
+              const label = await showPromptDialog({
+                title: t("readerNotes.renameBookmark"),
+                message: bookmark.snippet,
+                defaultValue: bookmark.label,
+              });
+              if (label === null) return;
+              saveBookmarks(
+                bookmarks.map((row) => (row.id === bookmark.id ? { ...row, label: label.trim().slice(0, 200) } : row)),
+              );
+            }}
+            onDeleteBookmark={async (bookmark) => {
+              if (
+                await showConfirmDialog({
+                  title: t("readerNotes.deleteBookmark"),
+                  message: bookmark.label || bookmark.snippet,
+                  confirmLabel: t("readerNotes.deleteBookmark"),
+                  cancelLabel: t("reader.cancel"),
+                })
+              )
+                saveBookmarks(bookmarks.filter((row) => row.id !== bookmark.id));
+            }}
+            onEditExcerpt={(entry) => {
+              setExcerptList(false);
+              setExcerpt(entry);
+            }}
+            onGotoExcerpt={(entry) => gotoAnchor(entry.anchors[0])}
+            onDeleteExcerpt={async (entry) => {
+              if (
+                !(await showConfirmDialog({
+                  title: t("reader.deleteExcerpt"),
+                  message: t("reader.deleteExcerptConfirm"),
+                  confirmLabel: t("reader.deleteExcerpt"),
+                  cancelLabel: t("reader.cancel"),
+                }))
+              )
+                return;
+              updateMetadata.mutate(
+                { id: chatId, readerExcerpts: excerpts.filter((row) => row.id !== entry.id) },
+                { onError: () => toast.error(t("integrations.saveError")) },
+              );
+            }}
+            onGotoMessage={(messageNumber) => {
+              setExcerptList(false);
+              useChatStore.getState().requestGotoMessage(chatId, messageNumber);
+            }}
+          />
+        )}
+      </Modal>
+      <Modal
+        open={editingHighlight !== null}
+        onClose={() => setEditingHighlight(null)}
+        title={t("readerNotes.highlightTitle")}
+      >
+        {editingHighlight && (
+          <div className="p-4">
+            <HighlightEditor
+              key={editingHighlight.id}
+              highlight={editingHighlight}
+              busy={updateMetadata.isPending}
+              onSave={(value) => {
+                const next = { ...editingHighlight, ...value, updatedAt: new Date().toISOString() };
+                saveHighlights(
+                  highlights.map((row) => (row.id === next.id ? next : row)),
+                  () => {
+                    setEditingHighlight((current) => (current?.id === next.id ? null : current));
+                    toast.success(t("integrations.saved"));
+                  },
+                );
+              }}
+              onDelete={async () => {
+                if (
+                  await showConfirmDialog({
+                    title: t("readerNotes.deleteHighlight"),
+                    message: editingHighlight.text.slice(0, 200),
+                    confirmLabel: t("readerNotes.deleteHighlight"),
+                    cancelLabel: t("reader.cancel"),
+                  })
+                )
+                  saveHighlights(
+                    highlights.filter((row) => row.id !== editingHighlight.id),
+                    () => setEditingHighlight(null),
+                  );
+              }}
+              onExcerpt={() => {
+                // The memo stays in the notes; the card carries only the sentence.
+                setExcerpt({
+                  id: crypto.randomUUID(),
+                  text: editingHighlight.text,
+                  marks: [],
+                  anchors: editingHighlight.anchors,
+                  updatedAt: new Date().toISOString(),
+                });
+                setEditingHighlight(null);
+              }}
+              onGoto={() => gotoAnchor(editingHighlight.anchors[0])}
+            />
+          </div>
+        )}
       </Modal>
       <Modal open={settings} onClose={() => setSettings(false)} title={t("reader.settings")}>
         <div className="space-y-6 p-5">
