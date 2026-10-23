@@ -524,6 +524,44 @@ test("persona library labels are edited in the persona editor and shown on perso
     await request.delete(`/api/characters/personas/${persona.id}`);
   }
 });
+test("global preset: preset-less rooms follow it and a new room is asked after setup", async ({ page, request }) => {
+  const snapshot = await (await request.get("/api/native-integrations/settings")).json();
+  const preset = await (await request.post("/api/prompts", { data: { name: "글로벌 검증 v1" } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "새 방 글로벌 검증", mode: "roleplay", characterIds: [] } })
+  ).json();
+  try {
+    await request.put("/api/native-integrations/settings", {
+      data: {
+        ...snapshot,
+        globalPreset: { ...snapshot.globalPreset, enabled: true, presetId: preset.id, presetName: preset.name },
+      },
+    });
+    await open(page, chat.id);
+    await page.evaluate(async () => {
+      const { useChatStore } = (await import("/src/stores/chat.store.ts" as string)) as PageChatStoreModule;
+      useChatStore.getState().setShouldOpenWizard(true);
+      useChatStore.getState().setShouldOpenSettings(true);
+    });
+    await page.locator('[data-component="ChatSetupWizard"]').waitFor();
+    await page.getByRole("button", { name: "건너뛰기", exact: true }).click();
+    const ask = page.getByRole("dialog", { name: "새 방에 글로벌 프리셋을 적용할까요?", exact: true });
+    await expect(ask).toContainText("글로벌 검증 v1");
+    await page.screenshot({ path: `.tmp/global-preset-new-room-${test.info().project.name}.png` });
+    await ask.getByRole("button", { name: "글로벌 적용", exact: true }).click();
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get("/api/native-integrations/settings")).json()).globalPreset.rooms[chat.id]?.mode,
+      )
+      .toBe("follow");
+  } finally {
+    const latest = await (await request.get("/api/native-integrations/settings")).json();
+    await request.put("/api/native-integrations/settings", { data: { ...snapshot, revision: latest.revision } });
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/prompts/${preset.id}`);
+  }
+});
 test("reading index retains order and opens the stored work in both themes", async ({ page, request }) => {
   const rooms: { id: string; name: string; messageId: string }[] = [];
   try {

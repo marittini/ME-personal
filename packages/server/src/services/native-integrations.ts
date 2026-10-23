@@ -10,6 +10,7 @@ import { createAppSettingsStorage } from "./storage/app-settings.storage.js";
 import { createPromptsStorage } from "./storage/prompts.storage.js";
 import { createLorebooksStorage } from "./storage/lorebooks.storage.js";
 import { createChatsStorage } from "./storage/chats.storage.js";
+import { createConnectionsStorage } from "./storage/connections.storage.js";
 import { logger } from "../lib/logger.js";
 import { safeFetch } from "../utils/security.js";
 import weatherCore, { type WeatherSnapshot } from "../assets/convo-weather-core.mjs";
@@ -51,19 +52,26 @@ export async function saveNativeIntegrations(db: DB, value: NativeIntegrations) 
 /** Deleted presets match only an unambiguous name family, never a guessed ID. */
 export async function resolveIntegratedPreset(
   db: DB,
-  chat: { id: string; mode: string; promptPresetId?: string | null },
+  chat: { id: string; mode: string; promptPresetId?: string | null; connectionId?: string | null },
   config?: NativeIntegrations,
 ) {
   const settings = (config ?? (await readNativeIntegrations(db))).globalPreset;
   if (!settings.enabled || !settings.modes.includes(chat.mode as "roleplay" | "conversation"))
     return chat.promptPresetId ?? null;
   const room = settings.rooms[chat.id];
-  // Existing rooms and wizard choices remain native until the user explicitly opts in.
-  if (!room) return chat.promptPresetId ?? null;
+  const presets = createPromptsStorage(db);
+  if (!room) {
+    // Global preset extension rules for a room without a recorded choice: its own (still existing) preset
+    // stays; a roleplay connection preset wins next; otherwise the room is filled with the global preset.
+    if (chat.promptPresetId && (await presets.getById(chat.promptPresetId))) return chat.promptPresetId;
+    if (chat.mode === "roleplay" && chat.connectionId) {
+      const connection = await createConnectionsStorage(db).getById(chat.connectionId);
+      if (connection?.promptPresetId) return chat.promptPresetId ?? null;
+    }
+  }
   if (room?.mode === "none") return null;
   const selected = room?.mode === "fixed" ? room : settings;
   if (!selected.presetId) return null;
-  const presets = createPromptsStorage(db);
   if (await presets.getById(selected.presetId)) return selected.presetId;
   const family = (name: string) =>
     name

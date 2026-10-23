@@ -23,6 +23,7 @@ import { notifyRoleplayTTSParagraph, withRoleplayTTSParagraphs } from "../../lib
 // ──────────────────────────────────────────────
 // Chat: Main chat area — mode-aware rendering
 // ──────────────────────────────────────────────
+import { offerGlobalPresetForNewRoom } from "../../lib/global-preset-new-room";
 import {
   Suspense,
   lazy,
@@ -3763,6 +3764,7 @@ const LocalChatArea = memo(function LocalChatArea({
             onWizardFinish={() => {
               setWizardOpen(false);
               handleOpenSettingsPanel();
+              if (activeChatId) void offerGlobalPresetForNewRoom(activeChatId, localizeUi, queryClient).catch(() => {});
             }}
             onClosePeekPrompt={() => setPeekPromptData(null)}
             onResetSpritePlacements={handleResetSpritePlacements}
@@ -3918,6 +3920,7 @@ const LocalChatArea = memo(function LocalChatArea({
           onWizardFinish={() => {
             setWizardOpen(false);
             handleOpenSettingsPanel();
+            if (activeChatId) void offerGlobalPresetForNewRoom(activeChatId, localizeUi, queryClient).catch(() => {});
           }}
           onClosePeekPrompt={() => setPeekPromptData(null)}
           onResetSpritePlacements={handleResetSpritePlacements}

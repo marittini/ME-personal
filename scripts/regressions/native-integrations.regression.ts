@@ -78,6 +78,37 @@ try {
     own.id,
     "unconfigured room retains wizard/native choice",
   );
+  // Global preset extension rules for rooms without a recorded choice.
+  assert.equal(
+    await resolveIntegratedPreset(db, { ...room, promptPresetId: null }),
+    preset.id,
+    "empty room follows global",
+  );
+  assert.equal(
+    await resolveIntegratedPreset(db, { ...room, promptPresetId: "deleted-preset" }),
+    preset.id,
+    "room whose own preset was deleted follows global",
+  );
+  const presetConnection = await createConnectionsStorage(db).create(
+    createConnectionSchema.parse({
+      name: "Connection with preset",
+      provider: "custom",
+      baseUrl: "https://example.com",
+      apiKey: "k",
+      model: "m",
+      promptPresetId: own.id,
+    }),
+  );
+  assert.equal(
+    await resolveIntegratedPreset(db, {
+      ...room,
+      mode: "roleplay",
+      promptPresetId: null,
+      connectionId: presetConnection!.id,
+    }),
+    null,
+    "a roleplay connection preset wins over the global preset",
+  );
   const concurrent = await Promise.allSettled([saveNativeIntegrations(db, config), saveNativeIntegrations(db, config)]);
   assert.equal(concurrent.filter((r) => r.status === "fulfilled").length, 1, "CAS prevents lost settings updates");
   const apply = await app.inject({
