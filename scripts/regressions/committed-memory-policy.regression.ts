@@ -67,7 +67,34 @@ assert.equal(readCommittedMemory({ committedMemory: state }, "other").batches.le
 assert.equal(selectCommittedMemory(state, "", [message.id]).text, "");
 assert(!selectCommittedMemory(state, "비밀").text.includes("비밀을 안다"));
 assert(selectCommittedMemory(state, "비밀", [], 8000, ["alice"]).text.includes("비밀을 안다"));
-assert(!selectCommittedMemory(state, "비밀", [], 8000, ["alice", "bob"]).text.includes("비밀을 안다"));
+// Several characters written at once: a secret one of them knows comes in as a marked knowledge boundary,
+// never as a plain fact, with the fixed instruction to keep it.
+const merged = selectCommittedMemory(
+  state,
+  "비밀",
+  [],
+  8000,
+  ["alice", "bob"],
+  new Map(),
+  new Map([
+    ["alice", "앨리스"],
+    ["bob", "밥"],
+  ]),
+);
+assert.match(
+  merged.text,
+  /<knowledge_boundaries>[\s\S]*비밀을 안다 \(known by: 앨리스; not known by: 밥\)[\s\S]*<\/knowledge_boundaries>/u,
+);
+assert(merged.text.includes("never notices it by guess or coincidence"));
+assert(!/<current_facts_and_obligations>[^<]*비밀을 안다/u.test(merged.text));
+assert(
+  !selectCommittedMemory(state, "비밀", [], 8000, ["bob"]).text.includes("비밀을 안다"),
+  "one character gets only what they know",
+);
+assert(
+  !selectCommittedMemory(state, "비밀", [], 8000, ["bob", "carol"]).text.includes("비밀을 안다"),
+  "nobody here knows it",
+);
 const older = {
   ...state,
   batches: [
