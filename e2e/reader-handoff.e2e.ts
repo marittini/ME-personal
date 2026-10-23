@@ -578,17 +578,28 @@ test("reading index retains order and opens the stored work in both themes", asy
       rooms.push({ ...chat, messageId: message.id });
     }
     await open(page, rooms[0]!.id);
-    await page.evaluate(async (rows) => {
-      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
-      useUIStore.setState({
+    // Seeded through the persisted UI state: a store module imported from the test can be a different instance
+    // from the app's once the dev server has hot-reloaded it.
+    await seedUIState(
+      page,
+      {
+        hasCompletedOnboarding: true,
+        sidebarOpen: false,
+        rightPanelOpen: false,
+        language: "ko",
+        chatHelpSeenModes: ["roleplay", "conversation"],
         readerPositions: Object.fromEntries(
-          rows.map((row, index) => [
+          rooms.map((row, index) => [
             row.id,
-            { messageId: row.messageId, messageNumber: 1, offset: 0, updatedAt: `2026-10-22T0${index + 1}:00:00.000Z` },
+            // Future times: leaving the open room saves its position "now", which must not reorder the seeded ones.
+            { messageId: row.messageId, messageNumber: 1, offset: 0, updatedAt: `2099-10-22T0${index + 1}:00:00.000Z` },
           ]),
         ),
-      });
-    }, rooms);
+      },
+      "merge",
+    );
+    await page.reload();
+    await expect(page.locator('[data-component="ReaderWorkspace"]')).toHaveAttribute("data-reader-enabled", "true");
     await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
     await page.getByRole("button", { name: "서재로 돌아가기", exact: true }).click();
     await page
@@ -673,6 +684,49 @@ test("convo: messenger header, avatar on top, translations outside bubbles with 
     await page.screenshot({ path: ".tmp/convo-messenger.png" });
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("work information lists reading records as a table of contents with branches indented", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "목차 작가" } } })).json();
+  const ids: string[] = [];
+  try {
+    const chat = await (
+      await request.post("/api/chats", { data: { name: "첫 기록", mode: "roleplay", characterIds: [card.id] } })
+    ).json();
+    ids.push(chat.id);
+    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content: "본문 하나" } });
+    for (let i = 0; i < 2; i++) {
+      const branch = await (await request.post(`/api/chats/${chat.id}/branch`, { data: {} })).json();
+      ids.push(branch.id);
+    }
+    const second = await (
+      await request.post("/api/chats", { data: { name: "둘째 기록", mode: "conversation", characterIds: [card.id] } })
+    ).json();
+    ids.push(second.id);
+    await open(page, second.id);
+    await page.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }).click();
+    const detail = page.locator('[data-component="LibraryWorkDetail"]');
+    const toc = detail.getByRole("navigation", { name: "목차", exact: true });
+    const rows = toc.locator("[data-record-depth]");
+    await expect(rows).toHaveCount(4);
+    // Records in the order they began; branches right under their record, indented.
+    await expect(rows.nth(0)).toHaveAttribute("data-record-depth", "0");
+    await expect(rows.nth(0)).toContainText("01");
+    await expect(rows.nth(0)).toContainText("첫 기록");
+    await expect(rows.nth(1)).toHaveAttribute("data-record-depth", "1");
+    await expect(rows.nth(1)).toContainText("브랜치 1");
+    await expect(rows.nth(2)).toContainText("브랜치 2");
+    await expect(rows.nth(3)).toContainText("02");
+    await expect(rows.nth(3)).toContainText("둘째 기록");
+    // No reading dates on the information page.
+    await expect(detail).not.toContainText(/\d+월 \d+일/);
+    await page.screenshot({ path: ".tmp/work-toc.png" });
+  } finally {
+    for (const id of ids) await request.delete(`/api/chats/${id}?force=true`);
     await request.delete(`/api/characters/${card.id}`);
   }
 });

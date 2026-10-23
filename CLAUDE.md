@@ -46,8 +46,13 @@ owner asks.
 
 - Known pre-existing failures on `main` (2026-10-23, not caused by later work): 4 of 7 `pnpm smoke:ui`
   tests (home shell panels, chat mode tabs, conversation reasoning, game GM panel; the game one relates to
-  the intentional Game mode removal), `e2e/reader-handoff.e2e.ts` "reading index retains order", and the
-  same file's "character customization …" on mobile (no TopBar on mobile; it reads its bounding box).
+  the intentional Game mode removal), and `e2e/reader-handoff.e2e.ts` "character customization …" on mobile
+  (no TopBar on mobile; it reads its bounding box). "reading index retains order" was fixed on
+  `feat/next-update` (library stuck loading when no chat had characters).
+- Tests that seed UI state by importing `/src/stores/ui.store.ts` in `page.evaluate` can hit a different module
+  instance after the dev server hot-reloads that file; seed through `seedUIState(..., "merge")` and reload.
+- A persistent E2E server avoids the cold compile on every run: start `node ./e2e/start-servers.mjs` with the
+  `webServer.env` values from `playwright.config.ts`, then run Playwright with `PLAYWRIGHT_SKIP_WEBSERVER=true`.
 - In a freshly started sandbox, the first desktop E2E test of a run can time out on "채팅 여는 중…" while the
   dev server compiles (reproduced on unmodified `main`); rerun before treating it as a regression.
 - In slower sandboxes these also time out on unmodified `main` (2026-10-23): `translation-only.e2e.ts`

@@ -550,4 +550,6 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.bubbleColorReset": "테마색",
   "reader.bubbleColorsHelp":
     "캐릭터·페르소나별은 각 카드의 말풍선 모양을 그대로 씁니다. 전역은 Convo의 모든 캐릭터·페르소나에 이 색을 씁니다. 고르지 않은 색은 테마를 따릅니다.",
+  "libraryShell.work.toc": "목차",
+  "libraryShell.work.branch": "브랜치 {{number}}",
 };
