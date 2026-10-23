@@ -59,3 +59,11 @@ owner asks.
   roleplay/conversation (10 s `page.goto`), its game case (Game mode removed), and `reader-handoff.e2e.ts`
   "selection saves, edits …" (60 s test limit).
 - Korean download file names in E2E need `LANG=C.UTF-8 LC_ALL=C.UTF-8` (the sandbox has no locale).
+- Fails on `main` too (2026-10-24): `core-flows.e2e.ts` "Character and Persona avatar actions stay separated". Failing on
+  `feat/reader-phase1`, not yet compared with `main`, in areas that branch does not change: on mobile
+  `ux-feedback-sweep.e2e.ts` achievement highlights, Appearance
+  groups / Background library (no `[data-topbar-more]` on phones), home library cards (bookmark widget), and the
+  game/conversation background picker cases (Game mode removed).
+- A dev server that rebuilt `packages/shared/dist` during a run reloads open pages: tests then fail with "element(s)
+  not found" or a store import that no longer matches the page. Restart the E2E servers and rerun before treating
+  that as a regression. On phones, message tools show on a tap, not a hover.
