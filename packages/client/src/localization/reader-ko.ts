@@ -573,4 +573,5 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.sideMargin": "양옆 여백: {{value}} px",
   "reader.sideMarginLabel": "양옆 여백",
   "reader.voiceMissing": "음성 설정에서 이 화자의 보이스를 먼저 고르세요.",
+  "reader.speechOff": "음성 읽기가 꺼져 있어요. 읽기 설정의 음성에서 켜세요.",
 };

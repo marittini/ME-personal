@@ -4825,6 +4825,7 @@
   "reader.speakerMode": "Dialogue speaker mode",
   "reader.speech": "Read aloud",
   "reader.speechInstructions": "Voice delivery cues for this record",
+  "reader.speechOff": "Voice reading is off. Turn it on in the reading settings (Voice).",
   "reader.speechSaveFailed": "Could not save the read-aloud setting. Try again.",
   "reader.speechTagged": "Identify dialogue speakers for read aloud",
   "reader.stopBeforeDelete": "Stop generation in this record before deleting it.",

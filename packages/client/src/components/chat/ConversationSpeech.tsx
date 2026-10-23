@@ -43,8 +43,9 @@ export function useConversationSpeech({
   const { data: chat } = useChat(chatId);
   const volume = useUIStore((s) => s.ttsLineVolume);
   const id = `${chatId}:${messageId}:${swipeIndex}:message`;
-  const enabled =
-    !!config?.enabled && chat?.mode === "conversation" && chat.metadata.ttsDialogueButtonsEnabled !== false;
+  // As in the TTS extension (v4.3.7), the Convo button is always in the message actions: TTS being off is
+  // explained when it is pressed, and the per-line button switch belongs to RP only.
+  const enabled = !!config && chat?.mode === "conversation";
   const plan = useMemo(() => {
     if (!enabled || !config) return null;
     // Same voice choice as the engine's own speech: a persona without its own voice uses the default voice.
@@ -105,6 +106,10 @@ export function useConversationSpeech({
   }, [playback.id, playback.state, id]);
   const speak = async (regenerate: boolean) => {
     if (!plan?.requests.length || !config || busy) return;
+    if (!config.enabled) {
+      toast.error(i18n.t("reader.speechOff"));
+      return;
+    }
     // The button stays visible without a voice so the missing setting is explained instead of hidden.
     if (!plan.voice.trim()) {
       toast.error(i18n.t("reader.voiceMissing"));

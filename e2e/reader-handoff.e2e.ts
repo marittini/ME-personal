@@ -71,6 +71,8 @@ for (const grouped of [false, true]) {
         data: { translation: "문단 수가 다른 전체 번역", translationSource: content },
       });
       await page.reload();
+      // A dev-server reload can take over 20 s in a slow sandbox before the transcript renders.
+      await expect(owner).toBeVisible({ timeout: 60_000 });
       await expect(owner.locator(".translation-text")).toHaveCount(1);
       await expect(bubbles.first().locator(".translation-text")).toHaveCount(0);
       await expect(owner).toContainText("문단 수가 다른 전체 번역");
@@ -99,14 +101,17 @@ test("selection saves, edits, restores and deletes excerpts; native reader font 
   try {
     await open(page, chat.id);
     const source = page.locator(`[data-message-id="${message.id}"] .mari-message-content`).first();
-    await source.locator("[data-reader-prose]").first().evaluate((el) => {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const selection = window.getSelection()!;
-      selection.removeAllRanges();
-      selection.addRange(range);
-      document.dispatchEvent(new Event("selectionchange"));
-    });
+    await source
+      .locator("[data-reader-prose]")
+      .first()
+      .evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event("selectionchange"));
+      });
     await page.getByRole("button", { name: "발췌 스튜디오", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "발췌할 글", exact: true })).toHaveValue(
       "한국어 문단을 저장합니다.",

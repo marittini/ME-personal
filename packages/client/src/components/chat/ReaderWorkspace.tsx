@@ -177,30 +177,30 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     <>
       {!conversation && (
         <>
-      <button
-        className={control}
-        onClick={() => setExcerptList(true)}
-        aria-label={t("readerNotes.title")}
-        title={t("readerNotes.title")}
-      >
-        <NotebookPen size={18} />
-      </button>
-      <button
-        className={control}
-        onClick={() => setFocus(!focus)}
-        aria-pressed={focus}
-        aria-label={focus ? t("reader.write") : t("reader.focus")}
-        title={focus ? t("reader.write") : t("reader.focus")}
-      >
-        {focus ? (
-          <>
-            <PencilLine size={18} />
-            <span className="ml-1 text-xs">{t("reader.write")}</span>
-          </>
-        ) : (
-          <BookOpen size={20} />
-        )}
-      </button>
+          <button
+            className={control}
+            onClick={() => setExcerptList(true)}
+            aria-label={t("readerNotes.title")}
+            title={t("readerNotes.title")}
+          >
+            <NotebookPen size={18} />
+          </button>
+          <button
+            className={control}
+            onClick={() => setFocus(!focus)}
+            aria-pressed={focus}
+            aria-label={focus ? t("reader.write") : t("reader.focus")}
+            title={focus ? t("reader.write") : t("reader.focus")}
+          >
+            {focus ? (
+              <>
+                <PencilLine size={18} />
+                <span className="ml-1 text-xs">{t("reader.write")}</span>
+              </>
+            ) : (
+              <BookOpen size={20} />
+            )}
+          </button>
         </>
       )}
       <button
@@ -688,19 +688,19 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
             </select>
           </label>
           {!conversation && (
-          <label className="block text-sm">
-            {t("reader.indentValue", { value: preferences.indent ?? 0 })}
-            <input
-              className="mt-3 block w-full"
-              type="range"
-              aria-label={t("reader.indent")}
-              min={0}
-              max={4}
-              step={0.5}
-              value={preferences.indent ?? 0}
-              onChange={(event) => patch({ indent: Number(event.target.value) })}
-            />
-          </label>
+            <label className="block text-sm">
+              {t("reader.indentValue", { value: preferences.indent ?? 0 })}
+              <input
+                className="mt-3 block w-full"
+                type="range"
+                aria-label={t("reader.indent")}
+                min={0}
+                max={4}
+                step={0.5}
+                value={preferences.indent ?? 0}
+                onChange={(event) => patch({ indent: Number(event.target.value) })}
+              />
+            </label>
           )}
           <label className="block text-sm">
             {t("reader.sideMargin", { value: preferences.sideMargin ?? 0 })}
