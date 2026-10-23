@@ -12,6 +12,10 @@ import {
   configureCommittedMemory,
   enrichCommittedMemory,
   rebuildCommittedMemoryIndex,
+  undoCommittedMemory,
+  organizeCommittedMemoryChat,
+  mergeCommittedMemoryEntities,
+  confirmDistinctCommittedMemoryEntity,
 } from "../services/committed-memory.js";
 import { createChatsStorage } from "../services/storage/chats.storage.js";
 export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
@@ -68,6 +72,8 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
     const body = z
       .object({
         tokenBudget: z.number().int().min(256).max(32000).optional(),
+        alwaysTokens: z.number().int().min(0).max(32000).optional(),
+        recallLimit: z.number().int().min(0).max(100).optional(),
         recentMessages: z.number().int().min(0).max(1000).optional(),
         longTermMessages: z.number().int().min(0).max(10000).optional(),
         topK: z.number().int().min(1).max(100).optional(),
@@ -117,11 +123,49 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
         excluded: z.boolean().optional(),
         status: z.enum(["current", "resolved", "uncertain"]).optional(),
         progress: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
+        activation: z.enum(["always", "recall"]).optional(),
+        keywords: z.array(z.string().trim().min(1).max(100)).max(24).optional(),
+        combos: z
+          .array(z.array(z.string().trim().min(1).max(100)).min(1).max(6))
+          .max(12)
+          .optional(),
       })
       .strict()
       .safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: "Invalid request" });
     return editCommittedMemory(app.db, req.params.id, body.data);
+  });
+  const busy = (id: string) =>
+    (app as unknown as { activeGenerations?: Map<string, unknown> }).activeGenerations?.has(id) ?? false;
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/undo", async (req, reply) => {
+    const body = z
+      .object({ commitId: z.string().min(1) })
+      .strict()
+      .safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: "Invalid request" });
+    if (busy(req.params.id)) return reply.status(409).send({ error: "Wait for the reply to finish first" });
+    return undoCommittedMemory(app.db, req.params.id, body.data.commitId);
+  });
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/organize", async (req, reply) => {
+    if (busy(req.params.id)) return reply.status(409).send({ error: "Wait for the reply to finish first" });
+    return organizeCommittedMemoryChat(app.db, req.params.id);
+  });
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/entities/merge", async (req, reply) => {
+    const body = z
+      .object({ fromId: z.string().min(1), intoId: z.string().min(1) })
+      .strict()
+      .safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: "Invalid request" });
+    if (busy(req.params.id)) return reply.status(409).send({ error: "Wait for the reply to finish first" });
+    return mergeCommittedMemoryEntities(app.db, req.params.id, body.data.fromId, body.data.intoId);
+  });
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/entities/distinct", async (req, reply) => {
+    const body = z
+      .object({ entityId: z.string().min(1) })
+      .strict()
+      .safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: "Invalid request" });
+    return confirmDistinctCommittedMemoryEntity(app.db, req.params.id, body.data.entityId);
   });
   app.get<{ Params: { id: string; messageId: string } }>(
     "/:id/committed-memory/source/:messageId",

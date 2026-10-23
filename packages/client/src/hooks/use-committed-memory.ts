@@ -47,6 +47,8 @@ export function useMemoryPreview(chatId: string, query: string, enabled: boolean
         budgetBytes: number;
         usedTokens?: number;
         budgetTokens?: number | null;
+        tierTokens?: Record<"always" | "recall" | "boundary" | "flow", number>;
+        waiting?: string[];
       }>(`/chats/${chatId}/committed-memory/preview?query=${encodeURIComponent(query)}`),
     enabled,
     refetchInterval: enabled ? 5000 : false,
@@ -114,5 +116,34 @@ export function useConfigureMemory(chatId: string) {
 export function useExportMemory(chatId: string) {
   return useMutation({
     mutationFn: () => api.download(`/chats/${chatId}/committed-memory/export`, "memory-backup.json"),
+  });
+}
+
+/** Undo a confirmed change, tidy up duplicates, merge a namesake or keep it apart (all user-started). */
+export function useMemoryHistoryAction(chatId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      action:
+        | { kind: "undo"; commitId: string }
+        | { kind: "organize" }
+        | { kind: "merge"; fromId: string; intoId: string }
+        | { kind: "distinct"; entityId: string },
+    ) => {
+      const base = `/chats/${chatId}/committed-memory`;
+      if (action.kind === "undo") return api.post<CommittedMemoryStatus>(`${base}/undo`, { commitId: action.commitId });
+      if (action.kind === "organize") return api.post<CommittedMemoryStatus>(`${base}/organize`, {});
+      if (action.kind === "merge")
+        return api.post<CommittedMemoryStatus>(`${base}/entities/merge`, {
+          fromId: action.fromId,
+          intoId: action.intoId,
+        });
+      return api.post<CommittedMemoryStatus>(`${base}/entities/distinct`, { entityId: action.entityId });
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(["committed-memory", chatId], data);
+      void qc.invalidateQueries({ queryKey: ["committed-memory-preview", chatId] });
+      void qc.invalidateQueries({ queryKey: chatKeys.detail(chatId) });
+    },
   });
 }
