@@ -8733,13 +8733,42 @@ html[data-reader-workspace="quiet"] [data-component="ChatSidebarSlot"] {
 [data-reader-enabled="true"]:not([data-reader-tools="true"]) .rpg-vignette {
   display: none;
 }
-[data-reader-focus="true"]:not([data-reader-streaming="true"]) .chat-input-container {
-  display: none;
+/* Focus mode (RP): only the text stays. The input, the message controls and everything floating over the page
+   hide, also while a reply is generating; the top bar slides away and comes back from the top edge. */
+html[data-reader-focus="true"]
+  :is(
+    .chat-input-container,
+    .mari-message-avatar,
+    .rpg-overlay,
+    .rpg-vignette,
+    .mari-message-actions,
+    .mari-message-swipes,
+    [data-message-integration-tools],
+    [data-dialogue-controls],
+    [data-reader-scene-tools],
+    [data-chat-settings-button],
+    [data-chat-settings-move-tip],
+    [data-component="TrackerPanelBubble"]
+  ) {
+  display: none !important;
 }
-[data-reader-focus="true"] .mari-message-avatar,
-[data-reader-focus="true"] .rpg-overlay,
-[data-reader-focus="true"] .rpg-vignette {
-  display: none;
+[data-reader-focus="true"] > [data-reader-header] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 60;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+[data-reader-focus="true"]:not([data-reader-revealed="true"]) > [data-reader-header] {
+  transform: translateY(-100%);
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-reader-focus="true"] > [data-reader-header] {
+    transition: none;
+  }
 }
 
 /* Touch message actions expand on the existing tap/focus state without reserving empty rows. */

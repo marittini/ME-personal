@@ -745,7 +745,7 @@ test("convo: settings-only header, no indent or note tools, content-width bubble
     // Only the reading settings stay in the Convo header: no reading notes or focus mode.
     await expect(header.getByRole("button", { name: "읽기 설정", exact: true })).toBeVisible();
     await expect(header.getByRole("button", { name: "독서 노트", exact: true })).toHaveCount(0);
-    await expect(header.getByRole("button", { name: "입력창 없이 읽기", exact: true })).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "몰입 모드", exact: true })).toHaveCount(0);
     const userBubble = workspace.locator(`[data-message-id="${user.id}"] .texting-bubble-user`);
     await expect(userBubble).toBeVisible();
     // A short user message is a short bubble, however wide its message column is (no indent involved).
@@ -783,6 +783,122 @@ test("convo: settings-only header, no indent or note tools, content-width bubble
     await page.screenshot({ path: `.tmp/convo-cleanup-${test.info().project.name}.png` });
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+test("focus mode: only text shows, the top edge brings the bar back, and it never survives a reload or a room change", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "몰입 작가" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "몰입 검증", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  const other = await (
+    await request.post("/api/chats", { data: { name: "다른 기록", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  try {
+    await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "user", content: "문을 열었다." } });
+    await request.post(`/api/chats/${chat.id}/messages`, {
+      data: { role: "assistant", characterId: card.id, content: '"어서 와." 그녀가 웃었다.' },
+    });
+    await open(page, chat.id);
+    const mobile = test.info().project.name.startsWith("mobile");
+    const workspace = page.locator('[data-component="ReaderWorkspace"]');
+    const header = workspace.locator("header[data-reader-header]");
+    const edge = page.getByRole("button", { name: "상단바 보기", exact: true });
+    // Every control a reader could see on the page, except the top edge that is the way out.
+    const visibleControls = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>("button, a[href], input, textarea, select, [role='button']")]
+          .filter((el) => !el.matches("[data-reader-focus-edge]"))
+          .filter((el) => {
+            const box = el.getBoundingClientRect();
+            const style = getComputedStyle(el);
+            return (
+              box.width > 1 &&
+              box.height > 1 &&
+              box.bottom > 0 &&
+              box.right > 0 &&
+              box.top < innerHeight &&
+              box.left < innerWidth &&
+              style.visibility !== "hidden" &&
+              Number(style.opacity) > 0.05
+            );
+          })
+          .map((el) => el.getAttribute("aria-label") || el.textContent?.trim().slice(0, 30) || el.tagName),
+      );
+    await expect(page.getByText("그녀가 웃었다.")).toBeVisible();
+    // Phones tap, which never counts as hovering the top edge.
+    const press = (locator: import("@playwright/test").Locator) => (mobile ? locator.tap() : locator.click());
+    const enterFocus = async () => {
+      await press(header.getByRole("button", { name: "몰입 모드", exact: true }));
+      await expect(workspace).toHaveAttribute("data-reader-focus", "true");
+      // A mouse resting at the top keeps the bar out; away from it the bar hides.
+      if (!mobile) await page.mouse.move(400, 500);
+      await expect(header).toBeHidden({ timeout: 8_000 });
+    };
+    await enterFocus();
+    await expect(page.getByText("그녀가 웃었다.")).toBeVisible();
+    await expect.poll(visibleControls).toEqual([]);
+    await page.screenshot({ path: `.tmp/focus-${test.info().project.name}.png` });
+
+    // The top edge brings the bar back (hover on PC, tap on phones); the bar ends focus mode.
+    if (mobile) await edge.tap();
+    else await edge.hover();
+    await expect(header).toBeVisible();
+    await expect(header.getByRole("button", { name: "몰입 모드 끄기", exact: true })).toBeVisible();
+    await page.screenshot({ path: `.tmp/focus-revealed-${test.info().project.name}.png` });
+    await press(header.getByRole("button", { name: "몰입 모드 끄기", exact: true }));
+    await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    await expect(page.locator(".chat-input-container").first()).toBeVisible();
+
+    // Esc ends it on PC.
+    if (!mobile) {
+      await enterFocus();
+      await page.keyboard.press("Escape");
+      await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    }
+
+    // A floating window over the page never covers the way out.
+    await enterFocus();
+    await page.evaluate(async () => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().openRightPanel("settings");
+    });
+    const box = (await edge.boundingBox())!;
+    const topAtEdge = await page.evaluate(
+      ({ x, y }) => (document.elementFromPoint(x, y) as HTMLElement | null)?.dataset.readerFocusEdge !== undefined,
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    );
+    expect(topAtEdge).toBe(true);
+    await page.evaluate(async () => {
+      const { useUIStore } = (await import("/src/stores/ui.store.ts" as string)) as PageUiStoreModule;
+      useUIStore.getState().closeRightPanel();
+    });
+
+    // Not saved: a reload ends it.
+    await expect(workspace).toHaveAttribute("data-reader-focus", "true");
+    await page.reload();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    await expect(header).toBeVisible();
+
+    // Leaving the room ends it too: back to the work page from the revealed bar, then reopen the record.
+    await enterFocus();
+    if (mobile) await edge.tap();
+    else await edge.hover();
+    await press(header.getByRole("button", { name: "작품 정보로 돌아가기", exact: true }));
+    const detail = page.locator('[data-component="LibraryWorkDetail"]');
+    await expect(detail).toBeVisible();
+    await detail.getByRole("navigation", { name: "목차", exact: true }).getByText("몰입 검증").click();
+    await expect(workspace).toHaveAttribute("data-reader-enabled", "true", { timeout: 60_000 });
+    await expect(header).toContainText("몰입 검증");
+    await expect(workspace).not.toHaveAttribute("data-reader-focus", "true");
+    await expect(header).toBeVisible();
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/chats/${other.id}?force=true`);
     await request.delete(`/api/characters/${card.id}`);
   }
 });

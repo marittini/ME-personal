@@ -306,7 +306,7 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.deleteConfirm":
     "“{{name}}”과 대화를 영구 삭제할까요? 다른 기록과 분기는 삭제하지 않습니다. 삭제 후에는 복구할 수 없습니다.",
   "reader.deleteNamed": "{{name}} 삭제",
-  "reader.focus": "입력창 없이 읽기",
+  "reader.focus": "몰입 모드",
   "reader.font": "글꼴",
   "reader.fontDefault": "현재 글꼴 사용",
   "reader.fontSerif": "명조체",
@@ -331,7 +331,7 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.stopBeforeDelete": "이 기록의 생성을 멈춘 뒤 삭제하세요.",
   "reader.theme": "화면 테마",
   "reader.width": "최대 읽기 너비: {{value}} px",
-  "reader.write": "쓰기",
+  "reader.write": "몰입 모드 끄기",
   "reader.dialogueSpeech_one": "대사별 음성 · {{count}}개",
   "reader.dialogueSpeech_other": "대사별 음성 · {{count}}개",
   "reader.dialoguePlay": "{{number}}번 대사 재생",
@@ -588,4 +588,5 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.lineVolumeLabel": "대사 음량",
   "reader.personaVoiceFor": "{{name}} 보이스",
   "reader.personaVoiceDefault": "비우면 기본 보이스를 씁니다",
+  "reader.focusReveal": "상단바 보기",
 };

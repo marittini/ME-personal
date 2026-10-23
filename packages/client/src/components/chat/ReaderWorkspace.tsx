@@ -39,7 +39,13 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   const fontSize = useUIStore((state) => state.chatFontSize);
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
+  // Focus mode is never saved: leaving the room or reloading always ends it, so nobody is stuck in it.
   const [focus, setFocus] = useState(false);
+  /** In focus mode the top bar hides; hovering (PC) or tapping (phone) the top edge brings it back for a while. */
+  const [revealed, setRevealed] = useState(false);
+  const headerHovered = useRef(false);
+  /** When focus mode began: the tap that turned it on must not land on the top edge as a ghost click. */
+  const focusSince = useRef(0);
   const [settings, setSettings] = useState(false);
   const [excerptSelection, setExcerptSelection] = useState("");
   const [excerpt, setExcerpt] = useState<ReaderExcerpt | null>(null);
@@ -112,6 +118,41 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   useEffect(() => {
     if (conversation) setFocus(false);
   }, [conversation]);
+  useEffect(() => {
+    if (!focus) setRevealed(false);
+    else focusSince.current = Date.now();
+  }, [focus]);
+  const reveal = () => {
+    if (Date.now() - focusSince.current > 500) setRevealed(true);
+  };
+  // On the document too, so floating windows and tips rendered outside the reader hide as well.
+  const focused = enabled && focus;
+  useEffect(() => {
+    if (!focused) return;
+    document.documentElement.dataset.readerFocus = "true";
+    return () => {
+      delete document.documentElement.dataset.readerFocus;
+    };
+  }, [focused]);
+  // The revealed top bar hides again after a moment unless the pointer rests on it.
+  useEffect(() => {
+    if (!focus || !revealed) return;
+    const timer = window.setInterval(() => {
+      if (!headerHovered.current) setRevealed(false);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [focus, revealed]);
+  // Esc ends focus mode on PC (an open dialog closes first, as usual).
+  useEffect(() => {
+    if (!focus) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      setFocus(false);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [focus]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -214,6 +255,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
       data-reader-enabled={enabled || undefined}
       data-reader-mode={enabled ? chat?.mode : undefined}
       data-reader-focus={(enabled && focus) || undefined}
+      data-reader-revealed={(enabled && focus && revealed) || undefined}
       data-reader-streaming={streaming || undefined}
       data-reader-bubble-scope={conversation ? preferences.bubbleScope : undefined}
       style={
@@ -248,6 +290,10 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           data-chat-window-top-obstacle=""
           data-reader-header={conversation ? "messenger" : "book"}
           aria-label={t("reader.navigation")}
+          aria-hidden={(focus && !revealed) || undefined}
+          inert={focus && !revealed}
+          onPointerEnter={() => (headerHovered.current = true)}
+          onPointerLeave={() => (headerHovered.current = false)}
         >
           {conversation ? (
             <>
@@ -278,6 +324,19 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
         </header>
       )}
       {children}
+      {enabled && focus && !revealed && !settings && !excerpt && !excerptList && !editingHighlight && (
+        // The way out of focus mode: the top edge, above the page and its floating windows.
+        <button
+          type="button"
+          data-reader-focus-edge=""
+          aria-label={t("reader.focusReveal")}
+          className="fixed inset-x-0 top-0 z-[2147483000] h-12 cursor-default bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]"
+          onPointerEnter={(event) => {
+            if (event.pointerType === "mouse") reveal();
+          }}
+          onClick={reveal}
+        />
+      )}
       {excerptSelection.trim() && !excerpt && !editingHighlight && (
         // Bottom bar instead of a popup at the selection, so it never fights the mobile selection menu.
         <div
