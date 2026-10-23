@@ -1,8 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture.js";
 import { openChatSettingsTool } from "./chat-settings-tools.js";
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
+/** Turns a settings switch on or off through its visible switch. */
+async function setSwitch(toggle: Locator, checked: boolean) {
+  // The input is visually hidden inside its switch label; press the switch like a person does.
+  if ((await toggle.isChecked()) !== checked) await toggle.locator("xpath=ancestor::label[1]").click();
+  await expect(toggle).toBeChecked({ checked });
+}
 test("unified memory preserves the legacy summary view until enabled", async ({ page, request }) => {
   const created = await request.post("/api/chats", { data: { name: "Committed memory UI", mode: "roleplay" } });
   expect(created.ok()).toBeTruthy();
@@ -27,12 +33,12 @@ test("unified memory preserves the legacy summary view until enabled", async ({ 
     const memory = panel.locator("[data-committed-memory]");
     await expect(memory).toBeVisible();
     await expect(memory.getByRole("button", { name: "Commit memory", exact: true })).toBeDisabled();
-    await memory.getByRole("checkbox", { name: "Use unified memory" }).check();
+    await setSwitch(memory.getByRole("checkbox", { name: "Use unified memory" }), true);
     await expect(panel.locator("[data-chat-summary]")).toHaveCount(0);
     const bubble = page.locator("[data-memory-commit]");
     await expect(bubble).toBeVisible();
     await memory.getByRole("button", { name: "Settings", exact: true }).click();
-    const batchSize = memory.getByRole("spinbutton", { name: "Messages per summary", exact: true });
+    const batchSize = memory.getByRole("spinbutton", { name: /^Messages per summary/ });
     await batchSize.fill("7");
     await batchSize.press("Tab");
     await expect
@@ -43,15 +49,15 @@ test("unified memory preserves the legacy summary view until enabled", async ({ 
       .toBe(7);
     await memory.getByText("Advanced summary and connection settings", { exact: true }).click();
     const floating = memory.getByRole("checkbox", { name: "Show one-click summary button" });
-    await floating.uncheck();
+    await setSwitch(floating, false);
     await expect(bubble).toHaveCount(0);
-    await floating.check();
+    await setSwitch(floating, true);
     await expect(bubble).toBeVisible();
     await expect(memory.getByText("Choose a text generation connection to summarize this chat.").last()).toBeVisible();
     await memory.getByRole("button", { name: "Flow", exact: true }).click();
     await expect(memory.getByText("No confirmed memories yet.", { exact: true })).toBeVisible();
     await memory.getByRole("button", { name: "Overview", exact: true }).click();
-    await memory.getByRole("checkbox", { name: "Use unified memory" }).uncheck();
+    await setSwitch(memory.getByRole("checkbox", { name: "Use unified memory" }), false);
     await expect(panel.locator("[data-chat-summary]")).toBeVisible();
   } finally {
     await request.delete(`/api/chats/${id}?force=true`);
@@ -158,7 +164,7 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     await evidence.locator(":scope > summary").click();
     await expect(evidence.locator(".memory-vault__source")).toBeVisible();
     await expect(evidence.locator(".memory-vault__source summary")).not.toContainText(message.id.slice(0, 8));
-    await vault.getByLabel("Promise progress", { exact: true }).selectOption("completed");
+    await vault.getByRole("combobox", { name: "Promise progress", exact: true }).selectOption("completed");
     await vault.getByRole("button", { name: "Completed", exact: true }).click();
     await expect(vault.locator(".memory-vault__row")).toHaveCount(2);
     const status = await (await request.get(`/api/chats/${id}/committed-memory`)).json();
@@ -168,7 +174,7 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     expect(updated.content).toBe("Alice is arranging a trip.");
     expect(updated.progress).toBe("completed");
     await vault.getByRole("button", { name: "Settings", exact: true }).click();
-    await vault.getByRole("checkbox", { name: "Show Korean memory text" }).uncheck();
+    await setSwitch(vault.getByRole("checkbox", { name: "Show Korean memory text" }), false);
     await vault.getByRole("button", { name: "Promises", exact: true }).click();
     await expect(vault.locator(".memory-vault__row").filter({ hasText: "active trip" })).toBeVisible();
   } finally {
@@ -229,6 +235,9 @@ test("format 2: overview counts and undoable tidy-up, namesake review, call-up c
                   status: "current",
                   audience: "shared",
                   sourceIds: [message.id],
+                  entityId: "ring",
+                  attribute: "owner",
+                  dependencies: [{ id: message.id, fingerprint: memoryFingerprint(message) }],
                   turn: 0,
                 },
               ],
@@ -270,6 +279,7 @@ test("format 2: overview counts and undoable tidy-up, namesake review, call-up c
     await expect(history).toHaveCount(0);
     await expect(count("Namesakes to check")).toHaveText("0");
     await vault.getByRole("button", { name: "Tidy up memory (merge)", exact: true }).click();
+    await vault.screenshot({ path: `.tmp/memory-overview-${test.info().project.name}.png` });
     await vault.getByRole("button", { name: "Review namesakes", exact: true }).click();
     const entities = vault.locator("[data-memory-entities]");
     await expect(entities.locator("[data-homonym]")).toHaveCount(2);
@@ -284,6 +294,7 @@ test("format 2: overview counts and undoable tidy-up, namesake review, call-up c
     await expect(vault.locator("[data-memory-knowledge]")).toHaveText("Known by Knower Kim");
     await expect(vault.locator("[data-memory-previous] summary")).toHaveText("Earlier values (1)");
     const recall = vault.locator("[data-memory-recall]");
+    await vault.screenshot({ path: `.tmp/memory-entity-${test.info().project.name}.png` });
     await expect(recall.getByRole("radio", { name: "When called up" })).toHaveAttribute("aria-checked", "true");
     await recall.getByRole("radio", { name: "Always" }).click();
     await expect(recall.getByRole("radio", { name: "Always" })).toHaveAttribute("aria-checked", "true");
