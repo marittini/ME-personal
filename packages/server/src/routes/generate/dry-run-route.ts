@@ -695,7 +695,11 @@ export async function registerDryRunRoute(app: FastifyInstance) {
         : message,
     );
     const advancedMemorySettings = normalizeAdvancedMemorySettings(chatMeta.advancedMemory);
-    const advancedMemoryEnabled = chatMode === "roleplay" && advancedMemorySettings.enabled;
+    // Same rule as generation: unified memory on in RP keeps advanced memory out of the prompt.
+    const advancedMemoryEnabled =
+      chatMode === "roleplay" &&
+      advancedMemorySettings.enabled &&
+      (chatMeta.committedMemory as { enabled?: boolean } | undefined)?.enabled !== true;
     // Prompt inspection previews the main reply; auxiliary dry-run generations
     // (including extension/agent calls) never perform or receive Advanced Recall.
     const advancedMemoryService = advancedMemoryEnabled && returnPrompt ? createAdvancedMemoryService(app.db) : null;

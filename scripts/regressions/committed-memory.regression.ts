@@ -295,7 +295,7 @@ try {
   await assert.rejects(
     editCommittedMemory(db, privateChat.id, {
       batchId: privateBatch.id,
-      expectedRevision: privateBatch.createdAt,
+      expectedRevision: privateBatch.revision ?? privateBatch.createdAt,
       summary: "Publish private material",
     }),
     /Restricted/,
