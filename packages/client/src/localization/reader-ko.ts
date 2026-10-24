@@ -617,4 +617,5 @@ export const readerKoreanMessages: Record<string, string> = {
   "chat.uiManager.emptyTools": "메시지가 있는 채팅에서 도구 목록이 표시됩니다.",
   "chat.uiManager.moreTools": "도구 더보기",
   "chat.uiManager.lessTools": "도구 접기",
+  "chat.uiManager.reorder": "{{name}} 순서 바꾸기 (끌거나 방향키)",
 };

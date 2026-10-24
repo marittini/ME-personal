@@ -505,8 +505,8 @@ async function exerciseWindow(page: Page, desktop: boolean) {
   }
   await settings
     .locator('[data-drawer="chat-name"]')
-    .getByRole("button", { name: "Open Chat Name in its own window", exact: true })
-    .click();
+    .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+    .dispatchEvent("click");
   if (!desktop) {
     await expect(settings).toBeHidden();
     await openChatTool(page, CHAT_NAME_WINDOW);

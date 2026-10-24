@@ -425,7 +425,9 @@ test("Game controls dock as usable Settings sections, persist and pop out again"
     const master = volumeSection.getByRole("slider").first();
     await master.press("End");
     await expect(master).toHaveValue("100");
-    await volumeSection.getByRole("button", { name: "Open Volume in its own window", exact: true }).click();
+    await volumeSection
+      .getByRole("button", { name: "Open Volume in its own window", exact: true, includeHidden: true })
+      .dispatchEvent("click");
     if (!desktop) await openChatTool(page, VOLUME);
     const volume = controlWindow(page, VOLUME);
     await expect(volume.getByRole("slider").first()).toHaveValue("100");
@@ -496,7 +498,9 @@ test("phone docking and pop-out preserve a control's desktop geometry, pin and l
     await openChatTool(page, VOLUME);
     await controlWindow(page, VOLUME).getByRole("button", { name: "Put back in Chat Settings", exact: true }).click();
     const section = page.locator(`[data-docked-chat-control="${VOLUME}"]`);
-    await section.getByRole("button", { name: "Open Volume in its own window", exact: true }).click();
+    await section
+      .getByRole("button", { name: "Open Volume in its own window", exact: true, includeHidden: true })
+      .dispatchEvent("click");
     await expect(page.locator("[data-chat-tools-menu-button]")).toBeVisible();
     await expect
       .poll(async () => (await savedWindowLayout(request, gameId))?.windows[VOLUME])

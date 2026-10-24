@@ -60,6 +60,15 @@ export function moveInOrder(stored: string[], visible: string[], id: string, ste
   return [...order, ...stored.filter((entry) => !order.includes(entry))];
 }
 
+/** Moves `id` right before `target` within `visible` (a drag and drop), keeping every other stored ID. */
+export function moveBefore(stored: string[], visible: string[], id: string, target: string) {
+  const order = visible.filter((entry) => entry !== id);
+  const index = order.indexOf(target);
+  if (index < 0 || !visible.includes(id)) return stored;
+  order.splice(index, 0, id);
+  return [...order, ...stored.filter((entry) => !order.includes(entry))];
+}
+
 /**
  * A message tool's stable ID: an explicit `data-chat-action-id`, else its Lucide icon (language-independent), else its
  * label. The first ID a button gets is kept, so an icon that changes with state (copy → check) stays one tool.

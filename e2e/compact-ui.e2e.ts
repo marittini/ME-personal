@@ -120,9 +120,17 @@ test("Chat Settings tabs, the UI manager's placements and message tools behind m
     await tabs.getByRole("tab", { name: "Memory" }).click();
     await expect(settings.locator('[data-chat-settings-section="roleplay-chat-summary"]')).toBeVisible();
 
+    // Placement lives in the UI manager: no per-drawer pop-out buttons inside Chat Settings.
+    await expect(settings.locator('[data-chat-settings-tab] [data-drawer-control="pop-out"]').first()).toBeHidden();
     await settings.locator("[data-chat-ui-manager-button]").click();
     const manager = page.locator("[data-chat-ui-manager]");
     await expect(manager).toBeVisible();
+    if (!test.info().project.name.startsWith("mobile")) {
+      // On a computer the manager opens beside Chat Settings instead of over it.
+      const [a, b] = [await manager.boundingBox(), await settings.boundingBox()];
+      expect(a!.x + a!.width <= b!.x + 1 || a!.x >= b!.x + b!.width - 1 || a!.y + a!.height <= b!.y + 1).toBe(true);
+      await expect(manager.getByRole("tab").first()).toContainText(/\d/);
+    }
     const lorebookRow = manager.locator('[data-ui-manager-item="lorebooks"]');
     await lorebookRow.getByRole("radio", { name: "Hidden" }).click();
     await expect(lorebookRow.getByRole("radio", { name: "Hidden" })).toHaveAttribute("aria-checked", "true");
@@ -139,7 +147,16 @@ test("Chat Settings tabs, the UI manager's placements and message tools behind m
     await settings.locator("[data-chat-ui-manager-button]").click();
     await manager.locator('[data-ui-manager-item="connection"]').getByRole("radio", { name: "Top" }).click();
     const bubble = page.locator('.mari-window-bubble[data-window="drawer:chat-settings:connection"]');
-    if (!test.info().project.name.startsWith("mobile")) await expect(bubble).toBeVisible();
+    if (!test.info().project.name.startsWith("mobile")) {
+      await expect(bubble).toBeVisible();
+      // It joins the top row, to the left of the Chat Settings button.
+      const [own, anchor] = [
+        await bubble.boundingBox(),
+        await page.locator("[data-chat-settings-button]").boundingBox(),
+      ];
+      expect(Math.abs(own!.y - anchor!.y)).toBeLessThan(2);
+      expect(own!.x + own!.width).toBeLessThanOrEqual(anchor!.x);
+    }
     await manager.getByRole("tab", { name: "Top" }).click();
     await manager.locator('[data-ui-manager-item="connection"]').getByRole("radio", { name: "Settings" }).click();
     await expect(bubble).toHaveCount(0);
@@ -158,11 +175,20 @@ test("Chat Settings tabs, the UI manager's placements and message tools behind m
     await expect(chatSettingsWindow(page)).toBeHidden();
     const row = page.locator(".mari-message-actions").last();
     await expect(row.locator('[data-chat-tool-id="icon:copy"]')).toBeHidden();
-    const more = row.getByRole("button", { name: "More tools", exact: true });
+    const more = row.locator("[data-message-tools-more] button");
+    await expect(more).toHaveAccessibleName("More tools");
     await row.locator("xpath=..").hover();
     if (test.info().project.name.startsWith("mobile")) await page.locator(".mari-message-content").last().click();
     await more.click();
-    await expect(row.locator('[data-chat-tool-id="icon:copy"]')).toBeVisible();
+    // The open menu lists it as a named row below the tools; Escape closes it.
+    const copyRow = row.locator('[data-chat-tool-id="icon:copy"]');
+    await expect(copyRow).toBeVisible();
+    await expect(copyRow).toHaveCSS("position", "absolute");
+    await expect(copyRow).toHaveAttribute("data-chat-tool-label", /Copy/);
+    expect((await copyRow.boundingBox())!.y).toBeGreaterThan((await more.boundingBox())!.y);
+    await page.screenshot({ path: `.tmp/more-menu-${test.info().project.name}.png` });
+    await page.keyboard.press("Escape");
+    await expect(copyRow).toBeHidden();
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("marinara-engine-ui") ?? ""))
       .toContain('"icon:copy":"more"');

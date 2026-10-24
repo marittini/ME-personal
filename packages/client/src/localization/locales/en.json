@@ -1329,6 +1329,7 @@
   "chat.uiManager.placement.settings": "Settings",
   "chat.uiManager.placement.top": "Top",
   "chat.uiManager.placementFor": "Where {{name}} goes",
+  "chat.uiManager.reorder": "Drag to reorder {{name}} (arrow keys move it)",
   "chat.uiManager.tabs.settings": "Chat Settings",
   "chat.uiManager.tabs.tools": "Message tools",
   "chat.uiManager.tabs.top": "Top",

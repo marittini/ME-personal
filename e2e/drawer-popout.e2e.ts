@@ -178,7 +178,11 @@ test.describe("Pop-out drawers on desktop", () => {
 
       // The button sits between the help tip and the arrow, with a label and a tooltip.
       const drawer = settings.locator('[data-drawer="chat-name"]');
-      const button = drawer.getByRole("button", { name: "Open Chat Name in its own window", exact: true });
+      const button = drawer.getByRole("button", {
+        name: "Open Chat Name in its own window",
+        exact: true,
+        includeHidden: true,
+      });
       await expect(button).toHaveAttribute("title", "Open this section in its own window, or drag it out.");
       await expect(drawer.locator(".mari-drawer__actions [data-drawer-control='pop-out']")).toHaveCount(1);
       expect(
@@ -251,10 +255,13 @@ test.describe("Pop-out drawers on desktop", () => {
       await expect(popped).toHaveCount(0);
       const docked = settings.locator('[data-drawer="chat-name"]');
       await expect(docked).toBeVisible();
-      await expect(docked.getByRole("button", { name: "Open Chat Name in its own window", exact: true })).toBeFocused();
+      // Its pop-out button is hidden in Chat Settings (the UI manager places sections), so focus lands on its title.
+      await expect(docked.locator(":scope > .mari-drawer__header [data-drawer-toggle]")).toBeFocused();
 
       // Putting back the last pop-out while its host is closed still returns focus into the chat.
-      await docked.getByRole("button", { name: "Open Chat Name in its own window", exact: true }).click();
+      await docked
+        .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+        .dispatchEvent("click");
       await settings.getByRole("button", { name: "Close chat settings", exact: true }).click();
       await expect(settings).toBeHidden();
       await popped.getByRole("button", { name: "Put back in Chat Settings", exact: true }).click();
@@ -263,7 +270,9 @@ test.describe("Pop-out drawers on desktop", () => {
       await openSettingsWindow(page);
 
       // Reset View puts popped-out sections back too, and the chat forgets its layout.
-      await docked.getByRole("button", { name: "Open Chat Name in its own window", exact: true }).click();
+      await docked
+        .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+        .dispatchEvent("click");
       await expect(popped).toBeVisible();
       await expect.poll(async () => (await readSavedLayout(request, chat.id))?.detached).toEqual([CHAT_NAME_WINDOW]);
       await resetChatView(page);
@@ -287,8 +296,8 @@ test.describe("Pop-out drawers on desktop", () => {
       const settings = await openSettingsWindow(page);
       await settings
         .locator('[data-drawer="chat-name"]')
-        .getByRole("button", { name: "Open Chat Name in its own window", exact: true })
-        .click();
+        .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+        .dispatchEvent("click");
       const popped = page.locator(`.mari-window[data-window="${CHAT_NAME_WINDOW}"]`);
       const bubble = page.locator(`.mari-window-bubble[data-window="${CHAT_NAME_WINDOW}"]`);
       await settle(popped);
@@ -565,8 +574,8 @@ test.describe("Pop-out drawers on desktop", () => {
       const settings = await openSettingsWindow(page);
       await settings
         .locator('[data-drawer="chat-name"]')
-        .getByRole("button", { name: "Open Chat Name in its own window", exact: true })
-        .click();
+        .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+        .dispatchEvent("click");
       const popped = page.locator(`.mari-window[data-window="${CHAT_NAME_WINDOW}"]`);
       await settle(popped);
       // Explicitly pin it so the saved window reopens across chat switches and refresh.
@@ -811,8 +820,8 @@ test.describe("Pop-out drawers on desktop", () => {
       await settings.getByRole("button", { name: "Pin window", exact: true }).click();
       await settings
         .locator('[data-drawer="chat-name"]')
-        .getByRole("button", { name: "Open Chat Name in its own window", exact: true })
-        .click();
+        .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+        .dispatchEvent("click");
       const popped = page.locator(`.mari-window[data-window="${CHAT_NAME_WINDOW}"]`);
       await settle(popped);
       const placed = await box(popped);

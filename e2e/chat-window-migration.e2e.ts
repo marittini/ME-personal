@@ -213,8 +213,8 @@ test("locking a window keeps its button in place until the window is unlocked", 
     await settingsButton.click();
     await settings
       .locator('[data-drawer="chat-name"]')
-      .getByRole("button", { name: "Open Chat Name in its own window", exact: true })
-      .click();
+      .getByRole("button", { name: "Open Chat Name in its own window", exact: true, includeHidden: true })
+      .dispatchEvent("click");
     const drawerId = "drawer:chat-settings:chat-name";
     const detached = page.locator(`.mari-window[data-window="${drawerId}"]`);
     const detachedButton = bubble(page, drawerId);
