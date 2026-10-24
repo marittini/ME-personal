@@ -13975,7 +13975,6 @@
   "ui.panels.libraryToolbar.endSelection": "End selection",
   "ui.panels.libraryToolbar.entriesColumn": "Entries",
   "ui.panels.libraryToolbar.entryCount": "{{count}} entries",
-  "ui.panels.libraryToolbar.modelColumn": "Model",
   "ui.panels.libraryToolbar.more": "More actions",
   "ui.panels.libraryToolbar.nameColumn": "Name",
   "ui.panels.libraryToolbar.rowActions": "Tools",

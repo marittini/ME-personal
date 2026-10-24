@@ -8672,6 +8672,10 @@ html[data-library-shell-home="true"] [class*="y2k-star"] {
 html[data-library-shell-home="true"] [data-component="AppShell"] {
   background: var(--background) !important;
 }
+/* On phones the panels open right below the library header instead of below the hidden engine top bar. */
+html[data-library-shell-home="true"] :is([data-component="RightPanelMobile"], [data-component="ChatSidebarPanel"]) {
+  top: var(--mari-library-header-bottom, calc(env(safe-area-inset-top) + 3rem)) !important;
+}
 
 html[data-library-shell-home="true"] [data-component="AppShell"]::before,
 html[data-library-shell-home="true"] [data-component="AppShell"]::after {
@@ -9163,6 +9167,21 @@ html[data-reader-focus="true"]
     grid-template-columns: minmax(0, 1fr) minmax(7rem, 12rem);
   }
 }
+/* Creator notes sit under Creator beside the photo and stretch to the photo's height on wide screens. */
+@media (min-width: 640px) {
+  .mari-sheet__notes,
+  .mari-sheet__notes > div,
+  .mari-sheet__notes :has(> textarea) {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .mari-sheet__notes textarea {
+    flex: 1;
+    min-height: 6rem;
+  }
+}
 @media (max-width: 639px) {
   /* The photo cell spans the width; the 3:4 frame stays a readable size in it. */
   .mari-sheet__photo {
@@ -9241,6 +9260,10 @@ html[data-reader-focus="true"]
   text-transform: uppercase;
 }
 /* The column line under the opening bar names what each side of the list holds (name · value). */
+/* "Name" starts above the names, past the row's picture (--receipt-lead is the picture plus its gap). */
+[data-receipt-columns] > :first-child {
+  padding-inline-start: var(--receipt-lead, 0px);
+}
 [data-receipt-columns] {
   display: flex;
   justify-content: space-between;
@@ -9273,6 +9296,14 @@ html[data-reader-focus="true"]
 :is([data-character-row-actions], [data-persona-row-actions], [data-row-actions])
   :is(.mari-chrome-control, button):hover {
   background: var(--sidebar-accent) !important;
+}
+/* With a mouse the row tools cover the whole value column, so no digit peeks out past them. */
+@media (hover: hover) and (pointer: fine) and (min-width: 48rem) {
+  :is([data-receipt-row], [data-receipt-folder])
+    > :is([data-character-row-actions], [data-persona-row-actions], [data-row-actions]) {
+    right: 0 !important;
+    padding-inline-start: 0.5rem;
+  }
 }
 /* One line of thin icons above a library list: create, search, more. */
 .mari-library-toolbar {
@@ -9488,4 +9519,14 @@ html[data-reader-focus="true"]
 }
 .mari-ui-manager__row[data-drop-target="true"] {
   box-shadow: inset 0 2px 0 var(--primary);
+}
+
+/* Owner request (3rd update): the text-selection → lorebook button stays in the code but out of sight. */
+[data-selection-lorebook-button] {
+  display: none !important;
+}
+
+/* Owner request (3rd update): the Local Model card stays in the code but out of the Connections panel. */
+[data-local-model-card] {
+  display: none !important;
 }

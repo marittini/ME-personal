@@ -626,7 +626,6 @@ export const readerKoreanMessages: Record<string, string> = {
   "ui.panels.libraryToolbar.nameColumn": "이름",
   "ui.panels.libraryToolbar.entryCount": "항목 {{count}}개",
   "ui.panels.libraryToolbar.entriesColumn": "항목",
-  "ui.panels.libraryToolbar.modelColumn": "모델",
   "ui.panels.libraryToolbar.settingCount": "설정 {{count}}개",
   "ui.panels.libraryToolbar.sectionCount": "섹션 {{count}}개",
 };

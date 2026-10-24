@@ -12,6 +12,7 @@ import {
   useLayoutEffect,
   useRef,
   type UIEvent,
+  type CSSProperties,
 } from "react";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -1001,7 +1002,7 @@ export function CharactersPanel() {
                 })}
                 title={localizeUi("ui.panels.backgroundpicker.doubleClickDoubleTapOrPressF2ToRename")}
                 data-receipt-folder=""
-                className="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition-all hover:bg-[var(--sidebar-accent)]/40 max-md:pr-12 [@media(pointer:coarse)]:pr-12"
+                className="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition-all hover:bg-[var(--sidebar-accent)]/40 max-md:pr-8 [@media(pointer:coarse)]:pr-8"
                 onClick={(event) =>
                   handleFolderRenameGesture(group.id, event, {
                     onSingleClick: () => setExpandedGroupId(isExpanded ? null : group.id),
@@ -1070,23 +1071,17 @@ export function CharactersPanel() {
                 {folderMemberIds.length > 0 && (
                   <span
                     data-folder-item-count="inline"
-                    className="shrink-0 text-[0.5625rem] text-[var(--muted-foreground)] max-md:hidden [@media(pointer:coarse)]:hidden"
+                    className="shrink-0 text-[0.5625rem] text-[var(--muted-foreground)]"
                   >
                     {folderMemberIds.length}
                   </span>
                 )}
+                <RowActionsToggle />
                 <div
                   data-folder-actions
-                  className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto"
+                  data-row-actions=""
+                  className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 shrink-0 items-center gap-0.5 bg-[var(--sidebar)] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-data-[actions-open]:[&_button]:pointer-events-auto"
                 >
-                  {folderMemberIds.length > 0 && (
-                    <span
-                      data-folder-item-count="actions"
-                      className="hidden px-1 text-[0.5625rem] text-[var(--muted-foreground)] max-md:inline [@media(pointer:coarse)]:inline"
-                    >
-                      {folderMemberIds.length}
-                    </span>
-                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1298,7 +1293,7 @@ export function CharactersPanel() {
                       {memberTokenEstimate !== null && (
                         <span
                           data-receipt-value=""
-                          className="shrink-0 text-[0.75rem]"
+                          className="shrink-0 text-[0.75rem] max-md:mr-7 [@media(pointer:coarse)]:mr-7"
                           title={localizeUi(
                             "ui.panels.characterspanel.estimatedFromCharacterCardTextFieldsActualTokenizerCounts",
                           )}
@@ -1459,7 +1454,7 @@ export function CharactersPanel() {
 
       <div className="flex min-h-8 shrink-0 flex-col gap-1 rounded-xl transition-colors">
         {visibleRootCharacters.length > 0 && (
-          <div data-receipt-columns="" aria-hidden="true">
+          <div data-receipt-columns="" aria-hidden="true" style={{ "--receipt-lead": "3.125rem" } as CSSProperties}>
             <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
             <span>{localizeUi("ui.panels.personaspanel.tokens")}</span>
           </div>

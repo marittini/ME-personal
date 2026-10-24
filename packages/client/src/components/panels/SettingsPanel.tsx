@@ -1602,7 +1602,8 @@ export function SettingsPanel() {
         <div
           role="tablist"
           aria-label={localize("Settings categories")}
-          className="grid grid-cols-3 gap-x-1.5 gap-y-1 rounded-xl border border-[var(--border)]/70 bg-[var(--background)]/32 p-1 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_7%,transparent)]"
+          data-settings-tabs=""
+          className="grid grid-cols-6 gap-x-1 rounded-xl border border-[var(--border)]/70 bg-[var(--background)]/32 p-1 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_7%,transparent)]"
         >
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -1641,7 +1642,7 @@ export function SettingsPanel() {
                 >
                   <Icon size="0.6875rem" />
                 </span>
-                <span className="w-full min-w-0 break-words px-0.5">{t(tab.labelKey)}</span>
+                <span className="w-full min-w-0 truncate px-0.5">{t(tab.labelKey)}</span>
               </button>
             );
           })}

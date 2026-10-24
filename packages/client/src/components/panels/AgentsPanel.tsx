@@ -1493,7 +1493,8 @@ export function AgentsPanel() {
                     value2: folder.name,
                   })}
                   title={localizeUi("ui.panels.backgroundpicker.doubleClickDoubleTapOrPressF2ToRename")}
-                  className="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition-all hover:bg-[var(--sidebar-accent)]/40 max-md:pr-12 [@media(pointer:coarse)]:pr-12"
+                  data-receipt-folder=""
+                  className="group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 transition-all hover:bg-[var(--sidebar-accent)]/40 max-md:pr-8 [@media(pointer:coarse)]:pr-8"
                   onClick={(event) =>
                     handleFolderRenameGesture(folder.id, event, {
                       onSingleClick: () => setExpandedFolderId(isExpanded ? null : folder.id),
@@ -1546,23 +1547,17 @@ export function AgentsPanel() {
                   {(agentFilterActive ? folderAgents.length : folder.itemIds.length) > 0 && (
                     <span
                       data-folder-item-count="inline"
-                      className="shrink-0 text-[0.5625rem] text-[var(--muted-foreground)] max-md:hidden [@media(pointer:coarse)]:hidden"
+                      className="shrink-0 text-[0.5625rem] text-[var(--muted-foreground)]"
                     >
                       {agentFilterActive ? folderAgents.length : folder.itemIds.length}
                     </span>
                   )}
+                  <RowActionsToggle />
                   <div
                     data-folder-actions
-                    className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto"
+                    data-row-actions=""
+                    className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 shrink-0 items-center gap-0.5 bg-[var(--sidebar)] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-data-[actions-open]:[&_button]:pointer-events-auto"
                   >
-                    {(agentFilterActive ? folderAgents.length : folder.itemIds.length) > 0 && (
-                      <span
-                        data-folder-item-count="actions"
-                        className="hidden px-1 text-[0.5625rem] text-[var(--muted-foreground)] max-md:inline [@media(pointer:coarse)]:inline"
-                      >
-                        {agentFilterActive ? folderAgents.length : folder.itemIds.length}
-                      </span>
-                    )}
                     <button
                       onClick={(event) => {
                         event.stopPropagation();

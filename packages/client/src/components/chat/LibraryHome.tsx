@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -293,13 +293,34 @@ export function LibraryHome() {
     };
   }, []);
 
+  // Phone panels open below the library header (the engine top bar they normally sit under is hidden here),
+  // so the header's title never peeks out above a panel.
+  const headerObserver = useRef<ResizeObserver | null>(null);
+  const libraryHeaderRef = useCallback((header: HTMLElement | null) => {
+    headerObserver.current?.disconnect();
+    headerObserver.current = null;
+    const root = document.documentElement;
+    if (!header) {
+      root.style.removeProperty("--mari-library-header-bottom");
+      return;
+    }
+    const update = () =>
+      root.style.setProperty("--mari-library-header-bottom", `${header.getBoundingClientRect().bottom}px`);
+    update();
+    headerObserver.current = new ResizeObserver(update);
+    headerObserver.current.observe(header);
+  }, []);
+
   if (selectedWork && section !== "settings") {
     return (
       <main
         className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]"
         data-component="LibraryWorkDetail"
       >
-        <header className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-10 md:pt-7">
+        <header
+          ref={libraryHeaderRef}
+          className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-10 md:pt-7"
+        >
           <div className="mx-auto flex max-w-3xl items-center">
             <button
               type="button"
@@ -457,7 +478,10 @@ export function LibraryHome() {
       className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]"
       data-component="LibraryHome"
     >
-      <header className="shrink-0 px-5 pb-3 pt-[max(1.15rem,env(safe-area-inset-top))] md:px-10 md:pt-8">
+      <header
+        ref={libraryHeaderRef}
+        className="shrink-0 px-5 pb-3 pt-[max(1.15rem,env(safe-area-inset-top))] md:px-10 md:pt-8"
+      >
         <div className="mx-auto flex w-full max-w-5xl items-end justify-between gap-4">
           <div>
             <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-[var(--muted-foreground)]">

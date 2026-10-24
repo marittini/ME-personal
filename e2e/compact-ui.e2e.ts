@@ -331,3 +331,75 @@ for (const [panel, placeholder, items] of [
     await expect(page.getByRole("menu")).toHaveCount(0);
   });
 }
+
+test("connections: folder rows share one list, the model sits under the name, Name lines up with names", async ({
+  page,
+  request,
+}) => {
+  const folder = await (await request.post("/api/connection-folders", { data: { name: "Label folder" } })).json();
+  const conns = await Promise.all(
+    ["Label conn 1", "Label conn 2", "Label conn 3"].map(async (name, index) =>
+      (
+        await request.post("/api/connections", {
+          data: { name, provider: "openai", model: `label-model-${index}`, apiKey: "x" },
+        })
+      ).json(),
+    ),
+  );
+  await request.post("/api/connection-folders/reorder-connections", {
+    data: { folderId: folder.id, orderedConnectionIds: conns.slice(0, 2).map((c) => c.id) },
+  });
+  try {
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: "connections",
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const header = page.locator("[data-receipt-folder]:visible").filter({ hasText: "Label folder" });
+    if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
+    const first = page.locator("[data-receipt-row]:visible").filter({ hasText: "Label conn 1" });
+    const second = page.locator("[data-receipt-row]:visible").filter({ hasText: "Label conn 2" });
+    await expect(second).toBeVisible();
+    // Both folder rows sit in the same list: one hairline between them, no bar per row.
+    expect(
+      await first.evaluate((row, other) => row.parentElement === other?.parentElement, await second.elementHandle()),
+    ).toBe(true);
+    expect(parseFloat(await second.evaluate((row) => getComputedStyle(row).borderTopWidth))).toBe(1);
+    await expect(first).toContainText("label-model-0");
+    await expect(first.locator("[data-receipt-value]")).toHaveCount(0);
+    // The local model card stays out of the panel.
+    await expect(page.locator("[data-local-model-card]")).toBeHidden();
+    const nameLabel = page.locator("[data-receipt-columns]:visible > :first-child");
+    const rootName = page
+      .locator("[data-receipt-row]:visible")
+      .filter({ hasText: "Label conn 3" })
+      .locator(".font-medium")
+      .first();
+    const [labelBox, nameBox] = [await nameLabel.boundingBox(), await rootName.boundingBox()];
+    const labelStart = labelBox!.x + parseFloat(await nameLabel.evaluate((n) => getComputedStyle(n).paddingLeft));
+    expect(Math.abs(labelStart - nameBox!.x)).toBeLessThan(6);
+  } finally {
+    for (const conn of conns) await request.delete(`/api/connections/${conn.id}`);
+    await request.delete(`/api/connection-folders/${folder.id}`);
+  }
+});
+
+test("Settings tabs sit in one row of six", async ({ page }) => {
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await page.goto("/");
+  const tabs = page.locator("[data-settings-tabs] [role=tab]");
+  await expect(tabs).toHaveCount(6);
+  const ys = await tabs.evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().top)));
+  expect(new Set(ys).size).toBe(1);
+});

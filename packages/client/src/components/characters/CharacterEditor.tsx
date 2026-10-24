@@ -2689,6 +2689,27 @@ function MetadataTab({
               placeholder={localizeUi("ui.characters.metadatatab.yourName")}
             />
           </label>
+          <div className="mari-sheet__cell mari-sheet__notes" data-sheet-creator-notes="">
+            {/* Creator Notes: fills the space under Creator, beside the photo. */}
+            <div className="block space-y-1.5">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
+                {localizeUi("ui.characters.metadatatab.creatorNotes")}{" "}
+                <HelpTooltip
+                  text={localizeUi("ui.characters.metadatatab.privateNotesAboutThisCharacterTipsForUseKnown")}
+                />
+              </span>
+              <MacroTextarea
+                value={formData.creator_notes}
+                onChange={(value) => updateField("creator_notes", value)}
+                rows={4}
+                title={localizeUi("ui.characters.metadatatab.creatorNotes")}
+                showMarkdownPreview
+                selfCharacterId={characterId}
+                className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm outline-none placeholder:text-[var(--muted-foreground)]/40 focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
+                placeholder={localizeUi("ui.characters.metadatatab.notesAboutThisCharacterIntendedUseTipsForBest")}
+              />
+            </div>
+          </div>
         </div>
         <div className="mari-sheet__cell mari-sheet__wide">
           {/* Tags */}
@@ -2867,27 +2888,6 @@ function MetadataTab({
               title={localizeUi("ui.cardversionhistory.automaticVersioningDescription")}
               className="min-h-11 gap-2 rounded-md px-1 py-0"
               labelClassName="text-xs font-medium text-[var(--muted-foreground)]"
-            />
-          </div>
-        </div>
-        <div className="mari-sheet__cell mari-sheet__wide">
-          {/* Creator Notes */}
-          <div className="block space-y-1.5">
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--muted-foreground)]">
-              {localizeUi("ui.characters.metadatatab.creatorNotes")}{" "}
-              <HelpTooltip
-                text={localizeUi("ui.characters.metadatatab.privateNotesAboutThisCharacterTipsForUseKnown")}
-              />
-            </span>
-            <MacroTextarea
-              value={formData.creator_notes}
-              onChange={(value) => updateField("creator_notes", value)}
-              rows={4}
-              title={localizeUi("ui.characters.metadatatab.creatorNotes")}
-              showMarkdownPreview
-              selfCharacterId={characterId}
-              className="w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--secondary)] p-3 text-sm outline-none placeholder:text-[var(--muted-foreground)]/40 focus:border-[var(--primary)]/40 focus:ring-1 focus:ring-[var(--primary)]/20"
-              placeholder={localizeUi("ui.characters.metadatatab.notesAboutThisCharacterIntendedUseTipsForBest")}
             />
           </div>
         </div>
