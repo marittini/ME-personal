@@ -628,4 +628,5 @@ export const readerKoreanMessages: Record<string, string> = {
   "ui.panels.libraryToolbar.entriesColumn": "항목",
   "ui.panels.libraryToolbar.settingCount": "설정 {{count}}개",
   "ui.panels.libraryToolbar.sectionCount": "섹션 {{count}}개",
+  "libraryShell.backAgainToExit": "한 번 더 누르면 종료됩니다",
 };

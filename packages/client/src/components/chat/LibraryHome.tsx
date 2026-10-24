@@ -27,7 +27,7 @@ import { cn, getAvatarCropStyle } from "../../lib/utils";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { buildRecordToc } from "../../lib/library-record-toc";
 import { useChatStore } from "../../stores/chat.store";
-import { useUIStore } from "../../stores/ui.store";
+import { isMobileShellViewport, useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
 
 const LibrarySettingsHome = lazy(() =>
@@ -101,6 +101,19 @@ function WorkCover({ work, className }: { work: VirtualWork; className?: string 
       )}
     </span>
   );
+}
+
+const EXIT_PRESS_WINDOW_MS = 2000;
+
+/** Matches the shell's phone layout and follows it when the window is resized or rotated. */
+function useIsMobileShellViewport() {
+  const [mobile, setMobile] = useState(() => isMobileShellViewport());
+  useEffect(() => {
+    const update = () => setMobile(isMobileShellViewport());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return mobile;
 }
 
 export function LibraryHome() {
@@ -177,6 +190,21 @@ export function LibraryHome() {
 
   const selectedWork = works.find((work) => work.id === navigation.selectedWorkId) ?? null;
   useBackDismiss(!!selectedWork && !overlayOpen && !dialogOpen, () => setSelectedWork(null));
+  // Phones: back walks Library / Record / My page back to Home, and Home needs two presses in a row to leave.
+  const [exitArmed, setExitArmed] = useState(false);
+  const onPhone = useIsMobileShellViewport();
+  const atRest = !selectedWork && !overlayOpen && !dialogOpen;
+  useBackDismiss(onPhone && atRest && section !== "home", () => setSection("home"));
+  useBackDismiss(onPhone && atRest && section === "home" && !exitArmed, () => {
+    // This press is used up here; the next one within two seconds falls through and leaves the app.
+    setExitArmed(true);
+    toast(t("libraryShell.backAgainToExit"), { id: "library-back-exit", duration: EXIT_PRESS_WINDOW_MS });
+  });
+  useEffect(() => {
+    if (!exitArmed) return;
+    const timer = window.setTimeout(() => setExitArmed(false), EXIT_PRESS_WINDOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [exitArmed]);
   const readWorks = useMemo(
     () =>
       works

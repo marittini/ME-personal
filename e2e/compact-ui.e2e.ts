@@ -403,3 +403,27 @@ test("Settings tabs sit in one row of six", async ({ page }) => {
   const ys = await tabs.evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().top)));
   expect(new Set(ys).size).toBe(1);
 });
+
+test("phone back walks a library tab back to Home, then needs two presses to leave", async ({ page }) => {
+  test.skip(!test.info().project.name.startsWith("mobile"), "the exit guard is for the phone layout");
+  await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await page.goto("/");
+  const home = page.locator('[data-component="LibraryHome"]');
+  await expect(home).toBeVisible();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await expect(home.getByRole("heading", { level: 1 })).not.toHaveText("Your library");
+  // Back: the tab returns to Home.
+  await page.evaluate(() => history.back());
+  await expect(home.getByRole("heading", { level: 1 })).toHaveText("Your library");
+  // First back on Home: a hint, and the app stays.
+  await page.evaluate(() => history.back());
+  await expect(page.getByText("Press back again to exit", { exact: true })).toBeVisible();
+  await expect(home).toBeVisible();
+  // A second press within two seconds leaves the page (here: back to the blank tab it came from).
+  const left = page.waitForEvent("framenavigated", { timeout: 5_000 });
+  await page.evaluate(() => history.back());
+  await left;
+  expect(page.url()).not.toContain("127.0.0.1");
+});
