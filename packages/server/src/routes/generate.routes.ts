@@ -1,4 +1,5 @@
 import { compactCommittedHistory } from "../services/committed-memory.js";
+import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import type { CommittedMemorySelection } from "@marinara-engine/shared";
 import { captureNaiChatDestination } from "../services/image/nai-result-application.js";
 import { applyClockCommandTags, TTS_SETTINGS_KEY, type RulesetClocks } from "@marinara-engine/shared";
@@ -11141,14 +11142,19 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
           buildGenerationGuideInstruction(input.generationGuide, promptMacroContext),
           regenerateUserSourceMessage
             ? null
-            : roomTtsInstructions(chatMode, chatMeta.ttsInstructionsEnabled, chatMeta.ttsTaggedDialogue === true, [
-                ...charInfo.map((character) => ({
-                  kind: "character" as const,
-                  id: character.id,
-                  name: character.name,
-                })),
-                ...(chat.personaId ? [{ kind: "persona" as const, id: chat.personaId, name: personaName }] : []),
-              ]),
+            : roomTtsInstructions(
+                chatMode,
+                chatMeta.ttsInstructionsEnabled,
+                ttsTaggedDialogueEnabled(chatMeta.ttsTaggedDialogue),
+                [
+                  ...charInfo.map((character) => ({
+                    kind: "character" as const,
+                    id: character.id,
+                    name: character.name,
+                  })),
+                  ...(chat.personaId ? [{ kind: "persona" as const, id: chat.personaId, name: personaName }] : []),
+                ],
+              ),
         ]
           .filter(Boolean)
           .join("\n\n");

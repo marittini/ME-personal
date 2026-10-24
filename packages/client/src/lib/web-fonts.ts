@@ -2,10 +2,10 @@
 // Web fonts (ported from the "웹폰트 매니저" personal extension 1.0.1)
 //
 // The owner pastes @font-face or @import code; only HTTPS font files are accepted, imports are
-// expanded once at registration so the stored CSS is plain @font-face rules. Each target — the
-// app UI, Roleplay messages and Conversation messages — picks its own family, size, letter
-// spacing and line height. Families come from the registered web fonts or the engine's font
-// folder (/api/fonts).
+// expanded once at registration so the stored CSS is plain @font-face rules. Registered families
+// are offered in the app's font pickers (app font, chat widget font, each mode's reading font).
+// `targets` is the earlier per-target choice (UI / RP / CONVO); it is moved once into those
+// pickers' settings (use-web-fonts.ts) and then cleared.
 // ──────────────────────────────────────────────
 
 export const WEB_FONT_TARGETS = ["ui", "roleplay", "conversation"] as const;
@@ -24,6 +24,7 @@ export type WebFontChoice = {
 export type WebFontSettings = {
   /** Registered @font-face rules (already expanded and checked). */
   css: string;
+  /** Legacy per-target choices, read once for the move into the font pickers. */
   targets: Partial<Record<WebFontTarget, WebFontChoice>>;
 };
 
@@ -33,11 +34,6 @@ export const WEB_FONT_METRICS = {
   height: { min: 1, max: 3, step: 0.05, initial: 1.5, unit: "" },
 } as const;
 export type WebFontMetric = keyof typeof WEB_FONT_METRICS;
-
-/** A metric value with its unit, e.g. "18px" or "1.6". */
-export function formatWebFontMetric(value: number, key: WebFontMetric) {
-  return `${Number(value.toFixed(2))}${WEB_FONT_METRICS[key].unit}`;
-}
 
 export const EMPTY_WEB_FONT_SETTINGS: WebFontSettings = { css: "", targets: {} };
 const MAX_CSS_BYTES = 262_144;
@@ -179,48 +175,15 @@ export function removeFamily(css: string, family: string): string {
     .join("\n");
 }
 
-function quote(family: string) {
-  return JSON.stringify(family);
-}
-
-/** The stylesheet that applies the settings: the registered faces, then one rule per target. */
+/** The stylesheet that loads the registered faces. Fonts are chosen in the app's font pickers, not here. */
 export function buildWebFontStylesheet(settings: WebFontSettings): string {
-  const css: string[] = [];
   // Stored CSS is checked again here: only @font-face rules with HTTPS sources reach the page.
-  if (settings.css.trim()) {
-    try {
-      css.push(
-        parseFontFaces(settings.css)
-          .map((face) => face.css)
-          .join("\n"),
-      );
-    } catch {
-      /* unreadable stored CSS is skipped; the target rules still apply */
-    }
+  if (!settings.css.trim()) return "";
+  try {
+    return parseFontFaces(settings.css)
+      .map((face) => face.css)
+      .join("\n");
+  } catch {
+    return "";
   }
-  for (const target of WEB_FONT_TARGETS) {
-    const choice = settings.targets[target];
-    if (!choice) continue;
-    if (target === "ui") {
-      // The app's own font variables, so every chrome surface follows (same as the original extension).
-      if (choice.family)
-        css.push(
-          `html:root{--font-user:${quote(choice.family)}!important;--font-y2k:"Straight Quotes",${quote(choice.family)},-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;--font-sans:var(--font-y2k)!important}`,
-        );
-      continue;
-    }
-    const parts: string[] = [];
-    if (choice.family) parts.push(`font-family:${quote(choice.family)},sans-serif!important`);
-    if (choice.size !== undefined) parts.push(`font-size:${choice.size}px!important`);
-    if (choice.spacing !== undefined) parts.push(`letter-spacing:${choice.spacing}px!important`);
-    if (choice.height !== undefined) parts.push(`line-height:${choice.height}!important`);
-    if (!parts.length) continue;
-    const selector = `html:root body [data-chat-mode="${target}"] .mari-message-content`;
-    const rule = parts.join(";");
-    css.push(`${selector}{${rule}}`);
-    // Children keep the message's size but follow its family, spacing and line height.
-    const inherited = parts.filter((part) => !part.startsWith("font-size")).join(";");
-    if (inherited) css.push(`${selector} :where(p,span,div,em,strong,a,li,blockquote){${inherited}}`);
-  }
-  return css.join("\n");
 }

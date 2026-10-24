@@ -804,7 +804,7 @@ export function PersonasPanel() {
                       }}
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleRenameGroup(group.id)}
-                      className="w-full rounded bg-transparent px-1 py-0.5 text-xs font-medium outline-none ring-1 ring-emerald-400/30"
+                      className="w-full rounded bg-transparent px-1 py-0.5 text-xs font-medium outline-none ring-1 ring-[var(--marinara-chat-chrome-button-border-active)]"
                     />
                   ) : (
                     <>
@@ -1044,8 +1044,8 @@ export function PersonasPanel() {
 
       {!isLoading && list.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <div className="animate-float flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-teal-500/20">
-            <VenetianMask size="1.25rem" className="text-emerald-400" />
+          <div className="mari-chrome-accent-soft-tile mari-accent-animated animate-float flex h-12 w-12 items-center justify-center rounded-2xl">
+            <VenetianMask size="1.25rem" />
           </div>
           <p className="mari-chrome-text-muted text-xs">
             {localizeUi("ui.panels.personaspanel.noPersonasYetCreateOne")}
@@ -1065,7 +1065,7 @@ export function PersonasPanel() {
             const payload = event.dataTransfer.getData("application/x-marinara-persona-ids");
             handlePersonaDrop(null, parseDroppedPersonaIds(payload));
           }}
-          className="rounded-xl border border-dashed border-emerald-400/35 bg-emerald-400/5 px-3 py-2 text-[0.625rem] text-emerald-300"
+          className="rounded-xl border border-dashed border-[var(--marinara-chat-chrome-button-border-active)] bg-[var(--marinara-chat-chrome-highlight-bg)] px-3 py-2 text-[0.625rem] text-[var(--marinara-chat-chrome-button-text-active)]"
         >
           {localizeUi("ui.panels.agentspanel.dropHereToMoveOutOfFolder")}
         </div>

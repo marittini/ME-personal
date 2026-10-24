@@ -12,7 +12,7 @@ import {
 } from "@marinara-engine/shared";
 import { useNativeIntegrations, useSaveNativeIntegrations } from "../../hooks/use-native-integrations";
 import { useUploadLibraryCover } from "../../hooks/use-library-cover";
-import { useReaderFonts } from "../../hooks/use-reader-fonts";
+import { useFontFamilies } from "../../hooks/use-reader-fonts";
 import {
   applyExcerptMark,
   drawExcerpt,
@@ -157,7 +157,8 @@ export function ExcerptStudio({
   const saved = useNativeIntegrations();
   const save = useSaveNativeIntegrations();
   const upload = useUploadLibraryCover();
-  const fonts = useReaderFonts();
+  // The font folder and the registered web fonts.
+  const fonts = useFontFamilies();
   const [appearance, setAppearance] = useState<ExcerptAppearance>(
     () => initialAppearance ?? excerptAppearanceSchema.parse({}),
   );
@@ -181,9 +182,7 @@ export function ExcerptStudio({
   }, [saved.data]);
   const inheritedFont = () => getComputedStyle(document.body).fontFamily || FONT_FALLBACK;
   const fontOptions = useMemo(() => {
-    const families = [...new Set((fonts.data ?? []).map((font) => font.family).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, "ko"),
-    );
+    const families = [...fonts.folder, ...fonts.web].sort((a, b) => a.localeCompare(b, "ko"));
     // An installed RIDIBatang is used directly; otherwise the web copy is fetched on demand.
     const ridi = families.find((family) => /ridi|리디/i.test(family));
     return {
@@ -191,7 +190,7 @@ export function ExcerptStudio({
       ridiFamily: ridi ?? "",
       installed: families.filter((family) => family !== ridi),
     };
-  }, [fonts.data]);
+  }, [fonts]);
   useEffect(() => {
     if (!appearance.fontFamily.includes("RIDIBatang") || appearance.fontFamilyName) return;
     let live = true;

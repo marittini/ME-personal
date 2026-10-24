@@ -366,8 +366,19 @@ try {
   const tagged = buildDialogueSpeechGroups(source, tts, { ...identity, tagged: true });
   assert.equal(tagged[0]!.requests[0]!.voice, "p-voice");
   assert.match(tagged[0]!.requests[0]!.text, /low, restrained/);
+  // A persona without its own voice uses the default voice; only no voice at all is an error.
+  assert.equal(
+    buildDialogueSpeechGroups(source, { ...tts, personaVoiceAssignments: [] }, { ...identity, tagged: true })[0]!
+      .requests[0]!.voice,
+    tts.voice,
+  );
   assert.throws(
-    () => buildDialogueSpeechGroups(source, { ...tts, personaVoiceAssignments: [] }, { ...identity, tagged: true }),
+    () =>
+      buildDialogueSpeechGroups(
+        source,
+        { ...tts, voice: "", personaVoiceAssignments: [] },
+        { ...identity, tagged: true },
+      ),
     /missingVoice/,
   );
   assert.notEqual(

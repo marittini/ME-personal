@@ -320,19 +320,21 @@ export function LibraryHome() {
     };
   }, []);
 
-  // Phone panels open below the library header (the engine top bar they normally sit under is hidden here),
-  // so the header's title never peeks out above a panel.
+  // Phone panels open right under the "Marinara Library" line (the engine top bar they normally sit under is
+  // hidden here): their top is the page title's top less 2px, so they cover the title and nothing below it.
   const headerObserver = useRef<ResizeObserver | null>(null);
   const libraryHeaderRef = useCallback((header: HTMLElement | null) => {
     headerObserver.current?.disconnect();
     headerObserver.current = null;
     const root = document.documentElement;
     if (!header) {
-      root.style.removeProperty("--mari-library-header-bottom");
+      root.style.removeProperty("--mari-library-panel-top");
       return;
     }
-    const update = () =>
-      root.style.setProperty("--mari-library-header-bottom", `${header.getBoundingClientRect().bottom}px`);
+    const update = () => {
+      const title = header.querySelector("h1") ?? header;
+      root.style.setProperty("--mari-library-panel-top", `${title.getBoundingClientRect().top - 2}px`);
+    };
     update();
     headerObserver.current = new ResizeObserver(update);
     headerObserver.current.observe(header);
@@ -419,7 +421,7 @@ export function LibraryHome() {
                     <div
                       key={chat.id}
                       className={cn(
-                        "flex items-center gap-1",
+                        "flex items-center",
                         depth ? "" : "border-t border-[var(--border)] first:border-t-0",
                       )}
                       data-record-depth={depth}
@@ -465,29 +467,32 @@ export function LibraryHome() {
                           </span>
                         ) : null}
                         <ChevronRight
-                          size="1rem"
+                          size="0.875rem"
                           className="shrink-0 self-center text-[var(--muted-foreground)]"
                           aria-hidden="true"
                         />
                       </button>
+                      {/* Compact row tools at the right edge: edit and delete sit close together. */}
                       <button
                         type="button"
-                        className="flex min-h-11 min-w-11 items-center justify-center rounded hover:bg-[var(--secondary)]"
+                        data-record-action="rename"
+                        className="ml-1 flex h-9 w-7 shrink-0 items-center justify-center rounded hover:bg-[var(--secondary)]"
                         disabled={updateChat.isPending || deleteChat.isPending}
                         onClick={() => void renameRecord(chat)}
                         aria-label={t("reader.renameNamed", { name })}
                       >
-                        <PencilLine size={17} />
+                        <PencilLine size={14} />
                       </button>
                       <button
                         type="button"
-                        className="flex min-h-11 min-w-11 items-center justify-center rounded text-[var(--destructive)] hover:bg-[var(--secondary)] disabled:opacity-40"
+                        data-record-action="delete"
+                        className="-mr-1.5 flex h-9 w-7 shrink-0 items-center justify-center rounded text-[var(--destructive)] hover:bg-[var(--secondary)] disabled:opacity-40"
                         disabled={deleteChat.isPending || updateChat.isPending || generatingChats.has(chat.id)}
                         onClick={() => void removeRecord(chat)}
                         title={generatingChats.has(chat.id) ? t("reader.stopBeforeDelete") : undefined}
                         aria-label={t("reader.deleteNamed", { name })}
                       >
-                        <Trash2 size={17} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   );

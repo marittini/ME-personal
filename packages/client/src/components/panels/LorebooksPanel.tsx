@@ -85,15 +85,6 @@ const CATEGORIES: Array<{ id: LorebookCategory | "all" | "active"; label: string
 const PRIMARY_CATEGORIES = CATEGORIES.filter((category) => category.id === "all" || category.id === "active");
 const TAGGED_CATEGORIES = CATEGORIES.filter((category) => category.id !== "all" && category.id !== "active");
 
-const CATEGORY_COLORS: Record<string, string> = {
-  world: "from-amber-400 to-orange-500",
-  character: "from-amber-400 to-orange-500",
-  npc: "from-amber-400 to-orange-500",
-  spellbook: "from-amber-400 to-orange-500",
-  uncategorized: "from-amber-400 to-orange-500",
-  all: "from-amber-400 to-orange-500",
-};
-
 function usePanelMobileOverlay() {
   const [isMobileOverlay, setIsMobileOverlay] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia("(max-width: 767px)").matches : false,
@@ -1067,7 +1058,7 @@ export function LorebooksPanel() {
                       }}
                       onClick={(event) => event.stopPropagation()}
                       onBlur={() => handleRenameFolder(folder.id)}
-                      className="w-full rounded bg-transparent px-1 py-0.5 text-xs font-medium outline-none ring-1 ring-amber-400/30"
+                      className="w-full rounded bg-transparent px-1 py-0.5 text-xs font-medium outline-none ring-1 ring-[var(--marinara-chat-chrome-button-border-active)]"
                     />
                   ) : (
                     <div className="mari-chrome-text-muted truncate text-xs font-medium">{folder.name}</div>
@@ -1140,8 +1131,8 @@ export function LorebooksPanel() {
       {/* Empty state */}
       {!isLoading && sorted.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <div className="animate-float flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400/20 to-orange-500/20">
-            <BookOpen size="1.25rem" className="text-amber-400" />
+          <div className="mari-chrome-accent-soft-tile mari-accent-animated animate-float flex h-12 w-12 items-center justify-center rounded-2xl">
+            <BookOpen size="1.25rem" />
           </div>
           <p className="mari-chrome-text-muted text-xs">
             {searchQuery
@@ -1166,7 +1157,7 @@ export function LorebooksPanel() {
                 const payload = event.dataTransfer.getData("application/x-marinara-lorebook-ids");
                 handleLorebookDrop(null, payload ? (JSON.parse(payload) as string[]) : undefined);
               }}
-              className="rounded-xl border border-dashed border-amber-400/35 bg-amber-400/5 px-3 py-2 text-[0.625rem] text-amber-300"
+              className="rounded-xl border border-dashed border-[var(--marinara-chat-chrome-button-border-active)] bg-[var(--marinara-chat-chrome-highlight-bg)] px-3 py-2 text-[0.625rem] text-[var(--marinara-chat-chrome-button-text-active)]"
             >
               {localizeUi("ui.panels.agentspanel.dropHereToMoveOutOfFolder")}
             </div>
@@ -1241,15 +1232,14 @@ function LorebookRow({
   onTouchStart?: (event: TouchEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => void;
 }) {
   const { t: localizeUi } = useUiTranslation();
-  const gradient = CATEGORY_COLORS[lorebook.category] ?? CATEGORY_COLORS.uncategorized;
   const imageContent = lorebook.imagePath ? (
     <img src={lorebook.imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
   ) : (
     <BookOpen size="1rem" />
   );
   const imageClasses = cn(
-    "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl text-white shadow-sm",
-    lorebook.imagePath ? "bg-[var(--muted)]" : `bg-gradient-to-br ${gradient}`,
+    "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm",
+    lorebook.imagePath ? "bg-[var(--muted)]" : "mari-avatar-placeholder mari-avatar-placeholder--lorebook",
   );
 
   return (

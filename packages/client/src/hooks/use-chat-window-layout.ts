@@ -17,6 +17,9 @@ import {
 } from "../lib/floating-window-layout";
 import { selectWindowLayoutSnapshot, useFloatingWindowStore } from "../stores/floating-window.store";
 import { useUpdateChatMetadata } from "./use-chats";
+import { useUIStore } from "../stores/ui.store";
+import { chatUiMode, normalizeChatUiLayout } from "../lib/chat-ui-layout";
+import { applyChatUiPlacements } from "../components/chat/ChatUiManager";
 
 /** Moves and resizes come in bursts; save once the user stops. */
 const SAVE_DELAY_MS = 400;
@@ -39,6 +42,7 @@ export function useChatWindowLayout(chat: Chat | null | undefined) {
   const mutateRef = useRef(updateMeta.mutate);
   mutateRef.current = updateMeta.mutate;
   const chatId = chat?.id ?? null;
+  const chatMode = chat?.mode ?? null;
   const loading = chat === undefined;
   const metadata = chat ? readChatMetadata(chat) : {};
   const legacyLayout = chat ? getLegacyChatWindowLayout(chat.mode, metadata) : null;
@@ -81,11 +85,16 @@ export function useChatWindowLayout(chat: Chat | null | undefined) {
     }
     syncedRef.current = { chatId, layout: savedLayout };
     useFloatingWindowStore.getState().hydrate(savedLayout === EMPTY_LAYOUT ? null : JSON.parse(savedLayout));
+    // The UI manager's top / remote / settings choices are per mode, the window layout per chat: put this chat's
+    // drawers where the mode's choices say (a change that differs from the saved layout saves back to it).
+    const uiMode = chatUiMode(chatMode);
+    const uiLayout = uiMode ? useUIStore.getState().chatUiLayout[uiMode] : undefined;
+    if (uiLayout) applyChatUiPlacements(normalizeChatUiLayout(uiLayout), null);
     if (needsMigration && chatId) {
       // Persist once through the same queue as later moves/docking. View-only metadata keeps chat recency intact.
       mutateRef.current({ id: chatId, windowLayout: JSON.parse(savedLayout) });
     }
-  }, [chatId, savedLayout, loading, needsMigration]);
+  }, [chatId, chatMode, savedLayout, loading, needsMigration]);
 
   // Save the user's changes to the chat whose layout they changed.
   useEffect(() => {

@@ -76,18 +76,25 @@ export function placeChatSettingsDrawer(sectionId: string, placement: ChatUiPlac
   }
 }
 
-/** On a computer, a room of the same mode follows the explicit top/settings choices (phones keep theirs, as before). */
+/**
+ * Every room of the same mode follows the UI manager's top / remote / settings choices, on computers and phones
+ * alike (a room's saved window layout is per chat, so without this a choice stayed in the room it was made in).
+ */
 export function applyChatUiPlacements(layout: ChatUiLayout | undefined, list: HTMLElement | null) {
-  if (!layout || !list || isPhoneWindowLayout()) return;
-  const present = new Set(
-    Array.from(list.querySelectorAll("[data-chat-settings-section]")).map((node) =>
-      node.getAttribute("data-chat-settings-section"),
-    ),
-  );
+  if (!layout) return;
+  // With Chat Settings closed its list is not rendered: the choices were made in a room of this mode, so they all
+  // apply. With it open, only the sections this room has.
+  const present = list
+    ? new Set(
+        Array.from(list.querySelectorAll("[data-chat-settings-section]")).map((node) =>
+          node.getAttribute("data-chat-settings-section"),
+        ),
+      )
+    : null;
   const detached = useFloatingWindowStore.getState().detached;
   for (const [id, placement] of Object.entries(layout.placement)) {
     if (id.startsWith("control:")) continue;
-    if (present.has(id) || detached[drawerWindowId(id)]) placeChatSettingsDrawer(id, placement);
+    if (!present || present.has(id) || detached[drawerWindowId(id)]) placeChatSettingsDrawer(id, placement);
   }
 }
 
@@ -287,7 +294,7 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
   };
   const [dragging, setDragging] = useState<string | null>(null);
   const moveButtons = (name: string, peers: string[], id: string, move: (step: -1 | 1) => void) => (
-    <span className="flex shrink-0 gap-1">
+    <span className="mari-ui-manager__moves">
       <button
         type="button"
         className={`${SETTINGS_ICON_BUTTON_CLASS} mari-ui-manager__grip`}
@@ -349,7 +356,9 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
           setDragging(null);
         }}
       >
-        <span className="min-w-0 flex-1 truncate">{item.title}</span>
+        <span className="mari-ui-manager__name" title={item.title}>
+          {item.title}
+        </span>
         <Segmented
           label={t("chat.uiManager.placementFor", { name: item.title })}
           value={item.placement}
@@ -360,7 +369,12 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
           }))}
           onChange={(value) => setPlacement(item, value)}
         />
-        {item.placement === "settings" && moveButtons(item.title, peers, item.id, (step) => moveSetting(item, step))}
+        {/* Rows without ordering keep the column empty, so every row lines up. */}
+        {item.placement === "settings" ? (
+          moveButtons(item.title, peers, item.id, (step) => moveSetting(item, step))
+        ) : (
+          <span className="mari-ui-manager__moves" aria-hidden="true" />
+        )}
       </li>
     );
   };
@@ -438,21 +452,24 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
             </ul>
           </div>
         )}
-        {tab === "settings" &&
-          CHAT_SETTINGS_TABS.map((category) => {
-            const items = settings.filter(
-              (item) => item.category === category && item.placement !== "top" && item.placement !== "remote",
-            );
-            return items.length ? (
-              <section key={category}>
-                <h3 className="mari-ui-manager__heading">
-                  {t(`chat.settings.tabs.${category}`)}
-                  <span className="mari-ui-manager__count">{items.length}</span>
-                </h3>
-                <ul className="mari-ui-manager__list">{items.map(settingsRow)}</ul>
-              </section>
-            ) : null;
-          })}
+        {tab === "settings" && (
+          <div className="mari-ui-manager__lists">
+            {CHAT_SETTINGS_TABS.map((category) => {
+              const items = settings.filter(
+                (item) => item.category === category && item.placement !== "top" && item.placement !== "remote",
+              );
+              return items.length ? (
+                <section key={category}>
+                  <h3 className="mari-ui-manager__heading">
+                    {t(`chat.settings.tabs.${category}`)}
+                    <span className="mari-ui-manager__count">{items.length}</span>
+                  </h3>
+                  <ul className="mari-ui-manager__list">{items.map(settingsRow)}</ul>
+                </section>
+              ) : null;
+            })}
+          </div>
+        )}
         {tab === "tools" && (
           <ul className="mari-ui-manager__list">
             {!tools.length && (
@@ -478,7 +495,9 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
                   setDragging(null);
                 }}
               >
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span className="mari-ui-manager__name" title={item.label}>
+                  {item.label}
+                </span>
                 <Segmented
                   label={t("chat.uiManager.placementFor", { name: item.label })}
                   value={item.placement}

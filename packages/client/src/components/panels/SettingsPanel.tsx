@@ -50,6 +50,8 @@ import {
 } from "../../lib/settings-registry";
 import { cn, copyToClipboard } from "../../lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWebFontSettings } from "../../hooks/use-web-fonts";
+import { registeredFamilies } from "../../lib/web-fonts";
 import {
   ADMIN_SECRET_STORAGE_KEY,
   ApiError,
@@ -3275,15 +3277,18 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
     queryFn: () => api.get("/fonts"),
     staleTime: Infinity,
   });
+  // Registered web fonts are offered beside the font folder's fonts in every font picker here.
+  const { data: webFontSettings } = useWebFontSettings();
   const customFontOptions = React.useMemo(() => {
     const seen = new Set<string>();
-    return (customFonts ?? []).filter((font) => {
+    const webFamilies = webFontSettings ? registeredFamilies(webFontSettings.css) : [];
+    return [...(customFonts ?? []), ...webFamilies.map((family) => ({ family }))].filter((font) => {
       const family = font.family.trim();
       if (!family || seen.has(family)) return false;
       seen.add(family);
       return true;
     });
-  }, [customFonts]);
+  }, [customFonts, webFontSettings]);
   const unavailableWidgetFont =
     chatWidgetFont.startsWith("custom:") &&
     !customFontOptions.some((font) => `custom:${font.family}` === chatWidgetFont)

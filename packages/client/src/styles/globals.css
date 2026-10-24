@@ -1794,10 +1794,18 @@
   --mari-avatar-placeholder-text: var(--primary-foreground);
 }
 
+/* Personas, lorebooks and connections follow the theme accent like characters (no fixed hues). */
+.mari-avatar-placeholder--persona,
+.mari-avatar-placeholder--lorebook,
+.mari-avatar-placeholder--connection {
+  --mari-avatar-placeholder-start: var(--marinara-app-accent-solid);
+  --mari-avatar-placeholder-end: color-mix(in srgb, var(--marinara-app-accent-solid) 76%, var(--foreground) 24%);
+  --mari-avatar-placeholder-text: var(--primary-foreground);
+}
+
+/* No coloured glow behind persona pictures. */
 .mari-avatar-placeholder--persona {
-  --mari-avatar-placeholder-start: #34d399;
-  --mari-avatar-placeholder-end: #14b8a6;
-  --mari-avatar-placeholder-text: #ecfdf5;
+  box-shadow: inset 0 1px color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
 .mari-topbar-button {
@@ -8674,7 +8682,7 @@ html[data-library-shell-home="true"] [data-component="AppShell"] {
 }
 /* On phones the panels open right below the library header instead of below the hidden engine top bar. */
 html[data-library-shell-home="true"] :is([data-component="RightPanelMobile"], [data-component="ChatSidebarPanel"]) {
-  top: var(--mari-library-header-bottom, calc(env(safe-area-inset-top) + 3rem)) !important;
+  top: var(--mari-library-panel-top, calc(env(safe-area-inset-top) + 3rem)) !important;
 }
 
 html[data-library-shell-home="true"] [data-component="AppShell"]::before,
@@ -8748,7 +8756,7 @@ html[data-reader-focus="true"]
     .mari-message-actions,
     .mari-message-swipes,
     [data-message-integration-tools],
-    [data-dialogue-controls],
+    [data-dialogue-controls]:not(.mari-dialogue-host),
     [data-reader-scene-tools],
     [data-chat-settings-button],
     [data-chat-settings-move-tip],
@@ -9429,18 +9437,51 @@ html[data-reader-focus="true"]
 .mari-message-actions > [data-chat-tool-placement="more"] {
   display: none !important;
 }
+/* One grid for the whole list: name · placement · order, so every row's controls share columns. */
 .mari-ui-manager__list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 0.5rem;
+}
+.mari-ui-manager__list > :not(.mari-ui-manager__row) {
+  grid-column: 1 / -1;
+}
+/* The settings tab's category lists share one set of columns too. */
+.mari-ui-manager__lists {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 0.5rem;
+}
+.mari-ui-manager__lists > section {
+  display: contents;
+}
+.mari-ui-manager__lists .mari-ui-manager__heading {
+  grid-column: 1 / -1;
+}
+.mari-ui-manager__lists .mari-ui-manager__list {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
 }
 .mari-ui-manager__row {
-  display: flex;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 0.5rem;
   min-height: 2.75rem;
   padding-block: 0.375rem;
   border-bottom: 1px solid var(--border);
   font-size: 0.8125rem;
+}
+.mari-ui-manager__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mari-ui-manager__moves {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
 }
 .mari-ui-manager__heading {
   margin-block: 0.5rem 0.25rem;
@@ -9468,9 +9509,31 @@ html[data-reader-focus="true"]
 .mari-ui-manager__segmented button:disabled {
   opacity: 0.4;
 }
-@media (max-width: 480px) {
+/* A narrow manager (phones, or the window beside Chat Settings): the name gets its own line; placement and order
+   share the line below it. */
+.mari-ui-manager {
+  container-type: inline-size;
+}
+@container (max-width: 30rem) {
+  .mari-ui-manager__list,
+  .mari-ui-manager__lists {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
   .mari-ui-manager__row {
-    flex-wrap: wrap;
+    row-gap: 0.375rem;
+  }
+  .mari-ui-manager__name {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+  /* The placement choice fills the line beside the order buttons and never runs under them. */
+  .mari-ui-manager__row > .mari-ui-manager__segmented {
+    min-width: 0;
+  }
+  .mari-ui-manager__row > .mari-ui-manager__segmented button {
+    flex: 1 1 auto;
+    padding-inline: 0.3125rem;
+    white-space: nowrap;
   }
 }
 
@@ -9679,7 +9742,61 @@ html[data-reader-focus="true"]
   max-width: min(82%, 40rem);
 }
 [data-conversation-translation="outside"] {
-  margin-top: 0.375rem;
-  padding-top: 0.375rem;
+  margin-top: 0.125rem;
+  padding-top: 0.25rem;
   border-top: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+/* Paragraph bubbles are spaced by the paragraph gap; a translation stays close to its own bubble. */
+[data-conversation-paragraphs] > [data-conversation-translation="outside"] {
+  margin-top: calc(0.125rem - 0.375rem);
+}
+[data-reader-enabled="true"] [data-conversation-paragraphs] > [data-conversation-translation="outside"] {
+  margin-top: calc(0.125rem - var(--reader-gap, 0.375rem));
+}
+
+/* Roleplay: character names are hidden on messages (the avatar and time stay). */
+[data-chat-mode="roleplay"] [data-message-role]:not([data-message-role="user"]) .mari-message-name {
+  display: none !important;
+}
+
+/* Read aloud per line: a spoken line is tappable; its play / regenerate buttons open in a small popover under it
+   (above it near the bottom edge). The popover also shows in focus mode. */
+[data-tts-dialogue-tappable] {
+  cursor: pointer;
+  border-radius: 0.125rem;
+}
+@media (hover: hover) {
+  [data-tts-dialogue-tappable]:hover {
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+}
+.mari-dialogue-host {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: baseline;
+}
+.mari-dialogue-popover {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  z-index: 30;
+  display: inline-flex;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border: 1px solid var(--marinara-chat-chrome-panel-border, var(--border));
+  border-radius: 0.625rem;
+  background: var(--marinara-chat-chrome-panel-bg, var(--popover));
+  color: var(--marinara-chat-chrome-panel-text, var(--popover-foreground));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1;
+  text-indent: 0;
+  letter-spacing: normal;
+}
+.mari-dialogue-popover[data-above="true"] {
+  top: auto;
+  bottom: calc(100% + 0.375rem);
 }

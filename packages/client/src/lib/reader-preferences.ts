@@ -17,6 +17,8 @@ export type ReaderLayoutPreferences = {
   sideMargin: number;
   /** How many px smaller a translation shown under the original is than the message text. */
   translationSizeOffset: number;
+  /** This mode's own font; "" uses the shared font (saves from before per-mode fonts). */
+  font: string;
 };
 /** How a message's time shows: date and time, the time only, or not at all. */
 export type ReaderTimestampStyle = "datetime" | "time" | "hidden";
@@ -44,7 +46,7 @@ export type ConversationReaderPreferences = ReaderLayoutPreferences & {
 export type ReaderPreferences = {
   /** 2 = split format. Older saves have no version and are read once into this format. */
   version: 2;
-  /** Used by RP and Convo alike. The text size is the app's chat text size (`chatFontSize`). */
+  /** Used by RP and Convo alike (a mode's own `font` wins). The text size is the app's chat text size (`chatFontSize`). */
   shared: { page: ReaderPage; font: string };
   roleplay: RoleplayReaderPreferences;
   conversation: ConversationReaderPreferences;
@@ -92,6 +94,7 @@ function reader(source: Record<string, unknown>) {
     align: source.align === "justify" ? "justify" : "start",
     sideMargin: number("sideMargin", 0, 0, 64),
     translationSizeOffset: number("translationSizeOffset", 0, 0, 8),
+    font: typeof source.font === "string" && source.font !== "serif" ? normalizeChatWidgetFont(source.font) : "",
   });
   return {
     roleplay: (): RoleplayReaderPreferences => ({
@@ -152,6 +155,7 @@ export function readerModePreferences(preferences: ReaderPreferences, mode: Read
   const own = mode === "conversation" ? conversation : roleplay;
   return {
     ...shared,
+    font: own.font || shared.font,
     letterSpacing: own.letterSpacing,
     lineHeight: own.lineHeight,
     paragraphGap: own.paragraphGap,

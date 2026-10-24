@@ -102,7 +102,6 @@ import {
 } from "../../lib/connection-transfer";
 import { toast } from "sonner";
 import { TTSConfigCard } from "./settings/TTSConfigCard";
-import { SpeechToTextCard } from "./settings/SpeechToTextCard";
 import { SettingsSwitch, ToggleSetting } from "./settings/SettingControls";
 import { SelectionActionBar } from "../ui/SelectionActionBar";
 import { SmoothFolderContent } from "../ui/SmoothFolderContent";
@@ -112,36 +111,6 @@ import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../..
 import { createLocalSidecarConnectionOption, isLanguageGenerationConnection } from "../../lib/connection-filters";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
 import { LibraryPanelToolbar, RowActionsToggle } from "./LibraryPanelToolbar";
-
-const CONNECTION_ICON_COLORS = {
-  from: "from-sky-400",
-  to: "to-blue-500",
-  ring: "ring-sky-400/40",
-  badge: "bg-sky-400",
-};
-const PROVIDER_COLORS: Record<string, { from: string; to: string; ring: string; badge: string }> = {
-  openai: CONNECTION_ICON_COLORS,
-  openai_chatgpt: CONNECTION_ICON_COLORS,
-  anthropic: CONNECTION_ICON_COLORS,
-  claude_subscription: CONNECTION_ICON_COLORS,
-  grok_subscription: CONNECTION_ICON_COLORS,
-  google: CONNECTION_ICON_COLORS,
-  google_vertex: CONNECTION_ICON_COLORS,
-  mistral: CONNECTION_ICON_COLORS,
-  cohere: CONNECTION_ICON_COLORS,
-  openrouter: CONNECTION_ICON_COLORS,
-  nanogpt: CONNECTION_ICON_COLORS,
-  xai: CONNECTION_ICON_COLORS,
-  arli: CONNECTION_ICON_COLORS,
-  zai: CONNECTION_ICON_COLORS,
-  deepseek: CONNECTION_ICON_COLORS,
-  custom: CONNECTION_ICON_COLORS,
-  image_generation: CONNECTION_ICON_COLORS,
-  video_generation: CONNECTION_ICON_COLORS,
-  audio: CONNECTION_ICON_COLORS,
-  decision: CONNECTION_ICON_COLORS,
-};
-const DEFAULT_COLOR = CONNECTION_ICON_COLORS;
 
 function getConnectionFallbackIcon(provider: string) {
   if (provider === "image_generation") return <ImageIcon size="1rem" />;
@@ -917,7 +886,7 @@ function ConnectionDefaultPair({
 
   return (
     <div className="grid gap-2 px-3 py-3 sm:grid-cols-[2.25rem_minmax(0,1fr)]">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-sm">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--secondary)] text-[var(--foreground)]">
         {icon}
       </div>
       <div className="min-w-0 space-y-2">
@@ -1274,15 +1243,14 @@ function ConnectionRow({
   const openConnectionDetail = useUIStore((s) => s.openConnectionDetail);
 
   const inRandomPool = conn.useForRandom === "true";
-  const colors = PROVIDER_COLORS[conn.provider] ?? DEFAULT_COLOR;
   const iconContent = conn.imagePath ? (
     <img src={conn.imagePath} alt="" className="h-full w-full object-cover" draggable={false} />
   ) : (
     getConnectionFallbackIcon(conn.provider)
   );
   const iconFrameClasses = cn(
-    "relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-white shadow-sm",
-    conn.imagePath ? "bg-[var(--muted)]" : `${colors.from} ${colors.to}`,
+    "relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl shadow-sm",
+    conn.imagePath ? "bg-[var(--muted)]" : "mari-avatar-placeholder mari-avatar-placeholder--connection",
   );
 
   return (
@@ -1318,7 +1286,7 @@ function ConnectionRow({
       data-receipt-row=""
       className={cn(
         "group relative flex touch-pan-y cursor-grab active:cursor-grabbing items-center gap-3 rounded-xl p-2.5 transition-all hover:bg-[var(--sidebar-accent)]",
-        isSelected && `ring-1 ${colors.ring} bg-[var(--sidebar-accent)]/50`,
+        isSelected && "ring-1 ring-[var(--marinara-chat-chrome-button-border-active)] bg-[var(--sidebar-accent)]/50",
         selectionMode && isBulkSelected && "ring-1 ring-[var(--border)] bg-[var(--sidebar-accent)]/70",
         isDragging && "opacity-50",
       )}
@@ -1368,10 +1336,10 @@ function ConnectionRow({
           <div
             className={cn(
               "pointer-events-none absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-md shadow-sm ring-1 ring-[var(--sidebar)]",
-              colors.badge,
+              "bg-[var(--marinara-app-accent-solid)] text-[var(--primary-foreground)]",
             )}
           >
-            <Check size="0.625rem" className="text-white" />
+            <Check size="0.625rem" />
           </div>
         )}
       </button>
@@ -2190,7 +2158,6 @@ export function ConnectionsPanel() {
       <TTSConfigCard />
 
       {/* ── Speech to Text (Calls only) ── */}
-      <SpeechToTextCard />
 
       {isLoading && (
         <div className="flex flex-col gap-2 py-2">
@@ -2202,8 +2169,8 @@ export function ConnectionsPanel() {
 
       {!isLoading && (!connections || (connections as unknown[]).length === 0) && (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <div className="animate-float flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400/20 to-blue-500/20">
-            <Link size="1.25rem" className="text-sky-400" />
+          <div className="mari-chrome-accent-soft-tile mari-accent-animated animate-float flex h-12 w-12 items-center justify-center rounded-2xl">
+            <Link size="1.25rem" />
           </div>
           <p className="mari-chrome-text-muted text-xs">{localizeUi("ui.panels.connectionspanel.noConnectionsYet")}</p>
         </div>
@@ -2222,14 +2189,14 @@ export function ConnectionsPanel() {
 
       {/* LinkAPI recommendation banner */}
       {!isLoading && (!connections || (connections as unknown[]).length === 0) && !linkApiBannerDismissed && (
-        <div className="rounded-xl border border-sky-400/20 bg-gradient-to-br from-sky-400/5 to-blue-500/5 p-3 flex flex-col gap-2">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 flex flex-col gap-2">
           <p className="text-xs text-[var(--muted-foreground)]">
             {localizeUi("ui.panels.connectionspanel.lookingToTryNewModelsFromATrustedProvider")}{" "}
             <a
               href="https://linkapi.ai/"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-sky-400 underline decoration-sky-400/30 hover:text-sky-300 transition-colors"
+              className="font-medium text-[var(--marinara-app-accent-solid)] underline decoration-current/30 hover:opacity-80 transition-opacity"
             >
               {localizeUi("ui.panels.connectionspanel.linkapi")}
             </a>

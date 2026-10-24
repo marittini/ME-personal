@@ -34,10 +34,16 @@ export function buildDialogueSpeechGroups(
     ].length;
     if (wrapperCount > lines.length) throw new Error("unknownSpeaker");
     groups = lines.map((line) => {
-      const voice =
+      // A participant without its own voice speaks with the default one (voices are added only where needed).
+      const own =
         line.kind === "persona"
           ? config.personaVoiceAssignments?.find((row) => row.personaId === line.id)?.voice
           : config.voiceAssignments.find((row) => row.characterId === line.id)?.voice;
+      const voice = own?.trim()
+        ? own
+        : line.kind === "persona"
+          ? config.voice
+          : resolveTTSVoiceForSpeaker(config, line.name, line.id);
       if (!voice?.trim()) throw new Error("missingVoice");
       return {
         requests: splitTTSChunks(line.text, config).map((chunk) => ({
