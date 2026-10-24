@@ -71,6 +71,7 @@ import { useTranslation as useUiTranslation } from "react-i18next";
 import { PanelLoadMoreBar } from "./PanelLoadMoreBar";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
+import { RowActionsToggle } from "./LibraryPanelToolbar";
 
 const CATEGORIES: Array<{ id: LorebookCategory | "all" | "active"; label: string }> = [
   { id: "all", label: "All" },
@@ -1181,6 +1182,12 @@ export function LorebooksPanel() {
           )}
 
           <div className="stagger-children flex min-h-8 flex-col gap-1 rounded-xl transition-colors">
+            {rootLorebooks.length > 0 && (
+              <div data-receipt-columns="" aria-hidden="true">
+                <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
+                <span>{localizeUi("ui.panels.libraryToolbar.entriesColumn")}</span>
+              </div>
+            )}
             {rootLorebooks.map((lb) => renderLorebookRow(lb))}
           </div>
         </>
@@ -1331,7 +1338,7 @@ function LorebookRow({
           </span>
         </button>
       )}
-      <div className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-24 [@media(pointer:coarse)]:pr-24")}>
+      <div className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-7 [@media(pointer:coarse)]:pr-7")}>
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="min-w-0 truncate text-sm font-medium">{lorebook.name}</span>
           {!lorebook.enabled && (
@@ -1351,9 +1358,22 @@ function LorebookRow({
             lorebook.description || "No description"
           )}
         </div>
+        {lorebook.entryCount !== undefined && (
+          <span
+            data-receipt-value=""
+            className="text-[0.8125rem]"
+            aria-label={localizeUi("ui.panels.libraryToolbar.entryCount", { count: lorebook.entryCount })}
+          >
+            {lorebook.entryCount.toLocaleString()}
+          </span>
+        )}
       </div>
+      {!selectionMode && <RowActionsToggle />}
       {!selectionMode && (
-        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+        <div
+          data-row-actions=""
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto group-data-[actions-open]:[&_button]:pointer-events-auto"
+        >
           <ChatResourceActionButton
             payload={{ version: 1, kind: "lorebook", ids: [lorebook.id], label: lorebook.name }}
           />

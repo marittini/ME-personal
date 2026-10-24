@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture.js";
 import { clickTopbarPanel } from "./topbar-navigation.js";
 import { prepareViteFixtureDependencies } from "./vite-fixture-dependencies.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
@@ -66,9 +67,10 @@ test("character library restores New Folder and bulk tags persist across reload"
     await expect(page.locator(`[data-character-folder-id="${createdFolderId}"]`)).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("character-new-folder-restored.png") });
 
-    await page.getByRole("button", { name: "Select", exact: true }).click();
+    await chooseLibraryPanelAction(page, "Select");
     for (const [index, id] of createdIds.entries()) {
       if (index === 1) {
+        await openLibraryPanelSearch(page);
         await page.getByPlaceholder("Search characters", { exact: true }).fill(`${name} (copy)`);
         await expect(page.locator(`[data-character-id="${createdIds[0]}"]`)).toBeHidden();
       }
@@ -119,7 +121,7 @@ test("character library restores New Folder and bulk tags persist across reload"
         .toContain("keep-after-reload");
     }
 
-    await page.getByRole("button", { name: "Select", exact: true }).click();
+    await chooseLibraryPanelAction(page, "Select");
     for (const id of createdIds) {
       await page
         .locator(`[data-character-id="${id}"]`)

@@ -619,4 +619,12 @@ export const readerKoreanMessages: Record<string, string> = {
   "chat.uiManager.lessTools": "도구 접기",
   "chat.uiManager.reorder": "{{name}} 순서 바꾸기 (끌거나 방향키)",
   "settings.search.themeMode.description": "화이트·크림·먹색·블랙 중에서 고르며 앱 전체 색이 바뀝니다.",
+  "ui.panels.libraryToolbar.search": "검색",
+  "ui.panels.libraryToolbar.more": "더 보기",
+  "ui.panels.libraryToolbar.endSelection": "선택 끝내기",
+  "ui.panels.libraryToolbar.rowActions": "도구",
+  "ui.panels.libraryToolbar.nameColumn": "이름",
+  "ui.panels.libraryToolbar.entryCount": "항목 {{count}}개",
+  "ui.panels.libraryToolbar.entriesColumn": "항목",
+  "ui.panels.libraryToolbar.modelColumn": "모델",
 };

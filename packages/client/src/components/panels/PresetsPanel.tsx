@@ -100,6 +100,7 @@ import { useLocalizedUiText } from "../../localization/use-localized-ui-text";
 import { useTranslation as useUiTranslation } from "react-i18next";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
+import { RowActionsToggle } from "./LibraryPanelToolbar";
 import { resolvePresetArtwork } from "../../lib/preset-artwork";
 
 type PresetRow = {
@@ -1044,7 +1045,7 @@ export function PresetsPanel() {
             )}
             <div
               data-preset-open-action={preset.id}
-              className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-36 [@media(pointer:coarse)]:pr-36")}
+              className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-7 [@media(pointer:coarse)]:pr-7")}
             >
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5" title={preset.name}>
@@ -1061,9 +1062,6 @@ export function PresetsPanel() {
                   {wrapFormat === "xml" ? <Code2 size="0.5625rem" /> : <Hash size="0.5625rem" />}
                   {wrapFormat.toUpperCase()}
                 </span>
-                <span className="shrink-0" data-receipt-value="">
-                  {sectionCount} {localizeUi("ui.presets.sectionstab.sections")}
-                </span>
                 {preset.author && (
                   <span
                     className="min-w-0 truncate"
@@ -1073,11 +1071,22 @@ export function PresetsPanel() {
                   </span>
                 )}
               </div>
+              <span
+                data-receipt-value=""
+                className="text-[0.8125rem]"
+                aria-label={`${sectionCount} ${localizeUi("ui.presets.sectionstab.sections")}`}
+              >
+                {sectionCount.toLocaleString()}
+              </span>
             </div>
           </div>
 
+          {!selectionMode && <RowActionsToggle />}
           {!selectionMode && (
-            <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+            <div
+              data-row-actions=""
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto group-data-[actions-open]:[&_button]:pointer-events-auto"
+            >
               <ChatResourceActionButton
                 payload={{ version: 1, kind: "preset", ids: [preset.id], label: preset.name }}
               />
@@ -1505,6 +1514,12 @@ export function PresetsPanel() {
         )}
 
         <div className="stagger-children flex min-h-8 flex-col gap-1 rounded-xl transition-colors">
+          {rootPresets.length > 0 && (
+            <div data-receipt-columns="" aria-hidden="true">
+              <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
+              <span>{localizeUi("ui.presets.sectionstab.sections")}</span>
+            </div>
+          )}
           {rootPresets.map((preset) => renderPresetRow(preset))}
         </div>
 

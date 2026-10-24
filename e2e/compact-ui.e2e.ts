@@ -81,6 +81,43 @@ test("library lists read like a label: heavy bars around the list, hairlines bet
     const name = row.locator("[data-character-row-name]");
     const [valueBox, nameBox] = [await value.boundingBox(), await name.boundingBox()];
     expect(valueBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width - 1);
+    // Tokens read like a price: the bare number, with the unit once in the column line.
+    await expect(value).toHaveText(/^\d[\d,]*$/u);
+    await expect(page.locator("[data-receipt-columns]:visible")).toContainText(/Tokens/i);
+    // One line of icons replaces the download/library and search/sort rows.
+    const toolbar = page.locator("[data-library-toolbar]:visible");
+    await expect(page.getByPlaceholder("Search characters", { exact: true })).toBeHidden();
+    await toolbar.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByPlaceholder("Search characters", { exact: true }).fill("Label Beta");
+    await expect(page.locator("[data-receipt-row]").filter({ hasText: "Label Alpha" })).toBeHidden();
+    await toolbar.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.locator("[data-receipt-row]").filter({ hasText: "Label Alpha" })).toBeVisible();
+    await toolbar.getByRole("button", { name: "More actions", exact: true }).click();
+    await expect(page.getByRole("menuitem")).toHaveText([
+      "Download character cards",
+      "Open Library",
+      "Import",
+      "Select",
+    ]);
+    await toolbar.getByRole("button", { name: "More actions", exact: true }).click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    // Row tools: bare icons on hover; on a phone they wait behind the row's ⋯ button.
+    const tools = row.locator("[data-character-row-actions]");
+    if (test.info().project.name.startsWith("mobile")) {
+      await expect(tools).toHaveCSS("opacity", "0");
+      await row.getByRole("button", { name: "Tools", exact: true }).click();
+      await expect(tools).toHaveCSS("opacity", "1");
+      // The tap stays on the row's tools instead of opening the character.
+      await expect(row).toBeVisible();
+    } else {
+      await row.hover();
+      await expect(tools).toHaveCSS("opacity", "1");
+      await expect(row.getByRole("button", { name: "Tools", exact: true })).toBeHidden();
+    }
+    await expect(tools.getByRole("button", { name: "Duplicate", exact: true })).toHaveCSS(
+      "background-color",
+      "rgba(0, 0, 0, 0)",
+    );
     await page.screenshot({ path: `.tmp/receipt-characters-${test.info().project.name}.png` });
   } finally {
     for (const character of created) await request.delete(`/api/characters/${character.id}`);
@@ -232,4 +269,35 @@ test("Settings offers the four page colors; a pick sets the app theme, survives 
   await page.getByPlaceholder("Search settings").fill("page color");
   await page.locator(".mari-settings-search-header button").filter({ hasText: "Page color" }).first().click();
   await expect(picker.getByRole("radio", { name: "Cream" })).toHaveAttribute("aria-checked", "true");
+});
+
+test("work information: the cover and the text block share one height, Continue reading is a slim bar", async ({
+  page,
+  request,
+}) => {
+  const { id } = await (await request.post("/api/chats", { data: { name: "Cover Proof", mode: "roleplay" } })).json();
+  try {
+    await request.post(`/api/chats/${id}/messages`, { data: { role: "assistant", content: "Opening line." } });
+    await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    // The newest work opens straight into the reader; its back button leads to the work information.
+    await page.getByRole("button").filter({ hasText: "Cover Proof" }).first().click();
+    await page.getByRole("button", { name: "Back to work information", exact: true }).click();
+    const detail = page.locator('[data-component="LibraryWorkDetail"]');
+    await expect(detail).toBeVisible();
+    const [cover, info, bar] = await Promise.all([
+      detail.locator("[data-work-cover-cell]").boundingBox(),
+      detail.locator("[data-work-info-cell]").boundingBox(),
+      detail.locator("[data-work-continue]").boundingBox(),
+    ]);
+    expect(Math.abs(cover!.y - info!.y)).toBeLessThan(1);
+    expect(Math.abs(cover!.height - info!.height)).toBeLessThan(1);
+    expect(bar!.height).toBeLessThanOrEqual(40);
+    expect(Math.abs(bar!.y + bar!.height - (cover!.y + cover!.height))).toBeLessThan(1);
+    await page.screenshot({ path: `.tmp/work-detail-${test.info().project.name}.png` });
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
 });

@@ -318,23 +318,29 @@ export function LibraryHome() {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(2rem,env(safe-area-inset-bottom))] md:px-10">
           <div className="mx-auto max-w-3xl">
             <section className="grid grid-cols-[7.2rem_minmax(0,1fr)] gap-6 border-b border-[var(--border)] pb-8 pt-5 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-10 md:pb-10">
-              <div className="min-w-0">
-                <WorkCover work={selectedWork} className="aspect-[2/3] w-full" />
+              {/* The cover and the information block share one height: the row is as tall as the taller of
+                  a 2:3 cover and the text, and the cover fills it. */}
+              <div className="relative min-w-0" data-work-cover-cell="">
+                <span className="block aspect-[2/3] w-full" aria-hidden="true" />
+                <WorkCover work={selectedWork} className="absolute inset-0" />
               </div>
-              <div className="flex min-w-0 flex-col justify-end">
-                <h1 className="break-words text-2xl font-semibold leading-snug tracking-[-0.03em] md:text-4xl">
-                  {selectedWork.title}
-                </h1>
-                <p className="mt-2 break-words text-sm text-[var(--muted-foreground)]">{selectedWork.author}</p>
-                {selectedWork.description && (
-                  <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed">
-                    {selectedWork.description}
-                  </p>
-                )}
+              <div className="flex min-w-0 flex-col justify-between" data-work-info-cell="">
+                <div className="min-w-0">
+                  <h1 className="break-words text-2xl font-semibold leading-snug tracking-[-0.03em] md:text-4xl">
+                    {selectedWork.title}
+                  </h1>
+                  <p className="mt-2 break-words text-sm text-[var(--muted-foreground)]">{selectedWork.author}</p>
+                  {selectedWork.description && (
+                    <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {selectedWork.description}
+                    </p>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => openWork(selectedWork)}
-                  className="mt-5 flex min-h-12 w-full items-center justify-center rounded-md bg-[var(--foreground)] px-4 text-sm font-semibold text-[var(--background)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                  data-work-continue=""
+                  className="mt-4 flex min-h-9 w-full items-center justify-center rounded-md bg-[var(--foreground)] px-4 text-sm font-semibold text-[var(--background)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                 >
                   {t("libraryShell.continue")}
                 </button>

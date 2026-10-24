@@ -24,6 +24,7 @@ import {
   openChatSettingsTool,
 } from "./chat-settings-tools.js";
 import { UI_PERSISTENCE } from "../packages/client/src/lib/ui-persistence.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const TRANSPARENT_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 const TRANSPARENT_PNG_BASE64 =
@@ -3723,7 +3724,7 @@ test("Character favorite tags and stars inherit the configured accent color", as
     expect(await favoriteToggle.getAttribute("class")).not.toMatch(/amber|yellow/iu);
     await editor.getByTitle("Back", { exact: true }).click();
 
-    await rightPanel.getByRole("button", { name: "Open Library" }).click();
+    await chooseLibraryPanelAction(rightPanel, "Open Library");
     const library = page.locator('[data-component="CharacterLibraryView"]');
     await library.getByPlaceholder("Search characters").fill(characterName);
 
@@ -3815,6 +3816,7 @@ test("Character row actions can add a resource to the active chat without draggi
     await clickTopbarPanel(page, "characters");
 
     // This action proof needs one character, not the shard's accumulated catalog.
+    await openLibraryPanelSearch(page);
     await page.getByRole("textbox", { name: "Search characters", exact: true }).fill(characterName);
     const folderRow = page.locator(`[data-character-folder-id="${group.id}"]`);
     const folderHeader = folderRow.locator(':scope > [role="button"]');
@@ -3992,7 +3994,7 @@ test("Character Chat actions reuse mode selection and seed the chosen setup wiza
     await page.goto("/");
     await ensureCharacterPanelOpen();
 
-    await rightPanel.getByRole("button", { name: "Open Library" }).click();
+    await chooseLibraryPanelAction(rightPanel, "Open Library");
     const library = page.locator('[data-component="CharacterLibraryView"]');
     await library.getByPlaceholder("Search characters").fill(characterName);
     const libraryCard = library.locator(`[data-card-library-card="${character.id}"]`);
@@ -14241,48 +14243,23 @@ test("Character and Persona panels launch card downloads and their local librari
       iconWidth: iconBounds?.width ?? 0,
     };
   });
+  // The library panels open with one line of thin icons (create · search · more); the rest waits in the menu.
   const expectLibraryActionGeometry = async (component: "CharacterLibraryActions" | "PersonaLibraryActions") => {
     const actions = page.locator(`[data-component="${component}"]`);
-    const geometry = await actions.evaluate((container) => {
-      const containerBounds = container.getBoundingClientRect();
-      const buttons = Array.from(container.querySelectorAll("button"));
-      return {
-        centerX: containerBounds.left + containerBounds.width / 2,
-        buttons: buttons.map((button) => {
-          const bounds = button.getBoundingClientRect();
-          const iconBounds = button.querySelector("svg")?.getBoundingClientRect();
-          const label = button.querySelector("span:last-child") as HTMLElement | null;
-          return {
-            left: bounds.left,
-            width: bounds.width,
-            height: bounds.height,
-            iconWidth: iconBounds?.width ?? 0,
-            iconHeight: iconBounds?.height ?? 0,
-            labelFits: Boolean(label && label.scrollWidth <= label.clientWidth + 1),
-            labelWhiteSpace: label ? getComputedStyle(label).whiteSpace : "",
-          };
-        }),
-      };
-    });
-    expect(geometry.buttons).toHaveLength(2);
-    expect(Math.abs(geometry.buttons[0]!.width - geometry.buttons[1]!.width)).toBeLessThanOrEqual(1);
-    expect(Math.abs(geometry.buttons[1]!.left - geometry.centerX)).toBeLessThanOrEqual(1);
-    for (const button of geometry.buttons) {
-      expect(Math.abs(button.height - chatControlGeometry.buttonHeight)).toBeLessThanOrEqual(1);
-      expect(Math.abs(button.iconWidth - chatControlGeometry.iconWidth)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(button.iconHeight - chatControlGeometry.iconHeight)).toBeLessThanOrEqual(0.5);
-      expect(button.labelFits).toBe(true);
-      expect(button.labelWhiteSpace).toBe("nowrap");
-    }
+    const heights = await actions.evaluate((container) =>
+      Array.from(container.querySelectorAll("button")).map((button) => button.getBoundingClientRect().height),
+    );
+    expect(heights).toHaveLength(3);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+    expect(heights[0]).toBeGreaterThanOrEqual(chatControlGeometry.iconHeight);
   };
 
   await expect(page.locator('[data-tour="panel-bot-browser"]')).toHaveCount(0);
   await clickTopbarPanel(page, "characters");
   const characterActions = page.locator('[data-component="CharacterLibraryActions"]');
-  await expect(characterActions.getByRole("button", { name: "Download", exact: true })).toBeVisible();
-  await expect(characterActions.getByRole("button", { name: "Open Library", exact: true })).toBeVisible();
+  await expect(characterActions.getByRole("button", { name: "More actions", exact: true })).toBeVisible();
   await expectLibraryActionGeometry("CharacterLibraryActions");
-  await characterActions.getByRole("button", { name: "Download", exact: true }).click();
+  await chooseLibraryPanelAction(page, "Download character cards");
 
   const cardLibrary = page.locator('[data-component="BotBrowserView"]');
   await expect(cardLibrary.getByText("Cards Library", { exact: true })).toBeVisible();
@@ -14321,11 +14298,10 @@ test("Character and Persona panels launch card downloads and their local librari
   await expect(closeCardLibrary).toBeVisible();
   await closeCardLibrary.click();
 
-  const openCharacterLibrary = characterActions.getByRole("button", { name: "Open Library", exact: true });
-  if (!(await openCharacterLibrary.isVisible())) {
+  if (!(await characterActions.isVisible())) {
     await clickTopbarPanel(page, "characters");
   }
-  await openCharacterLibrary.click();
+  await chooseLibraryPanelAction(page, "Open Library");
   const characterLibrary = page.locator('[data-component="CharacterLibraryView"]');
   await expect(characterLibrary.getByPlaceholder("Search characters")).toBeVisible();
   await expect(characterLibrary.getByRole("button", { name: "Select", exact: true })).toHaveCount(0);
@@ -14348,11 +14324,9 @@ test("Character and Persona panels launch card downloads and their local librari
 
   await clickTopbarPanel(page, "personas");
   const personaActions = page.locator('[data-component="PersonaLibraryActions"]');
-  await expect(personaActions.getByRole("button", { name: "Download", exact: true })).toBeVisible();
-  const openPersonaLibrary = personaActions.getByRole("button", { name: "Open Library", exact: true });
-  await expect(openPersonaLibrary).toBeVisible();
+  await expect(personaActions.getByRole("button", { name: "More actions", exact: true })).toBeVisible();
   await expectLibraryActionGeometry("PersonaLibraryActions");
-  await openPersonaLibrary.click();
+  await chooseLibraryPanelAction(page, "Open Library");
 
   await expect(page.getByText("Persona Library", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Browse your personas" })).toBeVisible();
@@ -14439,10 +14413,7 @@ test("Downloaded cards use Marinara destination and lorebook choices", async ({ 
 
   await page.goto("/");
   await clickTopbarPanel(page, "characters");
-  await page
-    .locator('[data-component="CharacterLibraryActions"]')
-    .getByRole("button", { name: "Download", exact: true })
-    .click();
+  await chooseLibraryPanelAction(page, "Download character cards");
 
   const library = page.locator('[data-component="BotBrowserView"]');
   await library.getByRole("button", { name: /ChubAI/u }).click();
@@ -14564,10 +14535,7 @@ test("Chub NSFW search uses filtered totals and spaced pagination", async ({ pag
 
   await page.goto("/");
   await clickTopbarPanel(page, "characters");
-  await page
-    .locator('[data-component="CharacterLibraryActions"]')
-    .getByRole("button", { name: "Download", exact: true })
-    .click();
+  await chooseLibraryPanelAction(page, "Download character cards");
   const library = page.locator('[data-component="BotBrowserView"]');
   await expect(library.getByText("96 cards from ChubAI", { exact: true })).toBeVisible();
   const pageSelector = library.getByRole("combobox", { name: "Page", exact: true });
@@ -14623,6 +14591,7 @@ test("Character and Persona sidebars find cards by creator", async ({ page, requ
 
     await clickTopbarPanel(page, "characters");
     await expect(rightPanel).toBeVisible();
+    await openLibraryPanelSearch(rightPanel);
     await rightPanel.getByPlaceholder("Search characters").fill(characterCreator);
     await expect(
       rightPanel.locator(`[data-touch-drag-card="character"][data-character-id="${character.id}"]`),
@@ -14630,6 +14599,7 @@ test("Character and Persona sidebars find cards by creator", async ({ page, requ
 
     await clickTopbarPanel(page, "personas");
     await expect(rightPanel).toBeVisible();
+    await openLibraryPanelSearch(rightPanel);
     await rightPanel.getByPlaceholder("Search personas").fill(personaCreator);
     await expect(rightPanel.locator('[data-touch-drag-card="persona"]').filter({ hasText: personaName })).toBeVisible();
   } finally {
@@ -14675,18 +14645,19 @@ test("right-panel controls keep their width with and without a scrollbar", async
     await expect
       .poll(() => characterScroll.evaluate((element) => element.scrollHeight > element.clientHeight))
       .toBe(true);
-    const characterLibraryButton = rightPanel.getByRole("button", { name: "Open Library", exact: true });
+    const characterLibraryButton = libraryPanelToolbar(rightPanel).getByRole("button", { name: "More actions" });
     const characterButtonBox = await characterLibraryButton.boundingBox();
     expect(characterButtonBox).not.toBeNull();
     await expect(characterScroll).toHaveCSS("scrollbar-gutter", /stable/u);
 
     await clickTopbarPanel(page, "personas");
+    await openLibraryPanelSearch(rightPanel);
     await rightPanel.getByPlaceholder("Search personas").fill(personaName);
     const personaScroll = rightPanel.locator('[data-panel-key="personas"]');
     await expect
       .poll(() => personaScroll.evaluate((element) => element.scrollHeight <= element.clientHeight))
       .toBe(true);
-    const personaLibraryButton = rightPanel.getByRole("button", { name: "Open Library", exact: true });
+    const personaLibraryButton = libraryPanelToolbar(rightPanel).getByRole("button", { name: "More actions" });
     const personaButtonBox = await personaLibraryButton.boundingBox();
     expect(personaButtonBox).not.toBeNull();
     await expect(personaScroll).toHaveCSS("scrollbar-gutter", /stable/u);

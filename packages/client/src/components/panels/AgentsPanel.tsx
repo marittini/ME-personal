@@ -109,6 +109,7 @@ import { Modal } from "../ui/Modal";
 import { RulesetImportReviewModal } from "../agents/RulesetImportReviewModal";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
+import { RowActionsToggle } from "./LibraryPanelToolbar";
 
 type JsonRecord = Record<string, unknown>;
 type NormalizedAgentImport = NonNullable<ReturnType<typeof normalizeAgentImportEntry>>;
@@ -2052,6 +2053,7 @@ function renderAgentCard({
         if (suppressClickRef?.current) return;
         if (selectionMode && onToggleSelected) onToggleSelected();
       }}
+      data-receipt-row=""
       className={cn(
         "group relative flex touch-pan-y cursor-grab active:cursor-grabbing items-center gap-2.5 rounded-xl p-2 transition-all hover:bg-[var(--sidebar-accent)]",
         selectionMode &&
@@ -2112,13 +2114,7 @@ function renderAgentCard({
       </button>
       <button
         data-drag-surface
-        className={cn(
-          "min-w-0 flex-1 cursor-grab text-left active:cursor-grabbing",
-          !selectionMode &&
-            (onDelete
-              ? "pr-0 max-md:pr-24 [@media(pointer:coarse)]:pr-24"
-              : "pr-0 max-md:pr-16 [@media(pointer:coarse)]:pr-16"),
-        )}
+        className={cn("min-w-0 flex-1 cursor-grab text-left active:cursor-grabbing")}
         onClick={(event) => {
           event.stopPropagation();
           if (suppressClickRef?.current) return;
@@ -2133,12 +2129,23 @@ function renderAgentCard({
         <div className="mt-0.5 text-[0.625rem] text-[var(--muted-foreground)] line-clamp-2">
           {description || localizeUi("ui.panels.agentcard.noDescription")}
         </div>
-        <div className="mt-1 text-[0.5625rem] uppercase text-[var(--muted-foreground)]/80">
-          {custom ? localizeUi("ui.panels.agentcard.custom") : category}
-        </div>
       </button>
+      {/* Agents have no global on/off (each chat turns them on), so the value column names the kind. */}
+      <span
+        data-receipt-value=""
+        className={cn(
+          "shrink-0 text-[0.6875rem] uppercase",
+          !selectionMode && "max-md:mr-7 [@media(pointer:coarse)]:mr-7",
+        )}
+      >
+        {custom ? localizeUi("ui.panels.agentcard.custom") : category}
+      </span>
+      {!selectionMode && <RowActionsToggle />}
       {!selectionMode && (
-        <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+        <div
+          data-row-actions=""
+          className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto group-data-[actions-open]:[&_button]:pointer-events-auto"
+        >
           <ChatResourceActionButton payload={{ version: 1, kind: "agent", ids: [type], label: name }} />
           <button
             className="mari-chrome-control mari-chrome-control--small p-1.5"

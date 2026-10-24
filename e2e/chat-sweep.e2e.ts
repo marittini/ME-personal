@@ -3,6 +3,7 @@ import { prepareViteFixtureDependencies } from "./vite-fixture-dependencies.js";
 import { test, expect, type Route } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
@@ -216,10 +217,7 @@ test("Personas are chosen per chat and Conversation names match that choice", as
     await expect(page.locator('[data-touch-drag-card="persona"]').last()).toHaveCSS("opacity", "1");
     await page.screenshot({ path: info.outputPath("personas-panel.png") });
     const globalControls = await panel.getByRole("button", { name: /^(Set as active|Active|Inactive)$/u }).count();
-    await page
-      .locator('[data-component="PersonaLibraryActions"]')
-      .getByRole("button", { name: "Open Library", exact: true })
-      .click();
+    await chooseLibraryPanelAction(page, "Open Library");
     const library = page.locator('[data-component="CharacterLibraryView"]');
     await expect(library.getByRole("heading", { name: "Browse your personas" })).toBeVisible();
     await expect(library.getByText("Alice Persona", { exact: true }).first()).toBeVisible();
