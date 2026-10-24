@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture.js";
 import { chatSettingsWindow, openChatSettings } from "./chat-settings-tools.js";
+import { serveWithServerCsp } from "./server-csp-fixture.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
@@ -540,6 +541,96 @@ test("web fonts: registered once, then picked in the app font list and in each m
     await expect.poll(async () => (await stored())?.roleplay?.font).toBe("custom:Proof Serif");
     expect((await stored()).conversation.font).toBe("");
     await page.screenshot({ path: `.tmp/reader-settings-${test.info().project.name}.png` });
+  } finally {
+    await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+    await request.delete(`/api/chats/${rp.id}?force=true`);
+  }
+});
+
+// A 600-byte WOFF whose "A" is two em wide, so a laid-out "A" shows whether the web font really loaded.
+const WIDE_A_FONT = Buffer.from(
+  "d09GRgABAAAAAAJcAAoAAAAAApAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAABPUy8yAAABZAAAACMAAABgQThENWNtYXAAAAGQAAAAKQAAADQADACUZ2x5ZgAAAcQAAAAuAAAAMtpcjmZoZWFkAAAA9AAAADYAAAA2NLjgeGhoZWEAAAEsAAAAHwAAACQKwAdvaG10eAAAAYgAAAAIAAAACAlgAGRsb2NhAAABvAAAAAYAAAAGABkADG1heHAAAAFMAAAAFgAAACAABAAGbmFtZQAAAfQAAABWAAAAZn6sfJpwb3N0AAACTAAAAA8AAAAmACgAAAABAAAAAQAA3sIsNV8PPPUAAwPoAAAAAOcCTm4AAAAA5wJObgAyAAAHbAK8AAAAAwACAAAAAAAAeJxjYGRgYFb4b8HAwH6BwYghhT2HASiCApgAUxwDPwB4nGNgZGBgYGJgYQDRIBYaAAABEgALAAB4nGNgZtnAOIGBlYGFgTBgRObYAwGQcgRCXECBgQEArUcC8QABkAAyB9AAMnicY2BgYGJgYGAGYhEgyQimWRgUgDQLEIL4jv//Q8j/B8B8BgBSlwadAAAAAAAADAAZAAB4nGNgZDBiYGDUYdrDwMzAYCxoLGj0i2nPXxcGsDh7DkxcUdCI3QosAQDH7gkkAAB4nC2IMQrAIAADTysUl1L6AukTHPoDd/EHDuoiCIL/r5ZeSEgCKB4EC4H+ciHZ59oQSs/n4vy75OB21hnfW8shlVFjx2GnDZ5Om8oEEoVBJdJfbe4MOAAAeJxjYGLAD0DyKgAAngApAA==",
+  "base64",
+);
+
+test("web fonts: noonnu @font-face code loads under the server's Content-Security-Policy and shows in RP", async ({
+  page,
+  request,
+}) => {
+  // Owner report 2026-10-24: this exact code never applied. The server's font-src allowed only its own fonts.
+  const code = `@font-face {
+    font-family: 'BookkMyungjo';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkMyungjo-Lt.woff2') format('woff2');
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'BookkMyungjo';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/BookkMyungjo-Bd.woff2') format('woff2');
+    font-weight: 700;
+    font-display: swap;
+}`;
+  const rp = await (await request.post("/api/chats", { data: { name: "Bookk proof", mode: "roleplay" } })).json();
+  await request.post(`/api/chats/${rp.id}/messages`, { data: { role: "assistant", content: "AAAA" } });
+  await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+  const fetched: string[] = [];
+  await page.route("https://cdn.jsdelivr.net/gh/projectnoonnu/**", (route) => {
+    fetched.push(route.request().url());
+    return route.fulfill({
+      body: WIDE_A_FONT,
+      contentType: "font/woff2",
+      headers: { "access-control-allow-origin": "*" },
+    });
+  });
+  await serveWithServerCsp(page, ["font"]);
+  await page.addInitScript(() => {
+    (window as unknown as { cspFontBlocks: string[] }).cspFontBlocks = [];
+    document.addEventListener("securitypolicyviolation", (event) => {
+      if (event.effectiveDirective === "font-src")
+        (window as unknown as { cspFontBlocks: string[] }).cspFontBlocks.push(event.blockedURI);
+    });
+  });
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+    settingsTab: "appearance",
+    chatHelpSeenModes: ["conversation", "roleplay", "game"],
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  try {
+    await page.goto("/");
+    await page.getByPlaceholder("Search settings").fill("web font");
+    await page.locator(".mari-settings-search-header button").filter({ hasText: "Web fonts" }).first().click();
+    const panel = page.locator("[data-web-fonts]");
+    await panel.getByLabel("@font-face / @import code").fill(code);
+    await panel.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(panel.locator('[data-web-font-family="BookkMyungjo"]')).toHaveCount(1);
+
+    await page.evaluate((chatId) => localStorage.setItem("marinara-active-chat-id", chatId), rp.id);
+    await seedUIState(page, { rightPanelOpen: false }, "merge");
+    await page.reload();
+    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
+    await dialog.getByRole("combobox", { name: "Font", exact: true }).selectOption("custom:BookkMyungjo");
+    await page.keyboard.press("Escape");
+    const prose = page.locator("[data-reader-prose]").filter({ hasText: "AAAA" }).first();
+    await expect(prose).toHaveCSS("font-family", /BookkMyungjo/u);
+    // The font file was fetched, not blocked, and the text is laid out in it ("A" is two em wide in the test font).
+    await expect.poll(() => fetched.length).toBeGreaterThan(0);
+    await expect
+      .poll(() => prose.evaluate((node) => document.fonts.check(`16px "BookkMyungjo"`) && node.scrollWidth))
+      .toBeGreaterThan(0);
+    const width = await prose.evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect().width / parseFloat(getComputedStyle(node).fontSize);
+    });
+    expect(width).toBeGreaterThan(7);
+    expect(await page.evaluate(() => (window as unknown as { cspFontBlocks: string[] }).cspFontBlocks)).toEqual([]);
   } finally {
     await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
     await request.delete(`/api/chats/${rp.id}?force=true`);
