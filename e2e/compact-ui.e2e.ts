@@ -545,3 +545,81 @@ test("web fonts: register @font-face, give Roleplay its own font and size, and t
     await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
   }
 });
+
+test("chat remote: on/off in the UI manager, an item placed on it, message steps, jump, and code copy", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/chats", { data: { name: "Remote proof", mode: "roleplay" } });
+  const { id } = await created.json();
+  try {
+    for (let i = 1; i <= 8; i++)
+      await request.post(`/api/chats/${id}/messages`, {
+        data: {
+          role: i % 2 ? "assistant" : "user",
+          content:
+            i === 8
+              ? "Here is code:\n\n```js\nconsole.log(42);\n```"
+              : `Message ${i}. ` + "A long line of story text. ".repeat(30),
+        },
+      });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id, version },
+    );
+    await page.goto("/");
+    // Code blocks in messages get a copy button.
+    await expect(page.locator(".mari-message-content pre.mari-md-codeblock .mari-code-copy").last()).toHaveText("Copy");
+    await expect(page.locator("[data-chat-remote]")).toHaveCount(0);
+
+    const settings = await openChatSettings(page);
+    await settings.locator("[data-chat-ui-manager-button]").click();
+    const manager = page.locator("[data-chat-ui-manager]");
+    await manager.getByRole("tab", { name: /Remote/ }).click();
+    await manager.getByRole("checkbox", { name: "Show the remote" }).check({ force: true });
+    await manager.getByRole("tab", { name: /^Chat Settings/ }).click();
+    await manager.locator('[data-ui-manager-item="connection"]').getByRole("radio", { name: "Remote" }).click();
+    await manager.getByRole("tab", { name: /Remote/ }).click();
+    await expect(manager.locator('[data-ui-manager-item="connection"]')).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Close chat settings", exact: true }).click();
+
+    const remote = page.locator("[data-chat-remote]");
+    await expect(remote).toBeVisible();
+    const item = remote.locator('[data-chat-remote-item="drawer:chat-settings:connection"]');
+    await expect(item).toBeVisible();
+    await expect(page.locator('.mari-window-bubble[data-window="drawer:chat-settings:connection"]')).toHaveCount(0);
+    await page.screenshot({ path: `.tmp/chat-remote-${test.info().project.name}.png` });
+    await item.click();
+    await expect(page.locator('.mari-window[data-window="drawer:chat-settings:connection"]')).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Message steps move the transcript; the jump goes to a numbered message.
+    const scroll = page.locator('[data-chat-mode="roleplay"] [data-chat-scroll]').first();
+    await scroll.evaluate((node) => node.scrollTo({ top: 0 }));
+    const before = await scroll.evaluate((node) => node.scrollTop);
+    await remote.getByRole("button", { name: "Next message" }).click();
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(before);
+    await remote.getByRole("button", { name: "Go to message" }).click();
+    await remote.getByLabel("Number").fill("1");
+    await remote.getByRole("button", { name: "Go", exact: true }).click();
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeLessThan(40);
+
+    // Settings are kept: side, and the item's place.
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("marinara-engine-ui") ?? ""))
+      .toContain('"drawer:chat-settings:connection"');
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});

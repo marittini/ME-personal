@@ -4,7 +4,8 @@
  * shows (in the row, behind "more", or hidden) and in which order.
  */
 export type ChatUiMode = "roleplay" | "conversation";
-export type ChatUiPlacement = "top" | "settings" | "hidden";
+/** "remote": a popped-out window shown on the chat remote dock instead of as a top bubble (chat-remote.ts). */
+export type ChatUiPlacement = "top" | "remote" | "settings" | "hidden";
 export type ChatUiToolPlacement = "show" | "more" | "hidden";
 
 export interface ChatUiLayout {
@@ -18,7 +19,7 @@ export interface ChatUiLayout {
 export type ChatUiLayouts = Partial<Record<ChatUiMode, ChatUiLayout>>;
 
 const SAFE_ID = /^[a-z0-9][a-z0-9:_.-]{0,120}$/i;
-const PLACEMENTS = new Set<ChatUiPlacement>(["top", "settings", "hidden"]);
+const PLACEMENTS = new Set<ChatUiPlacement>(["top", "remote", "settings", "hidden"]);
 const TOOL_PLACEMENTS = new Set<ChatUiToolPlacement>(["show", "more", "hidden"]);
 
 function record<T extends string>(value: unknown, allowed: Set<T>): Record<string, T> {
