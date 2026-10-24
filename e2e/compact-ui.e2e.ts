@@ -885,3 +885,91 @@ test("TTS: persona voices are added only when needed; RP rooms read tagged speak
     await request.delete(`/api/chats/${chat.id}?force=true`);
   }
 });
+
+for (const [via, from] of [
+  ["the back button", "Home"],
+  ["phone back", "Home"],
+  ["phone back", "Library"],
+  ["phone back", "a restored chat"],
+  ["the back button", "a restored chat"],
+] as const) {
+  test(`phone: chat from ${from} → ${via} → work information → back returns Home, not out of the app`, async ({
+    page,
+    request,
+  }) => {
+    test.skip(!test.info().project.name.startsWith("mobile"), "phone back navigation");
+    const { id } = await (await request.post("/api/chats", { data: { name: "Back Proof", mode: "roleplay" } })).json();
+    try {
+      await request.post(`/api/chats/${id}/messages`, { data: { role: "assistant", content: "Opening line." } });
+      await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+      await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+      await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+      // The installed web app reopens the last chat directly; the library was never shown in this session.
+      if (from === "a restored chat")
+        await page.addInitScript((chatId) => localStorage.setItem("marinara-active-chat-id", chatId), id);
+      await page.goto("/");
+      const home = page.locator('[data-component="LibraryHome"]');
+      if (from !== "a restored chat") await expect(home).toBeVisible();
+      if (from === "Library") await page.getByRole("button", { name: "Library", exact: true }).click();
+      if (from !== "a restored chat") await page.getByRole("button").filter({ hasText: "Back Proof" }).first().click();
+      // From the Library tab a work opens its information first; Continue reading enters the chat.
+      if (from === "Library") await page.getByRole("button", { name: "Continue reading", exact: true }).click();
+      const backToWork = page.getByRole("button", { name: "Back to work information", exact: true });
+      await expect(backToWork).toBeVisible();
+      if (via === "phone back") await page.evaluate(() => history.back());
+      else await backToWork.click();
+      const detail = page.locator('[data-component="LibraryWorkDetail"]');
+      await expect(detail).toBeVisible();
+      // Record tools are small and sit together at the right edge.
+      const row = detail.locator("[data-record-depth]").first();
+      const [rowBox, renameBox, deleteBox] = await Promise.all([
+        row.boundingBox(),
+        row.locator('[data-record-action="rename"]').boundingBox(),
+        row.locator('[data-record-action="delete"]').boundingBox(),
+      ]);
+      expect(renameBox!.width).toBeLessThanOrEqual(30);
+      expect(deleteBox!.x - (renameBox!.x + renameBox!.width)).toBeLessThanOrEqual(1);
+      expect(rowBox!.x + rowBox!.width - (deleteBox!.x + deleteBox!.width)).toBeLessThanOrEqual(-4);
+      await page.evaluate(() => history.back());
+      await expect(home).toBeVisible();
+      await expect(detail).toHaveCount(0);
+      expect(page.url()).toContain("127.0.0.1");
+      if (from === "Library") {
+        await page.evaluate(() => history.back());
+        await expect(home.getByRole("heading", { level: 1 })).toHaveText("Your library");
+      }
+      // Home still asks for a second press before leaving.
+      await page.evaluate(() => history.back());
+      await expect(page.getByText("Press back again to exit", { exact: true })).toBeVisible();
+      await expect(home).toBeVisible();
+    } finally {
+      await request.delete(`/api/chats/${id}?force=true`);
+    }
+  });
+}
+
+test("phone: a panel opened on the library home starts right under the Marinara Library line", async ({ page }) => {
+  test.skip(!test.info().project.name.startsWith("mobile"), "phone panels");
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "connections",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await page.goto("/");
+  const home = page.locator('[data-component="LibraryHome"]');
+  const panel = page.locator(
+    '[data-component="RightPanelMobile"]:visible, [data-component="ChatSidebarPanel"]:visible',
+  );
+  await expect(panel.first()).toBeVisible();
+  const [brand, title, panelBox] = await Promise.all([
+    home.locator("header p").first().boundingBox(),
+    home.getByRole("heading", { level: 1 }).boundingBox(),
+    panel.first().boundingBox(),
+  ]);
+  // Covers the page title, leaves the brand line visible.
+  expect(Math.abs(panelBox!.y - (title!.y - 2))).toBeLessThan(1.5);
+  expect(panelBox!.y).toBeGreaterThanOrEqual(brand!.y + brand!.height);
+});

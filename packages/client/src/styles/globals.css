@@ -8682,7 +8682,7 @@ html[data-library-shell-home="true"] [data-component="AppShell"] {
 }
 /* On phones the panels open right below the library header instead of below the hidden engine top bar. */
 html[data-library-shell-home="true"] :is([data-component="RightPanelMobile"], [data-component="ChatSidebarPanel"]) {
-  top: var(--mari-library-header-bottom, calc(env(safe-area-inset-top) + 3rem)) !important;
+  top: var(--mari-library-panel-top, calc(env(safe-area-inset-top) + 3rem)) !important;
 }
 
 html[data-library-shell-home="true"] [data-component="AppShell"]::before,
