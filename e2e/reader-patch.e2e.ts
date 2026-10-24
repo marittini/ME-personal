@@ -656,3 +656,124 @@ test("roleplay original view: controls stay beside tagged lines when the narrati
     await request.delete(`/api/characters/${card.id}`);
   }
 });
+
+test("dialogue controls find their own line when narration quotes words in the same paragraph", async ({
+  page,
+  request,
+}) => {
+  // Owner report 2026-10-24: narration that quotes words still pushed the controls into the row under the message.
+  const card = await (await request.post("/api/characters", { data: { data: { name: "IV" } } })).json();
+  const persona = await (await request.post("/api/characters/personas", { data: { name: "세코" } })).json();
+  const chat = await (
+    await request.post("/api/chats", {
+      data: { name: "서술 인용 검증", mode: "roleplay", characterIds: [card.id], personaId: persona.id },
+    })
+  ).json();
+  try {
+    const content = [
+      // A quoted word in narration comes before the spoken line of the same paragraph.
+      `그는 "배고파"라는 말을 삼키고 고개를 든다. <audio_character id="${card.id}">"[low] 진짜 배고프다고."</audio_character>`,
+      '냉장고에는 『麦茶と 卵』라는 메모만 붙어 있다. 그 아래 "먹지 마"라는 글씨도.',
+      `<audio_persona id="${persona.id}">"[flat] 그러니까 달걀밖에 없다고 했잖아."</audio_persona>`,
+    ].join("\n\n");
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", content, characterId: card.id },
+      })
+    ).json();
+    const config = await (await request.get("/api/tts/config")).json();
+    await page.route("**/api/tts/config", (route) =>
+      route.fulfill({
+        json: {
+          ...config,
+          source: "openai",
+          voice: "alloy",
+          enabled: true,
+          voiceAssignments: [{ characterId: card.id, characterName: "IV", voice: "char-voice" }],
+          personaVoiceAssignments: [],
+        },
+      }),
+    );
+    await quiet(page, chat.id);
+    await page.goto("/");
+    const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+    await expect(speech).toContainText("진짜 배고프다고");
+    const controls = speech.locator("[data-tts-dialogue] [data-dialogue-controls]");
+    await expect(controls).toHaveCount(2);
+    for (const [index, line] of ["진짜 배고프다고", "달걀밖에 없다고"].entries())
+      await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
+    // Nothing is left for the row under the message (the persona has no own voice: it uses the default one).
+    await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/personas/${persona.id}`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+
+for (const keepsWrappers of [true, false])
+  test(`translation-only: controls stay in their lines when narration quotes sit beside them and paragraphs merge${keepsWrappers ? " (wrappers kept)" : ""}`, async ({
+    page,
+    request,
+  }) => {
+    // Owner report 2026-10-24: in translation-only view the controls still fell into the row under the message when
+    // the narration quoted words (『…』 and 「…」 come back as "…").
+    const card = await (await request.post("/api/characters", { data: { data: { name: "IV" } } })).json();
+    const persona = await (await request.post("/api/characters/personas", { data: { name: "세코" } })).json();
+    const chat = await (
+      await request.post("/api/chats", {
+        data: { name: "번역 병합 검증", mode: "roleplay", characterIds: [card.id], personaId: persona.id },
+      })
+    ).json();
+    try {
+      await request.patch(`/api/chats/${chat.id}/metadata`, {
+        data: { ttsTaggedDialogue: true, translationDisplayOnly: true },
+      });
+      const content = [
+        `額が 離れる。『腹が 減った』と 呟く 代わりに、<audio_character id="${card.id}">"[low] ……本当に 腹 減った。"</audio_character>`,
+        "さっきまで『麦茶と 卵しか ねぇ』と 文句を 言って いた。",
+        `<audio_persona id="${persona.id}">"[flat] ……だから 卵しか ないと 言った だろうが。"</audio_persona>`,
+      ].join("\n\n");
+      const speak = (id: string, kind: "character" | "persona", line: string) =>
+        keepsWrappers ? `<audio_${kind} id="${id}">${line}</audio_${kind}>` : line;
+      // The translation turns 『…』 into "…" and merges the last two paragraphs into one.
+      const translation = [
+        `이마가 떨어진다. "배가 고프다"고 중얼거리는 대신, ${speak(card.id, "character", '"[low] ……진짜 배고프다고."')}`,
+        `아까까지 "보리차랑 달걀밖에 없네"라고 불평하던 사람이다. ${speak(persona.id, "persona", '"[flat] ……그러니까 달걀밖에 없다고 했잖아."')}`,
+      ].join("\n\n");
+      const message = await (
+        await request.post(`/api/chats/${chat.id}/messages`, {
+          data: { role: "assistant", content, characterId: card.id },
+        })
+      ).json();
+      await request.patch(`/api/chats/${chat.id}/messages/${message.id}/extra`, {
+        data: { translation, translationSource: content, translationHidden: false },
+      });
+      const config = await (await request.get("/api/tts/config")).json();
+      await page.route("**/api/tts/config", (route) =>
+        route.fulfill({
+          json: {
+            ...config,
+            source: "openai",
+            voice: "alloy",
+            enabled: true,
+            voiceAssignments: [{ characterId: card.id, characterName: "IV", voice: "char-voice" }],
+            personaVoiceAssignments: [{ personaId: persona.id, personaName: "세코", voice: "persona-voice" }],
+          },
+        }),
+      );
+      await quiet(page, chat.id);
+      await page.goto("/");
+      const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+      await expect(speech).toContainText("진짜 배고프다고");
+      const controls = speech.locator("[data-tts-dialogue] [data-dialogue-controls]");
+      await expect(controls).toHaveCount(2);
+      for (const [index, line] of ["진짜 배고프다고", "달걀밖에 없다고 했잖아"].entries())
+        await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
+      await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
+    } finally {
+      await request.delete(`/api/chats/${chat.id}?force=true`);
+      await request.delete(`/api/characters/personas/${persona.id}`);
+      await request.delete(`/api/characters/${card.id}`);
+    }
+  });

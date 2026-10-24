@@ -10,7 +10,14 @@ import { useUIStore } from "../../stores/ui.store";
 import { ttsService } from "../../lib/tts-service";
 import { getCachedTTSAudioBlob } from "../../lib/tts-audio-cache";
 import { buildDialogueSpeechGroups } from "../../lib/tts-dialogue-groups";
-import { alignTranslatedQuotes } from "../../lib/tts-translation-anchors";
+import {
+  alignTranslatedQuotes,
+  matchLinesToQuotes,
+  matchLinesToTranslatedQuotes,
+  matchLinesToWrappedTranslation,
+  quoteParagraphs,
+  translationQuoteCount,
+} from "../../lib/tts-translation-anchors";
 import type { TTSAudioParticipant } from "../../lib/tts-audio-tags";
 import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import type { CharacterMap, PersonaInfo } from "./chat-area.types";
@@ -53,7 +60,8 @@ export function DialogueSpeechControls({
     document.addEventListener("reader-content-rendered", rendered);
     return () => document.removeEventListener("reader-content-rendered", rendered);
   }, [messageId]);
-  const [targets, setTargets] = useState<HTMLElement[]>([]);
+  /** One host per spoken line inside its quote; null for a line shown in the row under the message. */
+  const [targets, setTargets] = useState<Array<HTMLElement | null>>([]);
   // Lines are quiet until tapped: a tap on a spoken line opens its small play / regenerate popover.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [cached, setCached] = useState<boolean[]>([]);
@@ -136,34 +144,62 @@ export function DialogueSpeechControls({
       owner ? [...owner.querySelectorAll<HTMLElement>(selector)].filter((node) => !!node.getClientRects().length) : [];
     const quotes = visible("[data-tts-dialogue]");
     // Original lines first; a shown translation is only used when it alone lines up (translation-only view).
-    const originalQuotes = quotes.filter((node) => !node.closest(".translation-text"));
-    const translatedQuotes = quotes.filter((node) => node.closest(".translation-text"));
+    // Translation-only view renders the translation in place of the original: its quotes are translated ones.
+    const translationOnly =
+      !!translation?.trim() &&
+      chat?.metadata.translationDisplayOnly === true &&
+      !quotes.some((node) => node.closest(".translation-text"));
+    const originalQuotes = translationOnly ? [] : quotes.filter((node) => !node.closest(".translation-text"));
+    const translatedQuotes = translationOnly ? quotes : quotes.filter((node) => node.closest(".translation-text"));
     const bubbles = visible("[data-tts-conversation-content]");
     const conversation = chat?.mode === "conversation";
-    // Count/order must agree. A compact control row is safer than guessing a translated speaker.
-    const anchors =
-      originalQuotes.length === groups.length
-        ? originalQuotes
-        : translatedQuotes.length === groups.length
-          ? translatedQuotes
-          : // The translation quotes more than the original speaks: keep the quotes of the tagged paragraphs.
-            // Tagged lines with more quotes on the page than lines (narration quoting 『…』, 「…」 or a
-            // translation of them): keep the quotes of the tagged paragraphs.
-            ttsTaggedDialogueEnabled(chat?.metadata.ttsTaggedDialogue)
-            ? alignTranslatedQuotes(
-                text,
-                // A shown translation below the original wins; translation-only renders in place of the original.
-                translatedQuotes.length ? translatedQuotes : originalQuotes,
-                groups.length,
-              )
-            : conversation && bubbles.length === groups.length
-              ? bubbles
-              : // A conversation reply without quotes is one spoken line; its control follows the last bubble.
-                conversation && groups.length === 1 && !quotes.length && bubbles.length
-                ? [bubbles[bubbles.length - 1]!]
-                : [];
+    // Each spoken line goes to the quote that says it. Narration may quote words too (『…』, 「…」, a "word"), so
+    // quotes are matched by their words first and only counted when the counts agree; a line that cannot be placed
+    // safely goes to the row under the message (never a guessed speaker).
+    const lineTexts = groups.map((group) => group.requests.map((request) => request.text).join(" "));
+    const placedBy = (nodes: HTMLElement[], indexes: Array<number | null>) =>
+      indexes.map((index) => (index === null ? null : (nodes[index] ?? null)));
+    const complete = (placed: Array<HTMLElement | null>) => placed.length === groups.length && placed.every(Boolean);
+    const placedCount = (placed: Array<HTMLElement | null>) => placed.filter(Boolean).length;
+    const byOriginalText = placedBy(
+      originalQuotes,
+      matchLinesToQuotes(
+        lineTexts,
+        originalQuotes.map((node) => node.textContent ?? ""),
+      ),
+    );
+    const translatedParagraphs = translatedQuotes.length ? quoteParagraphs(translatedQuotes) : null;
+    const byTranslation = translatedParagraphs
+      ? placedBy(translatedQuotes, matchLinesToTranslatedQuotes(text, lineTexts, translatedParagraphs))
+      : [];
+    // A translation that kept the speech wrappers marks its spoken quotes itself (translation-only view).
+    const wrapped =
+      translation && translatedQuotes.length === translationQuoteCount(translation)
+        ? matchLinesToWrappedTranslation(translation, groups.length)
+        : null;
+    const byWrappers = wrapped ? placedBy(translatedQuotes, wrapped) : [];
+    const tagged = ttsTaggedDialogueEnabled(chat?.metadata.ttsTaggedDialogue);
+    const taggedParagraphs = tagged
+      ? alignTranslatedQuotes(text, translatedQuotes.length ? translatedQuotes : originalQuotes, groups.length)
+      : [];
+    const candidates: Array<Array<HTMLElement | null>> = [
+      byOriginalText,
+      originalQuotes.length === groups.length ? originalQuotes : [],
+      translatedQuotes.length === groups.length ? translatedQuotes : [],
+      byWrappers,
+      byTranslation,
+      taggedParagraphs,
+      conversation && bubbles.length === groups.length ? bubbles : [],
+      // A conversation reply without quotes is one spoken line; its control follows the last bubble.
+      conversation && groups.length === 1 && !quotes.length && bubbles.length ? [bubbles[bubbles.length - 1]!] : [],
+    ];
+    const anchors: Array<HTMLElement | null> =
+      candidates.find(complete) ??
+      // Nothing places every line: keep the lines one placement does find in their quotes.
+      [byOriginalText, byTranslation].reduce((best, next) => (placedCount(next) > placedCount(best) ? next : best));
     const cleanups: Array<() => void> = [];
     const hosts = anchors.map((node, index) => {
+      if (!node) return null;
       const host = document.createElement("span");
       host.dataset.ttsControlHost = "";
       host.className = "not-italic font-normal";
@@ -187,9 +223,19 @@ export function DialogueSpeechControls({
     setOpenIndex(null);
     return () => {
       cleanups.forEach((cleanup) => cleanup());
-      hosts.forEach((host) => host.remove());
+      hosts.forEach((host) => host?.remove());
     };
-  }, [enabled, groups, messageId, translation, chat?.mode, chat?.metadata.ttsTaggedDialogue, text, renderRevision]);
+  }, [
+    enabled,
+    groups,
+    messageId,
+    translation,
+    chat?.mode,
+    chat?.metadata.ttsTaggedDialogue,
+    chat?.metadata.translationDisplayOnly,
+    text,
+    renderRevision,
+  ]);
   useEffect(() => {
     if (openIndex === null) return;
     const anchor = targets[openIndex]?.parentElement;
@@ -357,14 +403,17 @@ export function DialogueSpeechControls({
           )}
         </span>
       )}
-      {targets.length === groups.length
-        ? targets.map((target, index) => createPortal(controls(index), target, `${prefix}${index}`))
-        : groups.map((_group, index) => (
-            <span key={index} className="inline-flex items-center text-xs">
-              <span className="sr-only">{index + 1}</span>
-              {controls(index, false)}
-            </span>
-          ))}
+      {groups.map((_group, index) => {
+        const target = targets.length === groups.length ? targets[index] : null;
+        return target ? (
+          createPortal(controls(index), target, `${prefix}${index}`)
+        ) : (
+          <span key={index} className="inline-flex items-center text-xs">
+            <span className="sr-only">{index + 1}</span>
+            {controls(index, false)}
+          </span>
+        );
+      })}
     </span>
   );
 }
