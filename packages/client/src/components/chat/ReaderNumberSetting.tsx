@@ -31,13 +31,14 @@ export function ReaderNumberSetting({
     setDraft(String(normalized));
   };
   const button =
-    "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-[var(--border)] disabled:opacity-40";
+    "mari-chrome-control inline-flex h-9 w-9 shrink-0 items-center justify-center p-0 disabled:opacity-40";
+  // A settings row: the label on the left, − value + on the right.
   return (
-    <div className="space-y-2 text-sm">
-      <label htmlFor={id}>
+    <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
+      <label htmlFor={id} className="min-w-0 leading-snug">
         {label} ({unit})
       </label>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
           className={button}
@@ -49,7 +50,7 @@ export function ReaderNumberSetting({
         </button>
         <input
           id={id}
-          className="min-h-11 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
+          className="mari-chrome-field h-9 w-14 px-1 text-center tabular-nums"
           type="number"
           inputMode="decimal"
           step={step}

@@ -114,6 +114,15 @@ for (const mode of ["roleplay", "conversation"] as const) {
         await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(2);
         // Each control must sit inside its own spoken line, never in a row under the message.
         await expect(speech.locator("[data-tts-dialogue] [data-dialogue-controls]")).toHaveCount(2);
+        // Lines are quiet until tapped: a tap opens that line's popover, a press elsewhere closes it.
+        const lines = speech.locator("[data-tts-dialogue-tappable]");
+        const popover = speech.locator("[data-dialogue-popover]");
+        await expect(popover).toHaveCount(0);
+        const openLine = async (index: number) => {
+          if (!(await popover.filter({ visible: true }).count())) await lines.nth(index).click();
+          await expect(speech.locator(`[data-dialogue-popover="${index}"]`)).toBeVisible();
+        };
+        await openLine(0);
         await speech.getByRole("button", { name: "1번 대사 음성 생성", exact: true }).click();
         await expect.poll(() => calls.length).toBe(1);
         expect(calls[0]).toContain("First line.");
@@ -126,10 +135,15 @@ for (const mode of ["roleplay", "conversation"] as const) {
         await speech.getByRole("button", { name: "1번 대사 음성 재생성", exact: true }).click();
         await page.getByRole("button", { name: "취소", exact: true }).click();
         expect(calls.length).toBe(1);
+        await openLine(0);
         await speech.getByRole("button", { name: "1번 대사 음성 재생성", exact: true }).click();
         await page.getByRole("button", { name: "음성 재생성", exact: true }).click();
         await expect.poll(() => calls.length).toBe(2);
         await speech.getByRole("button", { name: "1번 대사 멈춤", exact: true }).click();
+        // A press outside closes the popover.
+        await page.mouse.click(5, 5);
+        await expect(popover).toHaveCount(0);
+        await openLine(1);
         await speech.getByRole("button", { name: "2번 대사 음성 생성", exact: true }).click();
         await expect.poll(() => calls.length).toBe(3);
         expect(calls[2]).toContain("Second line.");
@@ -622,9 +636,19 @@ test("roleplay original view: controls stay beside tagged lines when the narrati
     for (const [index, line] of ["腹 減った", "卵しか ないと", "また ゼリーかよ"].entries())
       await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
     // Per-line buttons are small, so they sit inside the line instead of pushing it apart.
-    const button = (await controls.first().locator("button").first().boundingBox())!;
-    expect(button.height).toBeLessThan(30); // 1.5rem (was 2.75rem)
+    // Nothing sits in the line until it is tapped; then a small popover holds the buttons, above the line.
+    await expect(controls.first().locator("button")).toHaveCount(0);
+    const line = speech.locator("[data-tts-dialogue-tappable]").first();
+    await line.click();
+    const popover = speech.locator('[data-dialogue-popover="0"]');
+    await expect(popover).toBeVisible();
+    const button = (await popover.locator("button").first().boundingBox())!;
+    expect(button.height).toBeLessThan(30);
     expect(button.width).toBeLessThan(30);
+    const [lineBox, popoverBox] = [(await line.boundingBox())!, (await popover.boundingBox())!];
+    expect(popoverBox.y + popoverBox.height <= lineBox.y + 2 || popoverBox.y >= lineBox.y + lineBox.height - 2).toBe(
+      true,
+    );
     await page.screenshot({ path: ".tmp/original-narration-quotes.png" });
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);

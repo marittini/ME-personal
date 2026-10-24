@@ -475,16 +475,19 @@ test("App name and icon: an uploaded icon becomes the favicon and manifest icon,
   }
 });
 
-test("web fonts: register @font-face, give Roleplay its own font and size, and the UI its own family", async ({
+test("web fonts: registered once, then picked in the app font list and in each mode's reading font", async ({
   page,
   request,
 }) => {
+  const rp = await (await request.post("/api/chats", { data: { name: "Font proof", mode: "roleplay" } })).json();
+  await request.post(`/api/chats/${rp.id}/messages`, { data: { role: "assistant", content: "A line in a new face." } });
   await seedUIState(page, {
     hasCompletedOnboarding: true,
     sidebarOpen: false,
     rightPanelOpen: true,
     rightPanel: "settings",
     settingsTab: "appearance",
+    chatHelpSeenModes: ["conversation", "roleplay", "game"],
   });
   await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
   await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
@@ -492,13 +495,11 @@ test("web fonts: register @font-face, give Roleplay its own font and size, and t
   try {
     await page.goto("/");
     await page.getByPlaceholder("Search settings").fill("web font");
-    await page
-      .locator(".mari-settings-search-header button")
-      .filter({ hasText: "Web fonts and fonts per target" })
-      .first()
-      .click();
+    await page.locator(".mari-settings-search-header button").filter({ hasText: "Web fonts" }).first().click();
     const panel = page.locator("[data-web-fonts]");
     await expect(panel).toBeVisible();
+    // The registry has no per-target font, size or spacing controls any more.
+    await expect(panel.locator("select")).toHaveCount(0);
     const code = panel.getByLabel("@font-face / @import code");
     // Plain HTTP font files are refused.
     await code.fill('@font-face{font-family:"Bad";src:url(http://example.com/bad.woff2)}');
@@ -509,38 +510,80 @@ test("web fonts: register @font-face, give Roleplay its own font and size, and t
     await panel.getByRole("button", { name: "Register", exact: true }).click();
     await expect(panel.locator('[data-web-font-family="Proof Serif"]')).toBeVisible();
 
-    await panel.getByRole("radio", { name: "RP", exact: true }).click();
-    await panel.locator("select").selectOption("Proof Serif");
-    await panel.getByRole("button", { name: "Increase Size" }).click();
-    await panel.getByRole("button", { name: "Increase Size" }).click();
-    await panel.getByRole("button", { name: "Apply", exact: true }).click();
-    await panel.getByRole("radio", { name: "UI", exact: true }).click();
-    await expect(panel.locator('[data-web-font-metric="size"]')).toHaveCount(0);
-    await panel.locator("select").selectOption("Proof Serif");
-    await panel.getByRole("button", { name: "Apply", exact: true }).click();
+    // The app font list offers it; picking it sets the app font.
+    await page.getByPlaceholder("Search settings").fill("");
+    const appFont = page.locator("#settings-control-font-family select");
+    await appFont.scrollIntoViewIfNeeded();
+    await appFont.selectOption("Proof Serif");
+    await expect
+      .poll(() =>
+        page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-user").trim()),
+      )
+      .toBe('"Proof Serif"');
+    await page.evaluate(async () => {
+      const { useUIStore } = await import("/src/stores/ui.store.ts" as string);
+      useUIStore.getState().setFontFamily("");
+    });
 
-    const probe = async () =>
-      page.evaluate(() => {
-        const host = document.createElement("div");
-        host.dataset.chatMode = "roleplay";
-        const content = document.createElement("div");
-        content.className = "mari-message-content";
-        host.append(content);
-        document.body.append(host);
-        const style = getComputedStyle(content);
-        const result = {
-          family: style.fontFamily,
-          size: style.fontSize,
-          ui: getComputedStyle(document.documentElement).getPropertyValue("--font-user").trim(),
-        };
-        host.remove();
-        return result;
-      });
-    await expect.poll(probe).toEqual({ family: '"Proof Serif", sans-serif', size: "18px", ui: '"Proof Serif"' });
-    await page.screenshot({ path: `.tmp/web-fonts-${test.info().project.name}.png` });
-    // Saved on the server, so it comes back after a reload.
+    // A Roleplay room's reading settings list it under Web fonts; the choice is Roleplay's own.
+    await page.evaluate((chatId) => localStorage.setItem("marinara-active-chat-id", chatId), rp.id);
+    await seedUIState(page, { rightPanelOpen: false }, "merge");
     await page.reload();
-    await expect.poll(probe).toEqual({ family: '"Proof Serif", sans-serif', size: "18px", ui: '"Proof Serif"' });
+    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
+    const font = dialog.getByRole("combobox", { name: "Font", exact: true });
+    await expect(font.locator('optgroup[label="Web fonts"] option')).toHaveText(["Proof Serif"]);
+    await font.selectOption("custom:Proof Serif");
+    await expect(page.locator("[data-reader-prose]").first()).toHaveCSS("font-family", /Proof Serif/u);
+    const stored = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("marinara-engine-ui") ?? "{}").state?.readerPreferences);
+    await expect.poll(async () => (await stored())?.roleplay?.font).toBe("custom:Proof Serif");
+    expect((await stored()).conversation.font).toBe("");
+    await page.screenshot({ path: `.tmp/reader-settings-${test.info().project.name}.png` });
+  } finally {
+    await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+    await request.delete(`/api/chats/${rp.id}?force=true`);
+  }
+});
+
+test("web fonts: earlier per-target choices move once into the app font and each mode's reading settings", async ({
+  page,
+  request,
+}) => {
+  await request.put("/api/app-settings/web-fonts", {
+    data: {
+      value: JSON.stringify({
+        css: '@font-face{font-family:"Moved Face";src:url(https://example.com/moved.woff2)}',
+        targets: {
+          ui: { family: "Moved Face" },
+          roleplay: { family: "Moved Face", size: 19, height: 2, spacing: 0.5 },
+          conversation: { height: 1.4 },
+        },
+      }),
+    },
+  });
+  try {
+    await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    await expect
+      .poll(async () => JSON.parse((await (await request.get("/api/app-settings/web-fonts")).json()).value).targets)
+      .toEqual({});
+    const state = () => page.evaluate(() => JSON.parse(localStorage.getItem("marinara-engine-ui") ?? "{}").state);
+    await expect.poll(async () => (await state()).chatFontSize).toBe(19);
+    const saved = await state();
+    expect(saved.fontFamily).toBe("Moved Face");
+    expect(saved.readerPreferences.roleplay).toMatchObject({
+      font: "custom:Moved Face",
+      lineHeight: 2,
+      letterSpacing: 0.5,
+    });
+    expect(saved.readerPreferences.conversation).toMatchObject({ font: "", lineHeight: 1.4 });
+    // The faces themselves stay registered.
+    await expect
+      .poll(() => page.evaluate(() => document.getElementById("marinara-web-fonts")?.textContent ?? ""))
+      .toContain("Moved Face");
   } finally {
     await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
   }

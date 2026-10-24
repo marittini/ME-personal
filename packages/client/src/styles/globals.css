@@ -8756,7 +8756,7 @@ html[data-reader-focus="true"]
     .mari-message-actions,
     .mari-message-swipes,
     [data-message-integration-tools],
-    [data-dialogue-controls],
+    [data-dialogue-controls]:not(.mari-dialogue-host),
     [data-reader-scene-tools],
     [data-chat-settings-button],
     [data-chat-settings-move-tip],
@@ -9758,4 +9758,45 @@ html[data-reader-focus="true"]
 /* Roleplay: character names are hidden on messages (the avatar and time stay). */
 [data-chat-mode="roleplay"] [data-message-role]:not([data-message-role="user"]) .mari-message-name {
   display: none !important;
+}
+
+/* Read aloud per line: a spoken line is tappable; its play / regenerate buttons open in a small popover above it
+   (below it near the top edge). The popover also shows in focus mode. */
+[data-tts-dialogue-tappable] {
+  cursor: pointer;
+  border-radius: 0.125rem;
+}
+@media (hover: hover) {
+  [data-tts-dialogue-tappable]:hover {
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+  }
+}
+.mari-dialogue-host {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: baseline;
+}
+.mari-dialogue-popover {
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  z-index: 30;
+  display: inline-flex;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border: 1px solid var(--marinara-chat-chrome-panel-border, var(--border));
+  border-radius: 0.625rem;
+  background: var(--marinara-chat-chrome-panel-bg, var(--popover));
+  color: var(--marinara-chat-chrome-panel-text, var(--popover-foreground));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1;
+  text-indent: 0;
+  letter-spacing: normal;
+}
+.mari-dialogue-popover[data-below="true"] {
+  top: calc(100% + 0.375rem);
+  bottom: auto;
 }

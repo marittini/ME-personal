@@ -54,6 +54,8 @@ export function DialogueSpeechControls({
     return () => document.removeEventListener("reader-content-rendered", rendered);
   }, [messageId]);
   const [targets, setTargets] = useState<HTMLElement[]>([]);
+  // Lines are quiet until tapped: a tap on a spoken line opens its small play / regenerate popover.
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [cached, setCached] = useState<boolean[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
   const [playback, setPlayback] = useState(() => ({ state: ttsService.getState(), id: ttsService.getActiveId() }));
@@ -160,18 +162,62 @@ export function DialogueSpeechControls({
                 conversation && groups.length === 1 && !quotes.length && bubbles.length
                 ? [bubbles[bubbles.length - 1]!]
                 : [];
-    const hosts = anchors.map((node) => {
+    const cleanups: Array<() => void> = [];
+    const hosts = anchors.map((node, index) => {
       const host = document.createElement("span");
       host.dataset.ttsControlHost = "";
       host.className = "not-italic font-normal";
       node.append(host);
+      node.dataset.ttsDialogueTappable = "";
+      // A short tap opens this line's popover; selecting text (a drag or a long press) never does.
+      const tap = (event: MouseEvent) => {
+        if (host.contains(event.target as Node)) return;
+        if (window.getSelection()?.toString().trim()) return;
+        event.stopPropagation();
+        setOpenIndex((open) => (open === index ? null : index));
+      };
+      node.addEventListener("click", tap);
+      cleanups.push(() => {
+        node.removeEventListener("click", tap);
+        delete node.dataset.ttsDialogueTappable;
+      });
       return host;
     });
     setTargets(hosts);
+    setOpenIndex(null);
     return () => {
+      cleanups.forEach((cleanup) => cleanup());
       hosts.forEach((host) => host.remove());
     };
   }, [enabled, groups, messageId, translation, chat?.mode, chat?.metadata.ttsTaggedDialogue, text, renderRevision]);
+  useEffect(() => {
+    if (openIndex === null) return;
+    const anchor = targets[openIndex]?.parentElement;
+    const outside = (event: PointerEvent) => {
+      if (!anchor?.contains(event.target as Node)) setOpenIndex(null);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpenIndex(null);
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [openIndex, targets]);
+  // Keep the open popover inside the message and on screen: above the line, or below it near the top edge.
+  const popover = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const node = popover.current;
+    const host = node?.parentElement;
+    if (!node || !host) return;
+    const owner = host.closest<HTMLElement>(`[data-message-id="${CSS.escape(messageId)}"]`) ?? document.body;
+    const bounds = owner.getBoundingClientRect();
+    const at = host.getBoundingClientRect();
+    const width = node.offsetWidth;
+    const left = Math.min(bounds.right - at.left - width - 4, Math.max(bounds.left - at.left + 4, -width + 12));
+    node.style.left = `${left}px`;
+    node.dataset.below = at.top - node.offsetHeight - 8 < 56 ? "true" : "false";
+  });
   const personaSettings = async () => {
     if (!personaInfo?.id) return;
     const value = await showPromptDialog({
@@ -228,56 +274,72 @@ export function DialogueSpeechControls({
       }
     }
   };
-  const controls = (index: number) => {
+  const controls = (index: number, inLine = true) => {
     const active = playback.id === `${prefix}${index}` && !["idle", "error"].includes(playback.state);
     const loading = active && playback.state === "loading";
+    // In a line the buttons show in a popover while it is open or that line is playing; the fallback row shows them.
+    const shown = !inLine || openIndex === index || active;
     const style =
-      "inline-flex h-6 min-h-6 w-6 min-w-6 items-center justify-center rounded align-middle text-current hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:opacity-40";
+      "inline-flex h-7 min-h-7 w-7 min-w-7 items-center justify-center rounded-md align-middle text-current hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:opacity-40";
     return (
-      <span className="inline-flex align-middle" data-dialogue-controls={index} onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          className={style}
-          disabled={busy !== null && busy !== index}
-          aria-label={t(
-            active ? "reader.dialogueStop" : cached[index] ? "reader.dialoguePlay" : "reader.dialogueGenerate",
-            { number: index + 1 },
-          )}
-          onClick={() => {
-            if (active) ttsService.stop();
-            else void play(index);
-          }}
-        >
-          {loading ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : active ? (
-            <Square size={12} />
-          ) : cached[index] ? (
-            <Play size={12} />
-          ) : (
-            <Plus size={12} />
-          )}
-        </button>
-        {cached[index] && (
-          <button
-            type="button"
-            className={style}
-            disabled={busy !== null}
-            aria-label={t("reader.dialogueRegenerateNumber", { number: index + 1 })}
-            onClick={() => void play(index, true)}
+      <span
+        className={inLine ? "mari-dialogue-host" : "inline-flex align-middle"}
+        data-dialogue-controls={index}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {shown && (
+          <span
+            ref={inLine && openIndex === index ? popover : undefined}
+            className={inLine ? "mari-dialogue-popover" : "inline-flex"}
+            data-dialogue-popover={inLine ? index : undefined}
+            role={inLine ? "group" : undefined}
+            aria-label={inLine ? t("reader.dialogueLine", { number: index + 1 }) : undefined}
           >
-            <RefreshCw size={12} />
-          </button>
-        )}
-        {groups[index]?.persona && (
-          <button
-            type="button"
-            className={style}
-            aria-label={t("reader.personaVoice")}
-            onClick={() => void personaSettings()}
-          >
-            <MoreVertical size={12} />
-          </button>
+            <button
+              type="button"
+              className={style}
+              disabled={busy !== null && busy !== index}
+              aria-label={t(
+                active ? "reader.dialogueStop" : cached[index] ? "reader.dialoguePlay" : "reader.dialogueGenerate",
+                { number: index + 1 },
+              )}
+              onClick={() => {
+                if (active) ttsService.stop();
+                else void play(index);
+              }}
+            >
+              {loading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : active ? (
+                <Square size={12} />
+              ) : cached[index] ? (
+                <Play size={12} />
+              ) : (
+                <Plus size={12} />
+              )}
+            </button>
+            {cached[index] && (
+              <button
+                type="button"
+                className={style}
+                disabled={busy !== null}
+                aria-label={t("reader.dialogueRegenerateNumber", { number: index + 1 })}
+                onClick={() => void play(index, true)}
+              >
+                <RefreshCw size={12} />
+              </button>
+            )}
+            {groups[index]?.persona && (
+              <button
+                type="button"
+                className={style}
+                aria-label={t("reader.personaVoice")}
+                onClick={() => void personaSettings()}
+              >
+                <MoreVertical size={12} />
+              </button>
+            )}
+          </span>
         )}
       </span>
     );
@@ -299,7 +361,7 @@ export function DialogueSpeechControls({
         : groups.map((_group, index) => (
             <span key={index} className="inline-flex items-center text-xs">
               <span className="sr-only">{index + 1}</span>
-              {controls(index)}
+              {controls(index, false)}
             </span>
           ))}
     </span>

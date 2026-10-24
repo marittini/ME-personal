@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,7 @@ import type { Chat } from "@marinara-engine/shared";
 import { useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useSetTTSEnabled, useTTSConfig, useUpdateTTSPersonaVoice } from "../../hooks/use-tts";
 import { usePersonas } from "../../hooks/use-characters";
-import { useReaderFonts } from "../../hooks/use-reader-fonts";
+import { useFontFamilies } from "../../hooks/use-reader-fonts";
 import { useUIStore } from "../../stores/ui.store";
 import {
   readerModePreferences,
@@ -20,8 +20,12 @@ import {
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
 import { ReaderPagePicker } from "../ui/ReaderPagePicker";
 
-const select = "min-h-11 max-w-[65%] rounded-md border border-[var(--border)] bg-[var(--background)] px-3";
+// One look for every row: the label on the left, its control on the right.
+const select = "mari-chrome-field h-10 w-44 max-w-[58%] shrink-0 px-3 text-sm";
 const row = "flex min-h-11 items-center justify-between gap-4 text-sm";
+const check = "h-5 w-5 shrink-0 cursor-pointer accent-[var(--primary)] disabled:cursor-not-allowed";
+/** A thin rule between parts of one group. */
+const part = "space-y-3 border-t border-[var(--border)] pt-4 first:border-t-0 first:pt-0";
 
 /** A collapsible group; its open state is per viewer, not saved. */
 function Group({
@@ -41,11 +45,15 @@ function Group({
       open={defaultOpen}
       data-reader-settings-group={name}
     >
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between text-[0.9375rem] font-semibold [&::-webkit-details-marker]:hidden">
         {title}
-        <ChevronDown size={18} className="transition-transform group-open:rotate-180" aria-hidden />
+        <ChevronDown
+          size={18}
+          className="text-[var(--muted-foreground)] transition-transform group-open:rotate-180"
+          aria-hidden
+        />
       </summary>
-      <div className="space-y-4 pb-4 pt-1">{children}</div>
+      <div className="space-y-4 pb-5 pt-1">{children}</div>
     </details>
   );
 }
@@ -71,7 +79,7 @@ function Range({
     <label className="block text-sm">
       {label}
       <input
-        className="mt-3 block w-full"
+        className="mt-2 block w-full accent-[var(--primary)]"
         type="range"
         aria-label={ariaLabel}
         min={min}
@@ -85,8 +93,8 @@ function Range({
 }
 
 /**
- * Reading settings. Page color, font and text size are shared by RP and Convo; paragraph layout and bubbles are
- * saved per mode; the room's speech settings live in the collapsed 음성 group.
+ * Reading settings. Page color and text size are shared by RP and Convo; the font (any font-folder or registered web
+ * font), paragraph layout and bubbles are saved per mode; the room's speech settings live in the collapsed 음성 group.
  */
 export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; onAdvanced: () => void }) {
   const { t } = useTranslation();
@@ -96,7 +104,7 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
   const fontSize = useUIStore((state) => state.chatFontSize);
   const volume = useUIStore((state) => state.ttsLineVolume);
   const view = readerModePreferences(preferences, mode);
-  const { data: customFonts } = useReaderFonts();
+  const fonts = useFontFamilies();
   const { data: ttsConfig } = useTTSConfig();
   const setTTSEnabled = useSetTTSEnabled();
   const assignPersona = useUpdateTTSPersonaVoice();
@@ -108,12 +116,11 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
   const savedPersonaVoice =
     ttsConfig?.personaVoiceAssignments?.find((row) => row.personaId === persona?.id)?.voice ?? "";
   const [personaVoice, setPersonaVoice] = useState(savedPersonaVoice);
+  const personaVoiceId = useId();
   useEffect(() => setPersonaVoice(savedPersonaVoice), [savedPersonaVoice]);
 
   const update = (next: (current: ReaderPreferences) => ReaderPreferences) =>
     useUIStore.setState((state) => ({ readerPreferences: next(state.readerPreferences) }));
-  const patchShared = (value: Partial<ReaderPreferences["shared"]>) =>
-    update((current) => ({ ...current, shared: { ...current.shared, ...value } }));
   const patchMode = (value: Partial<RoleplayReaderPreferences & ConversationReaderPreferences>) =>
     update((current) => ({ ...current, [mode]: { ...current[mode], ...value } }));
   const saveMetadata = (value: Record<string, unknown>) =>
@@ -128,25 +135,50 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
           <span>{t("reader.paper")}</span>
           <ReaderPagePicker label={t("reader.paper")} />
         </div>
-        <label className={row}>
-          {t("reader.font")}
-          <select
-            aria-label={t("reader.font")}
-            className={select}
-            value={view.font}
-            onChange={(event) => patchShared({ font: event.target.value })}
-          >
-            <option value="inherit">{t("reader.fontDefault")}</option>
-            <option value="@sans">{t("reader.fontSans")}</option>
-            <option value="@serif">{t("reader.fontSerif")}</option>
-            <option value="@mono">{t("reader.fontMono")}</option>
-            {[...new Set((customFonts ?? []).map((font) => font.family))].map((family) => (
-              <option key={family} value={`custom:${family}`}>
-                {family}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <label className={row}>
+            {t("reader.font")}
+            <select
+              aria-label={t("reader.font")}
+              className={select}
+              // A mode that picked the engine font stores "@app" so it does not fall back to the shared font.
+              value={view.font === "@app" ? "inherit" : view.font}
+              onChange={(event) => patchMode({ font: event.target.value === "inherit" ? "@app" : event.target.value })}
+            >
+              <option value="inherit">{t("reader.fontDefault")}</option>
+              <option value="@sans">{t("reader.fontSans")}</option>
+              <option value="@serif">{t("reader.fontSerif")}</option>
+              <option value="@mono">{t("reader.fontMono")}</option>
+              {fonts.web.length > 0 && (
+                <optgroup label={t("reader.fontWebGroup")}>
+                  {fonts.web.map((family) => (
+                    <option key={`web:${family}`} value={`custom:${family}`}>
+                      {family}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {view.font.startsWith("custom:") &&
+                ![...fonts.web, ...fonts.folder].includes(view.font.slice("custom:".length)) && (
+                  <option value={view.font}>
+                    {t("reader.fontUnavailable", { font: view.font.slice("custom:".length) })}
+                  </option>
+                )}
+              {fonts.folder.length > 0 && (
+                <optgroup label={t("reader.fontFolderGroup")}>
+                  {fonts.folder.map((family) => (
+                    <option key={family} value={`custom:${family}`}>
+                      {family}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t(conversation ? "reader.fontModeConversation" : "reader.fontModeRoleplay")}
+          </p>
+        </div>
         <ReaderNumberSetting
           label={t("reader.fontSizeLabel")}
           unit="px"
@@ -163,84 +195,43 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
         name="paragraph"
         defaultOpen
       >
-        <ReaderNumberSetting
-          label={t("reader.lineHeightLabel")}
-          unit={t("reader.multiplier")}
-          value={view.lineHeight}
-          min={1}
-          max={3}
-          onChange={(lineHeight) => patchMode({ lineHeight })}
-        />
-        <ReaderNumberSetting
-          label={t("reader.letterSpacingLabel")}
-          unit="px"
-          value={view.letterSpacing}
-          min={-1}
-          max={5}
-          onChange={(letterSpacing) => patchMode({ letterSpacing })}
-        />
-        <p
-          className="rounded-md border border-[var(--border)] p-3 text-sm"
-          style={{ lineHeight: view.lineHeight, letterSpacing: `${view.letterSpacing}px` }}
-        >
-          {t("reader.typographyPreview")}
-        </p>
-        <Range
-          label={t("reader.paragraphGap", { value: view.paragraphGap })}
-          ariaLabel={t("reader.paragraphGapLabel")}
-          value={view.paragraphGap}
-          min={0}
-          max={2}
-          step={0.25}
-          onChange={(paragraphGap) => patchMode({ paragraphGap })}
-        />
-        <label className={row}>
-          {t("reader.timestamp")}
-          <select
-            aria-label={t("reader.timestamp")}
-            className={select}
-            value={view.timestamp}
-            onChange={(event) => patchMode({ timestamp: event.target.value as ReaderTimestampStyle })}
+        {/* Type: line height and letter spacing, with a sample. */}
+        <div className={part}>
+          <ReaderNumberSetting
+            label={t("reader.lineHeightLabel")}
+            unit={t("reader.multiplier")}
+            value={view.lineHeight}
+            min={1}
+            max={3}
+            onChange={(lineHeight) => patchMode({ lineHeight })}
+          />
+          <ReaderNumberSetting
+            label={t("reader.letterSpacingLabel")}
+            unit="px"
+            value={view.letterSpacing}
+            min={-1}
+            max={5}
+            onChange={(letterSpacing) => patchMode({ letterSpacing })}
+          />
+          <p
+            className="rounded-md border border-[var(--border)] bg-[var(--secondary)]/40 p-3 text-sm"
+            style={{ lineHeight: view.lineHeight, letterSpacing: `${view.letterSpacing}px` }}
           >
-            {READER_TIMESTAMP_STYLES.map((style) => (
-              <option key={style} value={style}>
-                {t(`reader.timestampStyle.${style}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={row}>
-          {t("reader.alignment")}
-          <select
-            aria-label={t("reader.alignment")}
-            className={select}
-            value={view.align}
-            onChange={(event) => patchMode({ align: event.target.value as "start" | "justify" })}
-          >
-            <option value="start">{t("reader.alignStart")}</option>
-            <option value="justify">{t("reader.alignJustify")}</option>
-          </select>
-        </label>
-        <Range
-          label={t("reader.width", { value: view.width })}
-          ariaLabel={t("reader.widthLabel")}
-          value={view.width}
-          min={440}
-          max={1000}
-          step={40}
-          onChange={(width) => patchMode({ width })}
-        />
-        <Range
-          label={t("reader.sideMargin", { value: view.sideMargin })}
-          ariaLabel={t("reader.sideMarginLabel")}
-          value={view.sideMargin}
-          min={0}
-          max={64}
-          step={4}
-          onChange={(sideMargin) => patchMode({ sideMargin })}
-        />
-        {!conversation && (
-          <>
+            {t("reader.typographyPreview")}
+          </p>
+        </div>
+        {/* Page: paragraph spacing, indent, alignment, width and margins. */}
+        <div className={part}>
+          <Range
+            label={t("reader.paragraphGap", { value: view.paragraphGap })}
+            ariaLabel={t("reader.paragraphGapLabel")}
+            value={view.paragraphGap}
+            min={0}
+            max={2}
+            step={0.25}
+            onChange={(paragraphGap) => patchMode({ paragraphGap })}
+          />
+          {!conversation && (
             <Range
               label={t("reader.indentValue", { value: view.indent })}
               ariaLabel={t("reader.indent")}
@@ -250,6 +241,56 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
               step={0.5}
               onChange={(indent) => patchMode({ indent })}
             />
+          )}
+          <Range
+            label={t("reader.width", { value: view.width })}
+            ariaLabel={t("reader.widthLabel")}
+            value={view.width}
+            min={440}
+            max={1000}
+            step={40}
+            onChange={(width) => patchMode({ width })}
+          />
+          <Range
+            label={t("reader.sideMargin", { value: view.sideMargin })}
+            ariaLabel={t("reader.sideMarginLabel")}
+            value={view.sideMargin}
+            min={0}
+            max={64}
+            step={4}
+            onChange={(sideMargin) => patchMode({ sideMargin })}
+          />
+          <label className={row}>
+            {t("reader.alignment")}
+            <select
+              aria-label={t("reader.alignment")}
+              className={select}
+              value={view.align}
+              onChange={(event) => patchMode({ align: event.target.value as "start" | "justify" })}
+            >
+              <option value="start">{t("reader.alignStart")}</option>
+              <option value="justify">{t("reader.alignJustify")}</option>
+            </select>
+          </label>
+        </div>
+        {/* Extras: the message time, and in RP the translation size (Convo has it with its bubbles). */}
+        <div className={part}>
+          <label className={row}>
+            {t("reader.timestamp")}
+            <select
+              aria-label={t("reader.timestamp")}
+              className={select}
+              value={view.timestamp}
+              onChange={(event) => patchMode({ timestamp: event.target.value as ReaderTimestampStyle })}
+            >
+              {READER_TIMESTAMP_STYLES.map((style) => (
+                <option key={style} value={style}>
+                  {t(`reader.timestampStyle.${style}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!conversation && (
             <ReaderNumberSetting
               label={t("reader.translationSizeOffset")}
               unit="px"
@@ -259,8 +300,8 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
               step={1}
               onChange={(translationSizeOffset) => patchMode({ translationSizeOffset })}
             />
-          </>
-        )}
+          )}
+        </div>
       </Group>
 
       {conversation && chat && (
@@ -355,6 +396,7 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
           {t("reader.speech")}
           <input
             type="checkbox"
+            className={check}
             checked={ttsConfig?.enabled ?? false}
             disabled={!ttsConfig || setTTSEnabled.isPending}
             onChange={(event) =>
@@ -366,6 +408,7 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
           {t("reader.speechInstructions")}
           <input
             type="checkbox"
+            className={check}
             checked={chat?.metadata.ttsInstructionsEnabled === true}
             disabled={!chat || updateMetadata.isPending}
             onChange={(event) => saveMetadata({ ttsInstructionsEnabled: event.target.checked })}
@@ -377,6 +420,7 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
             {t("reader.dialogueButtons")}
             <input
               type="checkbox"
+              className={check}
               checked={chat?.metadata.ttsDialogueButtonsEnabled !== false}
               disabled={!chat || updateMetadata.isPending}
               onChange={(event) => saveMetadata({ ttsDialogueButtonsEnabled: event.target.checked })}
@@ -421,29 +465,32 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
               );
             }}
           >
-            <label className="block">
+            <label className="block" htmlFor={personaVoiceId}>
               {t("reader.personaVoiceFor", { name: persona.name })}
+            </label>
+            <div className="flex gap-2">
               <input
-                className="mt-2 block min-h-11 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
+                id={personaVoiceId}
+                className="mari-chrome-field h-10 min-w-0 flex-1 px-3 text-sm"
                 value={personaVoice}
                 placeholder={t("reader.personaVoiceDefault")}
                 onChange={(event) => setPersonaVoice(event.target.value)}
               />
-            </label>
-            <button
-              type="submit"
-              className="min-h-11 rounded-md border border-[var(--border)] px-3 disabled:opacity-50"
-              disabled={assignPersona.isPending || personaVoice.trim() === savedPersonaVoice}
-            >
-              {t("reader.save")}
-            </button>
+              <button
+                type="submit"
+                className="mari-chrome-control h-10 shrink-0 px-4 text-sm disabled:opacity-50"
+                disabled={assignPersona.isPending || personaVoice.trim() === savedPersonaVoice}
+              >
+                {t("reader.save")}
+              </button>
+            </div>
           </form>
         )}
         <p className="text-xs text-[var(--muted-foreground)]">{t("reader.roomSpeechHelp")}</p>
       </Group>
 
-      <p className="pt-3 text-xs leading-relaxed text-[var(--muted-foreground)]">{t("reader.localSettings")}</p>
-      <button className="mt-2 min-h-11 w-full border-t border-[var(--border)] text-sm" onClick={onAdvanced}>
+      <p className="pt-4 text-xs leading-relaxed text-[var(--muted-foreground)]">{t("reader.localSettings")}</p>
+      <button type="button" className="mari-chrome-control mt-3 h-10 w-full text-sm" onClick={onAdvanced}>
         {t("reader.advanced")}
       </button>
     </div>
