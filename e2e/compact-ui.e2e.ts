@@ -197,3 +197,39 @@ test("Chat Settings tabs, the UI manager's placements and message tools behind m
     await request.delete(`/api/chats/${id}?force=true`);
   }
 });
+
+test("Settings offers the four page colors; a pick sets the app theme, survives a reload and matches reading settings", async ({
+  page,
+}) => {
+  await seedUIState(
+    page,
+    {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: "settings",
+      settingsTab: "appearance",
+    },
+    "if-missing",
+  );
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await page.goto("/");
+  await page.getByPlaceholder("Search settings").fill("page color");
+  await page.locator(".mari-settings-search-header button").filter({ hasText: "Page color" }).first().click();
+  const picker = page.locator("#settings-control-theme-mode [data-reader-page-picker]");
+  await expect(picker.getByRole("radio")).toHaveCount(4);
+  await expect(page.locator("#settings-control-theme-mode select")).toHaveCount(0);
+  await picker.getByRole("radio", { name: "Black" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await picker.getByRole("radio", { name: "Cream" }).click();
+  await expect(picker.getByRole("radio", { name: "Cream" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("marinara-engine-ui") ?? ""))
+    .toContain('"page":"cream"');
+  await page.reload();
+  await page.getByPlaceholder("Search settings").fill("page color");
+  await page.locator(".mari-settings-search-header button").filter({ hasText: "Page color" }).first().click();
+  await expect(picker.getByRole("radio", { name: "Cream" })).toHaveAttribute("aria-checked", "true");
+});

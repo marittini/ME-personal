@@ -618,4 +618,5 @@ export const readerKoreanMessages: Record<string, string> = {
   "chat.uiManager.moreTools": "도구 더보기",
   "chat.uiManager.lessTools": "도구 접기",
   "chat.uiManager.reorder": "{{name}} 순서 바꾸기 (끌거나 방향키)",
+  "settings.search.themeMode.description": "화이트·크림·먹색·블랙 중에서 고르며 앱 전체 색이 바뀝니다.",
 };

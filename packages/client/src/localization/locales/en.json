@@ -5757,7 +5757,7 @@
   "settings.search.speechToText.description": "Show a microphone button in chat inputs.",
   "settings.search.streamingSpeed.description": "Tune how fast streamed tokens appear.",
   "settings.search.textOutlineWidth.description": "Tune chat text outline width and color.",
-  "settings.search.themeMode.description": "Switch between dark and light mode.",
+  "settings.search.themeMode.description": "White, cream, ink or black; sets the colors of the whole app.",
   "settings.search.trackerDesktopSize.description": "Choose the Tracker panel desktop width.",
   "settings.search.trackerDockedThoughts.description": "Keep docked tracker thoughts visible inside character cards.",
   "settings.search.trackerExpressionSprites.description": "Allow tracker portraits to use Expression Engine sprites.",

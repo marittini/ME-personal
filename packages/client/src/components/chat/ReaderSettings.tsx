@@ -9,16 +9,13 @@ import { usePersonas } from "../../hooks/use-characters";
 import { useReaderFonts } from "../../hooks/use-reader-fonts";
 import { useUIStore } from "../../stores/ui.store";
 import {
-  READER_PAGES,
-  effectiveReaderPage,
   readerModePreferences,
-  readerPageTheme,
   type ConversationReaderPreferences,
-  type ReaderPage,
   type ReaderPreferences,
   type RoleplayReaderPreferences,
 } from "../../lib/reader-preferences";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
+import { ReaderPagePicker } from "../ui/ReaderPagePicker";
 
 const select = "min-h-11 max-w-[65%] rounded-md border border-[var(--border)] bg-[var(--background)] px-3";
 const row = "flex min-h-11 items-center justify-between gap-4 text-sm";
@@ -93,11 +90,9 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
   const mode = chat?.mode === "conversation" ? "conversation" : "roleplay";
   const conversation = mode === "conversation";
   const preferences = useUIStore((state) => state.readerPreferences);
-  const theme = useUIStore((state) => state.theme);
   const fontSize = useUIStore((state) => state.chatFontSize);
   const volume = useUIStore((state) => state.ttsLineVolume);
   const view = readerModePreferences(preferences, mode);
-  const page = effectiveReaderPage(preferences.shared.page, theme);
   const { data: customFonts } = useReaderFonts();
   const { data: ttsConfig } = useTTSConfig();
   const setTTSEnabled = useSetTTSEnabled();
@@ -118,10 +113,6 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
     update((current) => ({ ...current, shared: { ...current.shared, ...value } }));
   const patchMode = (value: Partial<RoleplayReaderPreferences & ConversationReaderPreferences>) =>
     update((current) => ({ ...current, [mode]: { ...current[mode], ...value } }));
-  const pickPage = (next: ReaderPage) => {
-    patchShared({ page: next });
-    useUIStore.getState().setTheme(readerPageTheme(next));
-  };
   const saveMetadata = (value: Record<string, unknown>) =>
     chat &&
     updateMetadata.mutate({ id: chat.id, ...value }, { onError: () => toast.error(t("reader.speechSaveFailed")) });
@@ -132,23 +123,7 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
         {/* The page color is the whole app's theme. */}
         <div className="space-y-2 text-sm">
           <span>{t("reader.paper")}</span>
-          <div role="radiogroup" aria-label={t("reader.paper")} className="flex flex-wrap gap-2">
-            {READER_PAGES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={page === value}
-                aria-label={t(`reader.pages.${value}`)}
-                title={t(`reader.pages.${value}`)}
-                data-reader-page-swatch={value}
-                className="inline-flex min-h-11 min-w-14 items-center justify-center rounded-full border border-[var(--border)] px-3 text-xs aria-checked:ring-2 aria-checked:ring-[var(--primary)] aria-checked:ring-offset-2 aria-checked:ring-offset-[var(--background)]"
-                onClick={() => pickPage(value)}
-              >
-                {t(`reader.pages.${value}`)}
-              </button>
-            ))}
-          </div>
+          <ReaderPagePicker label={t("reader.paper")} />
         </div>
         <label className={row}>
           {t("reader.font")}
