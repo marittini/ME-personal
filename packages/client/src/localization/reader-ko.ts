@@ -698,7 +698,8 @@ export const readerKoreanMessages: Record<string, string> = {
   "reader.dialogueLine": "{{number}}번 대사 음성",
   "reader.dialogueButtons": "대사를 누르면 음성 버튼 표시",
   "reader.extraVoices": "엑스트라 음성",
-  "reader.extraVoicesHelp": "카드 없이 등장한 인물에게 이 방에서만 쓸 목소리를 줍니다. 말투 지시를 켜 두면 모델이 그 인물의 대사를 이름으로 표시합니다. 음성을 비워 두면 기본 음성을 씁니다.",
+  "reader.extraVoicesHelp":
+    "카드 없이 등장한 인물에게 이 방에서만 쓸 목소리를 줍니다. 말투 지시를 켜 두면 모델이 그 인물의 대사를 이름으로 표시합니다. 음성을 비워 두면 기본 음성을 씁니다.",
   "reader.extraVoiceName": "엑스트라 {{number}} 이름",
   "reader.extraVoiceNamePlaceholder": "작중 이름",
   "reader.extraVoiceVoice": "엑스트라 {{number}} 음성",
