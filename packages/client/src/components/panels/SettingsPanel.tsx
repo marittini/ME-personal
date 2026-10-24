@@ -177,6 +177,7 @@ import {
   SettingsSwitch,
   ToggleSetting,
 } from "./settings/SettingControls";
+import { AppBrandingSetting } from "./settings/AppBrandingSetting";
 import { TrackerCardColorSettings } from "./settings/TrackerCardColorSettings";
 import { PromptOverridesEditor } from "./settings/PromptOverridesEditor";
 import { BackgroundPicker } from "./settings/BackgroundPicker";
@@ -3360,6 +3361,7 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
                   {localizeUi("ui.panels.appearancesettings.resetAppearance")}
                 </button>
               </div>
+              <AppBrandingSetting id={getSettingsControlAnchorId("app-branding")} />
               {/* ── Visual Style ── */}
               <div className="flex min-w-0 flex-col gap-2" id={getSettingsControlAnchorId("desktop-sidebar-width")}>
                 <label htmlFor="desktop-sidebar-width" className="text-xs font-medium">

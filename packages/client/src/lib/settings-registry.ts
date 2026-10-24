@@ -852,6 +852,16 @@ const ALL_SETTINGS_SEARCHABLE_CONTROLS: readonly SettingsSearchableControlMeta[]
     kind: "Picker",
   },
   {
+    id: "app-branding",
+    sectionId: "app-style",
+    labelKey: "settings.branding.title",
+    label: "App name and icon",
+    description: "Name and icon for the browser tab, the favicon and the home-screen web app.",
+    descriptionKey: "settings.branding.help",
+    aliases: ["favicon", "icon", "app icon", "pwa", "home screen", "web app", "name", "title"],
+    kind: "Button group",
+  },
+  {
     id: "desktop-sidebar-width",
     sectionId: "app-style",
     labelKey: "settings.appearance.sidebarWidth",

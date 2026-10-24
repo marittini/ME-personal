@@ -629,4 +629,16 @@ export const readerKoreanMessages: Record<string, string> = {
   "ui.panels.libraryToolbar.settingCount": "설정 {{count}}개",
   "ui.panels.libraryToolbar.sectionCount": "섹션 {{count}}개",
   "libraryShell.backAgainToExit": "한 번 더 누르면 종료됩니다",
+  "settings.branding.title": "앱 이름과 아이콘",
+  "settings.branding.help": "브라우저 탭, 파비콘, 홈 화면에 추가한 웹앱에 쓰입니다.",
+  "settings.branding.iconPreview": "현재 앱 아이콘",
+  "settings.branding.chooseIcon": "아이콘 선택",
+  "settings.branding.resetIcon": "기본 아이콘",
+  "settings.branding.name": "앱 이름",
+  "settings.branding.shortName": "짧은 이름 (홈 화면)",
+  "settings.branding.save": "이름 저장",
+  "settings.branding.saved": "앱 이름을 저장했습니다.",
+  "settings.branding.failed": "앱 이름·아이콘을 저장하지 못했습니다.",
+  "settings.branding.installedNote":
+    "이미 홈 화면에 추가한 웹앱은 시스템이 다시 읽을 때까지 예전 아이콘이 남을 수 있습니다. 아이폰은 홈 화면에 다시 추가하세요.",
 };

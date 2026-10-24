@@ -427,3 +427,50 @@ test("phone back walks a library tab back to Home, then needs two presses to lea
   await left;
   expect(page.url()).not.toContain("127.0.0.1");
 });
+
+test("App name and icon: an uploaded icon becomes the favicon and manifest icon, the name the tab title", async ({
+  page,
+  request,
+}) => {
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+    settingsTab: "appearance",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  try {
+    await page.goto("/");
+    await page.getByPlaceholder("Search settings").fill("app icon");
+    await page.locator(".mari-settings-search-header button").filter({ hasText: "App name and icon" }).first().click();
+    const setting = page.locator("[data-app-branding]");
+    await expect(setting).toBeVisible();
+    await setting.locator('input[type="file"]').setInputFiles({
+      name: "icon.png",
+      mimeType: "image/png",
+      buffer: readFileSync(new URL("../packages/client/public/icon-192.png", import.meta.url)),
+    });
+    await expect.poll(() => page.locator('link[rel="icon"]').getAttribute("href")).toContain("/api/branding/icon/64");
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", /\/api\/branding\/icon\/192/);
+    await setting.getByLabel("App name").fill("My Shelf");
+    await setting.getByLabel("Short name (home screen)").fill("Shelf");
+    await setting.getByRole("button", { name: "Save names" }).click();
+    await expect(page).toHaveTitle("My Shelf");
+    await setting.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `.tmp/app-branding-${test.info().project.name}.png` });
+    const manifest = await (await request.get("/api/branding/manifest.json")).json();
+    expect(manifest.name).toBe("My Shelf");
+    expect(manifest.short_name).toBe("Shelf");
+    expect(manifest.icons[2].src).toContain("/api/branding/icon/512");
+    const icon = await request.get(manifest.icons[2].src);
+    expect(icon.headers()["content-type"]).toBe("image/png");
+    await setting.getByRole("button", { name: "Default icon" }).click();
+    await expect.poll(() => page.locator('link[rel="icon"]').getAttribute("href")).toBe("/favicon.png");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/api/branding/manifest.json");
+  } finally {
+    await request.put("/api/branding", { data: { name: "", shortName: "" } });
+    await request.delete("/api/branding/icon");
+  }
+});
