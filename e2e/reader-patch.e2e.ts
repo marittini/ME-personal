@@ -856,3 +856,42 @@ test("extras without a card get a room voice in reading settings, and their tagg
     await request.delete(`/api/characters/${card.id}`);
   }
 });
+
+test("a character's phonetic name is what read-aloud sends in place of the name", async ({ page, request }) => {
+  // Owner report 2026-10-24: IV with the phonetic name フォー was read as the Japanese 4 (욘).
+  const card = await (
+    await request.post("/api/characters", { data: { data: { name: "IV", extensions: { phoneticName: "フォー" } } } })
+  ).json();
+  const chat = await (
+    await request.post("/api/chats", { data: { name: "발음 검증", mode: "roleplay", characterIds: [card.id] } })
+  ).json();
+  try {
+    await request.patch(`/api/chats/${chat.id}/metadata`, { data: { ttsTaggedDialogue: false } });
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", characterId: card.id, content: '골목 끝에서 누군가 불렀다. "IV, 거기 있어?"' },
+      })
+    ).json();
+    const config = await (await request.get("/api/tts/config")).json();
+    await page.route("**/api/tts/config", (route) =>
+      route.fulfill({ json: { ...config, source: "openai", voice: "alloy", enabled: true } }),
+    );
+    const texts: string[] = [];
+    await page.route("**/api/tts/speak", async (route) => {
+      texts.push(route.request().postDataJSON().text);
+      await route.fulfill({ body: Buffer.alloc(64), contentType: "audio/wav" });
+    });
+    await quiet(page, chat.id);
+    await page.goto("/");
+    const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+    await expect(speech).toContainText("IV, 거기 있어?");
+    await speech.locator("[data-tts-dialogue-tappable]").first().click();
+    await speech.getByRole("button", { name: "1번 대사 음성 생성", exact: true }).click();
+    await expect.poll(() => texts).toEqual(["フォー, 거기 있어?"]);
+    // The page itself still shows the name as written.
+    await expect(speech).toContainText("IV, 거기 있어?");
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});

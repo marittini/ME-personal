@@ -1,3 +1,4 @@
+import { applyTTSPronunciations } from "./tts-pronunciation";
 import {
   decodeEncodedSpeakerTags,
   setCharacterVoiceAssignment,
@@ -377,7 +378,8 @@ export function cleanTTSInputText(value: string, options: TTSReadOptions = {}): 
   if (!(options.preserveEmotionIndicators ?? options.roleplaySpeakerExtractorEmotionsEnabled)) {
     cleaned = cleaned.replace(/\[[a-z_]+:[^\]]*\]/gi, "").replace(VN_TTS_METADATA_TAG_RE, " ");
   }
-  return cleaned
+  // Names are spoken as the chat's characters and persona ask (their phonetic name).
+  return applyTTSPronunciations(cleaned)
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .trim();
