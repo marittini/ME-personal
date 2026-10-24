@@ -9760,8 +9760,8 @@ html[data-reader-focus="true"]
   display: none !important;
 }
 
-/* Read aloud per line: a spoken line is tappable; its play / regenerate buttons open in a small popover above it
-   (below it near the top edge). The popover also shows in focus mode. */
+/* Read aloud per line: a spoken line is tappable; its play / regenerate buttons open in a small popover under it
+   (above it near the bottom edge). The popover also shows in focus mode. */
 [data-tts-dialogue-tappable] {
   cursor: pointer;
   border-radius: 0.125rem;
@@ -9780,7 +9780,7 @@ html[data-reader-focus="true"]
 }
 .mari-dialogue-popover {
   position: absolute;
-  bottom: calc(100% + 0.375rem);
+  top: calc(100% + 0.375rem);
   z-index: 30;
   display: inline-flex;
   gap: 0.125rem;
@@ -9796,7 +9796,7 @@ html[data-reader-focus="true"]
   text-indent: 0;
   letter-spacing: normal;
 }
-.mari-dialogue-popover[data-below="true"] {
-  top: calc(100% + 0.375rem);
-  bottom: auto;
+.mari-dialogue-popover[data-above="true"] {
+  top: auto;
+  bottom: calc(100% + 0.375rem);
 }

@@ -204,7 +204,7 @@ export function DialogueSpeechControls({
       document.removeEventListener("keydown", escape);
     };
   }, [openIndex, targets]);
-  // Keep the open popover inside the message and on screen: above the line, or below it near the top edge.
+  // Keep the open popover inside the message and on screen.
   const popover = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     const node = popover.current;
@@ -216,7 +216,8 @@ export function DialogueSpeechControls({
     const width = node.offsetWidth;
     const left = Math.min(bounds.right - at.left - width - 4, Math.max(bounds.left - at.left + 4, -width + 12));
     node.style.left = `${left}px`;
-    node.dataset.below = at.top - node.offsetHeight - 8 < 56 ? "true" : "false";
+    // Below the line (above it, the message's own header could cover it); above it near the bottom edge.
+    node.dataset.above = at.bottom + node.offsetHeight + 8 > window.innerHeight - 72 ? "true" : "false";
   });
   const personaSettings = async () => {
     if (!personaInfo?.id) return;

@@ -208,6 +208,8 @@ test("encoded formatted TTS hides wrappers and attaches controls beside each dia
   const message = await (
     await request.post(`/api/chats/${chat.id}/messages`, { data: { role: "assistant", content } })
   ).json();
+  // This room reads each line in its own speaker's voice (rooms read tagged participants by default now).
+  await request.patch(`/api/chats/${chat.id}/metadata`, { data: { ttsTaggedDialogue: false } });
   const config = await (await request.get("/api/tts/config")).json();
   await page.route("**/api/tts/config", (route) =>
     route.fulfill({ json: { ...config, enabled: true, dialogueOnly: true } }),
@@ -1159,7 +1161,7 @@ test("viewer settings: four page colors theme the app, RP and Convo keep their o
     await dialog.getByRole("button", { name: "글자 크기 1 늘리기", exact: true }).click();
     await dialog.getByRole("slider", { name: "양옆 여백", exact: true }).fill("24");
     await dialog.locator('[data-reader-settings-group="voice"] summary').click();
-    const buttons = dialog.getByRole("checkbox", { name: "대사 음성 버튼 표시", exact: true });
+    const buttons = dialog.getByRole("checkbox", { name: "대사를 누르면 음성 버튼 표시", exact: true });
     await expect(buttons).toBeChecked();
     await buttons.uncheck();
     await expect
