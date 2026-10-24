@@ -13,6 +13,7 @@ import {
   WEB_FONT_METRICS,
   WEB_FONT_TARGETS,
   WebFontError,
+  formatWebFontMetric,
   type WebFontChoice,
   type WebFontMetric,
   type WebFontTarget,
@@ -185,7 +186,7 @@ export function WebFontSettings({ id }: { id: string }) {
                   <Minus size="0.75rem" />
                 </button>
                 <output className="min-w-12 text-center tabular-nums">
-                  {value === undefined ? t("settings.webFonts.default") : `${value}${metric.unit}`}
+                  {value === undefined ? t("settings.webFonts.default") : formatWebFontMetric(value, key)}
                 </output>
                 <button
                   type="button"

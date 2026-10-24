@@ -34,6 +34,11 @@ export const WEB_FONT_METRICS = {
 } as const;
 export type WebFontMetric = keyof typeof WEB_FONT_METRICS;
 
+/** A metric value with its unit, e.g. "18px" or "1.6". */
+export function formatWebFontMetric(value: number, key: WebFontMetric) {
+  return `${Number(value.toFixed(2))}${WEB_FONT_METRICS[key].unit}`;
+}
+
 export const EMPTY_WEB_FONT_SETTINGS: WebFontSettings = { css: "", targets: {} };
 const MAX_CSS_BYTES = 262_144;
 const MAX_IMPORTS = 16;
