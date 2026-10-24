@@ -18,6 +18,7 @@ import {
   type ReaderTimestampStyle,
 } from "../../lib/reader-preferences";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
+import { ReaderExtraVoices } from "./ReaderExtraVoices";
 import { ReaderPagePicker } from "../ui/ReaderPagePicker";
 
 // One look for every row: the label on the left, its control on the right.
@@ -451,6 +452,8 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
           step={1}
           onChange={(ttsLineVolume) => useUIStore.setState({ ttsLineVolume })}
         />
+        {/* People without a card who speak in this RP room (tagged speakers). */}
+        {!conversation && chat && <ReaderExtraVoices chat={chat} />}
         {persona && (
           <form
             className="space-y-2 text-sm"

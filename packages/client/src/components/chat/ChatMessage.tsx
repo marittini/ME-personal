@@ -1,5 +1,5 @@
 import { findDialogueQuotePairs, markFormattedDialogue, markHtmlDialogue } from "../../lib/dialogue-render";
-import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
+import { ttsExtraParticipants, ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import { MessageTimestamp } from "./MessageTimestamp";
 import { MessageToolsLayout } from "./MessageToolsLayout";
 import { MessageIntegrationTools } from "./MessageIntegrationTools";
@@ -2147,6 +2147,7 @@ export const ChatMessage = memo(function ChatMessage({
               name: character.name,
             })),
           ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
+          ...ttsExtraParticipants(ttsChat?.metadata.ttsExtraVoices),
         ],
         isUser ? undefined : ttsTaggedDialogueEnabled(ttsChat?.metadata.ttsTaggedDialogue) ? "tagged" : "native",
       );
@@ -2176,6 +2177,7 @@ export const ChatMessage = memo(function ChatMessage({
     visualNovel,
     followSpeechParagraphs,
     ttsChat?.metadata.ttsTaggedDialogue,
+    ttsChat?.metadata.ttsExtraVoices,
   ]);
   const hasTTSContent = ttsVoiceRequests.length > 0;
   const [ttsState, setTTSState] = useState(ttsService.getState());

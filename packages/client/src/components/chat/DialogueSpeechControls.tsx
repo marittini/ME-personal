@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
+import { ttsExtraParticipants, ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import { createPortal } from "react-dom";
 import { Loader2, MoreVertical, Play, Plus, RefreshCw, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -77,6 +77,7 @@ export function DialogueSpeechControls({
       .filter(([id]) => !chatCharacterIds || chatCharacterIds.includes(id))
       .map(([id, c]) => ({ kind: "character", id, name: c.name }));
     if (personaInfo?.id) participants.push({ kind: "persona", id: personaInfo.id, name: personaInfo.name });
+    participants.push(...ttsExtraParticipants(chat?.metadata.ttsExtraVoices));
     try {
       return {
         groups: buildDialogueSpeechGroups(text, config, {
@@ -105,6 +106,7 @@ export function DialogueSpeechControls({
     chatCharacterIds,
     personaInfo,
     chat?.metadata.ttsTaggedDialogue,
+    chat?.metadata.ttsExtraVoices,
     chat?.mode,
   ]);
   const groups = result.groups;

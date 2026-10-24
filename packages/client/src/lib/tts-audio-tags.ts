@@ -1,7 +1,8 @@
 import { hideTTSAudioCues, normalizeTTSAudioMarkup } from "@marinara-engine/shared";
 
 export { hideTTSAudioCues, normalizeTTSAudioMarkup };
-export type TTSAudioParticipant = { kind: "character" | "persona"; id: string; name: string };
+/** `voice`: an extra without a card (room reading settings) carries its own voice. */
+export type TTSAudioParticipant = { kind: "character" | "persona"; id: string; name: string; voice?: string };
 export type TTSAudioLine = TTSAudioParticipant & { text: string; start: number; end: number };
 
 /** Only known, unambiguous identities are recoverable; code and nested markup are never speech. */

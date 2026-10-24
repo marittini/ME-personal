@@ -1,5 +1,5 @@
 import { compactCommittedHistory } from "../services/committed-memory.js";
-import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
+import { ttsExtraParticipants, ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import type { CommittedMemorySelection } from "@marinara-engine/shared";
 import { captureNaiChatDestination } from "../services/image/nai-result-application.js";
 import { applyClockCommandTags, TTS_SETTINGS_KEY, type RulesetClocks } from "@marinara-engine/shared";
@@ -11153,6 +11153,8 @@ export async function generateRoutes(app: FastifyInstance, options: GenerateRout
                     name: character.name,
                   })),
                   ...(chat.personaId ? [{ kind: "persona" as const, id: chat.personaId, name: personaName }] : []),
+                  // Extras without a card who have a voice in this room (reading settings).
+                  ...ttsExtraParticipants(chatMeta.ttsExtraVoices).map(({ kind, id, name }) => ({ kind, id, name })),
                 ],
               ),
         ]

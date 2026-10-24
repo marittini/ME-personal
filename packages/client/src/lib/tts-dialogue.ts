@@ -512,20 +512,28 @@ export function buildTTSVoiceRequests(
       throw new Error("Unknown TTS participant");
     return taggedLines.flatMap((line) => {
       if (roomSpeakerMode === "tagged") {
-        const assigned =
-          line.kind === "persona"
+        // An extra's own voice, else the participant's assigned voice, else the default one (as the line buttons do).
+        const own = line.voice?.trim()
+          ? line.voice
+          : line.kind === "persona"
             ? config.personaVoiceAssignments?.find((row) => row.personaId === line.id)?.voice
             : config.voiceAssignments.find((row) => row.characterId === line.id)?.voice;
+        const assigned = own?.trim()
+          ? own
+          : line.kind === "persona"
+            ? config.voice
+            : resolveTTSVoiceForSpeaker(config, line.name, line.id);
         if (!assigned?.trim()) throw new Error("Missing participant voice");
         return splitTTSChunks(line.text, config).map((chunk) => ({
           text: chunk,
           speaker: line.name,
           voice: assigned,
-          ...(line.kind === "character" ? { characterId: line.id } : {}),
+          ...(line.kind === "character" && !line.id.startsWith("extra-") ? { characterId: line.id } : {}),
         }));
       }
-      const voice =
-        line.kind === "persona"
+      const voice = line.voice?.trim()
+        ? line.voice
+        : line.kind === "persona"
           ? config.voiceMode === "per-character"
             ? config.personaVoiceAssignments?.find((row) => row.personaId === line.id)?.voice || config.voice
             : config.voice
@@ -535,7 +543,7 @@ export function buildTTSVoiceRequests(
         text: chunk,
         speaker: line.name,
         voice,
-        ...(line.kind === "character" ? { characterId: line.id } : {}),
+        ...(line.kind === "character" && !line.id.startsWith("extra-") ? { characterId: line.id } : {}),
       }));
     });
   }

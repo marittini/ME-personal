@@ -35,8 +35,9 @@ export function buildDialogueSpeechGroups(
     if (wrapperCount > lines.length) throw new Error("unknownSpeaker");
     groups = lines.map((line) => {
       // A participant without its own voice speaks with the default one (voices are added only where needed).
-      const own =
-        line.kind === "persona"
+      const own = line.voice?.trim()
+        ? line.voice
+        : line.kind === "persona"
           ? config.personaVoiceAssignments?.find((row) => row.personaId === line.id)?.voice
           : config.voiceAssignments.find((row) => row.characterId === line.id)?.voice;
       const voice = own?.trim()
@@ -50,7 +51,7 @@ export function buildDialogueSpeechGroups(
           text: chunk,
           voice,
           speaker: line.name,
-          ...(line.kind === "character" ? { characterId: line.id } : {}),
+          ...(line.kind === "character" && !line.id.startsWith("extra-") ? { characterId: line.id } : {}),
         })),
         ...(line.kind === "persona" ? { persona: line } : {}),
       };
