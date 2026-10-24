@@ -129,12 +129,8 @@ export function translateMessage(
 }
 
 // ── Hook ──
-export function useTranslate() {
+function useTranslateAction() {
   const queryClient = useQueryClient();
-  const translations = useTranslationStore((s) => s.translations);
-  const translationSources = useTranslationStore((s) => s.translationSources);
-  const translating = useTranslationStore((s) => s.translating);
-  const config = useTranslationStore((s) => s.config);
 
   const translate = useCallback(
     async (messageId: string, text: string, chatId?: string, currentSourceAliases: readonly string[] = []) => {
@@ -163,6 +159,24 @@ export function useTranslate() {
     [queryClient],
   );
 
+  return translate;
+}
+
+/** Message rows subscribe only to their own translation, not the whole room's cache. */
+export function useMessageTranslation(messageId: string) {
+  const translate = useTranslateAction();
+  const translatedText = useTranslationStore((s) => s.translations[messageId]);
+  const translationSource = useTranslationStore((s) => s.translationSources[messageId]);
+  const isTranslating = useTranslationStore((s) => !!s.translating[messageId]);
+  return { translate, translatedText, translationSource, isTranslating };
+}
+
+export function useTranslate() {
+  const translate = useTranslateAction();
+  const translations = useTranslationStore((s) => s.translations);
+  const translationSources = useTranslationStore((s) => s.translationSources);
+  const translating = useTranslationStore((s) => s.translating);
+  const config = useTranslationStore((s) => s.config);
   return {
     translate,
     translations,
