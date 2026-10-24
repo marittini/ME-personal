@@ -2085,7 +2085,12 @@ export const ChatMessage = memo(function ChatMessage({
   }, []);
 
   // Translation
-  const { translate, translatedText: cachedTranslation, translationSource, isTranslating } = useMessageTranslation(message.id);
+  const {
+    translate,
+    translatedText: cachedTranslation,
+    translationSource,
+    isTranslating,
+  } = useMessageTranslation(message.id);
   // Translations are keyed by message, not swipe. Show one only for the text it
   // was made from, so a new swipe or a live stream never inherits the old one.
   const translatedText =
