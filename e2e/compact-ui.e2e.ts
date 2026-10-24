@@ -707,3 +707,95 @@ test("library home: no new-work shortcut; Continue reading has no time, the arro
     await request.delete(`/api/chats/${id}?force=true`);
   }
 });
+
+test("theme placeholders: personas, lorebooks and connections use the accent, no green glow behind personas", async ({
+  page,
+  request,
+}) => {
+  const lorebook = await (await request.post("/api/lorebooks", { data: { name: "Tint lorebook" } })).json();
+  try {
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: "lorebooks",
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const row = page.locator("[data-receipt-row]:visible").filter({ hasText: "Tint lorebook" });
+    await expect(row.locator(".mari-avatar-placeholder--lorebook")).toBeVisible();
+    const looks = await page.evaluate(() =>
+      Object.fromEntries(
+        ["character", "persona", "lorebook", "connection"].map((kind) => {
+          const node = document.createElement("div");
+          node.className = `mari-avatar-placeholder mari-avatar-placeholder--${kind}`;
+          document.body.append(node);
+          const style = getComputedStyle(node);
+          const look = { background: style.backgroundImage, shadow: style.boxShadow };
+          node.remove();
+          return [kind, look];
+        }),
+      ),
+    );
+    for (const kind of ["persona", "lorebook", "connection"])
+      expect(looks[kind]!.background).toBe(looks.character!.background);
+    expect(looks.persona!.background).not.toContain("52, 211, 153");
+    // Only the inner highlight is left behind a persona picture.
+    expect(looks.persona!.shadow.split("inset")).toHaveLength(2);
+    expect(looks.persona!.shadow).not.toMatch(/\) 0px 4px/u);
+  } finally {
+    await request.delete(`/api/lorebooks/${lorebook.id}`);
+  }
+});
+
+test("roleplay hides character names; Convo translations sit close under their bubble", async ({ page, request }) => {
+  const rp = await (await request.post("/api/chats", { data: { name: "Name proof", mode: "roleplay" } })).json();
+  const convo = await (await request.post("/api/chats", { data: { name: "Gap proof", mode: "conversation" } })).json();
+  try {
+    await request.post(`/api/chats/${rp.id}/messages`, { data: { role: "user", content: "Hello there." } });
+    await request.post(`/api/chats/${rp.id}/messages`, { data: { role: "assistant", content: "General Kenobi." } });
+    const content = "What is it, Your Majesty?";
+    const message = await (
+      await request.post(`/api/chats/${convo.id}/messages`, { data: { role: "assistant", content } })
+    ).json();
+    await request.patch(`/api/chats/${convo.id}/messages/${message.id}/extra`, {
+      data: { translation: "무슨 일이십니까, 폐하?", translationSource: content, translationHidden: false },
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    const openChat = async (id: string) => {
+      await page.addInitScript(
+        ({ id, version }) => {
+          localStorage.setItem("marinara-active-chat-id", id);
+          localStorage.setItem("marinara:whats-new:seen-version", version);
+        },
+        { id, version },
+      );
+      await page.goto("/");
+    };
+    await openChat(rp.id);
+    const assistant = page.locator('[data-chat-mode="roleplay"] [data-message-role="assistant"]').last();
+    await expect(assistant).toContainText("General Kenobi.");
+    await expect(assistant.locator(".mari-message-name")).toBeHidden();
+
+    await openChat(convo.id);
+    const owner = page.locator(`[data-message-id="${message.id}"]`);
+    const bubble = owner.locator(".texting-bubble-other").first();
+    const translation = owner.locator('[data-conversation-translation="outside"]').first();
+    await expect(translation).toContainText("폐하");
+    const [bubbleBox, textBox] = [
+      await bubble.boundingBox(),
+      await translation.locator(".translation-text").boundingBox(),
+    ];
+    expect(textBox!.y - (bubbleBox!.y + bubbleBox!.height)).toBeLessThanOrEqual(10);
+  } finally {
+    await request.delete(`/api/chats/${rp.id}?force=true`);
+    await request.delete(`/api/chats/${convo.id}?force=true`);
+  }
+});
