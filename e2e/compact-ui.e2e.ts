@@ -1187,3 +1187,57 @@ test("UI manager: rows share columns, and a remote choice follows into another r
     for (const id of ids) await request.delete(`/api/chats/${id}?force=true`);
   }
 });
+
+test("NovelAI: prompt and negative prefixes are still there when the connection is opened again", async ({
+  page,
+  request,
+}) => {
+  // Owner report 2026-10-24: open a NovelAI connection, write the prefixes, leave, open it again — they were blank.
+  const conn = await (
+    await request.post("/api/connections", {
+      data: {
+        name: `NAI reopen proof ${Date.now()}`,
+        provider: "image_generation",
+        imageGenerationSource: "novelai",
+        imageService: "novelai",
+        model: "nai-diffusion-4-5-full",
+      },
+    })
+  ).json();
+  try {
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: "connections",
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const row = page.locator("[data-receipt-row]:visible").filter({ hasText: conn.name });
+    const editor = page.locator(".mari-editor-shell");
+    await row.click();
+    await editor.getByRole("button", { name: /NovelAI generation setup/iu }).click();
+    await editor.getByLabel("Prompt Prefix").fill("masterpiece, best quality");
+    await editor.getByLabel("Negative Prefix").fill("lowres, blurry");
+    // On phones a notice can sit over the Save button; the keyboard reaches it all the same.
+    await editor.getByRole("button", { name: "Save", exact: true }).focus();
+    await page.keyboard.press("Enter");
+    await expect
+      .poll(async () => (await (await request.get(`/api/connections/${conn.id}`)).json()).defaultParameters ?? "")
+      .toContain("lowres, blurry");
+    await expect(editor.getByText("Unsaved", { exact: true })).toHaveCount(0);
+    // Leave the editor: back on a computer; a phone's back closes the panel too, so it comes back with a reload.
+    if (test.info().project.name.startsWith("mobile")) await page.reload();
+    else await page.evaluate(() => history.back());
+    await expect(editor).toBeHidden();
+    await row.click();
+    await expect(editor).toBeVisible();
+    const prefix = editor.getByLabel("Prompt Prefix");
+    if (!(await prefix.isVisible())) await editor.getByRole("button", { name: /NovelAI generation setup/iu }).click();
+    await expect(prefix).toHaveValue("masterpiece, best quality");
+    await expect(editor.getByLabel("Negative Prefix")).toHaveValue("lowres, blurry");
+  } finally {
+    await request.delete(`/api/connections/${conn.id}`);
+  }
+});
