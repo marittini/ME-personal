@@ -621,6 +621,10 @@ test("roleplay original view: controls stay beside tagged lines when the narrati
     await expect(controls).toHaveCount(3);
     for (const [index, line] of ["腹 減った", "卵しか ないと", "また ゼリーかよ"].entries())
       await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
+    // Per-line buttons are small, so they sit inside the line instead of pushing it apart.
+    const button = (await controls.first().locator("button").first().boundingBox())!;
+    expect(button.height).toBeLessThan(30); // 1.5rem (was 2.75rem)
+    expect(button.width).toBeLessThan(30);
     await page.screenshot({ path: ".tmp/original-narration-quotes.png" });
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
