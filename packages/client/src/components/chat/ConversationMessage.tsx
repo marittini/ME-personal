@@ -26,7 +26,7 @@ import { useUIStore, type ConversationMessageStyle } from "../../stores/ui.store
 import { cn, copyToClipboard, getAvatarCropStyle } from "../../lib/utils";
 import { normalizeAvatarCrop } from "@marinara-engine/shared";
 import { resolveMessageMacros } from "../../lib/chat-macros";
-import { useTranslate } from "../../hooks/use-translate";
+import { useMessageTranslation } from "../../hooks/use-translate";
 import { useApplyRegex } from "../../hooks/use-apply-regex";
 import { api } from "../../lib/api-client";
 import { chatKeys } from "../../hooks/use-chats";
@@ -212,10 +212,7 @@ export const ConversationMessage = memo(function ConversationMessage({
   const { applyToAIOutput } = useApplyRegex();
 
   // ── Translation ──
-  const { translate, translations, translationSources, translating } = useTranslate();
-  const translatedText = translations[message.id];
-  const translationSource = translationSources[message.id];
-  const isTranslating = !!translating[message.id];
+  const { translate, translatedText, translationSource, isTranslating } = useMessageTranslation(message.id);
 
   // ── Derived flags ──
   const isUser = message.role === "user";

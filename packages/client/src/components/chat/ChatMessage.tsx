@@ -119,7 +119,7 @@ import { getDefaultChatTextColor, useUIStore } from "../../stores/ui.store";
 import { useChatStore } from "../../stores/chat.store";
 import { hasActiveTextSelection } from "../../lib/text-selection";
 import { parseChatMetadata } from "../../lib/chat-display";
-import { useTranslate } from "../../hooks/use-translate";
+import { useMessageTranslation } from "../../hooks/use-translate";
 import { api } from "../../lib/api-client";
 import { applyTextareaQuoteFormat } from "../../lib/textarea-quotes";
 import { ttsService } from "../../lib/tts-service";
@@ -2085,15 +2085,13 @@ export const ChatMessage = memo(function ChatMessage({
   }, []);
 
   // Translation
-  const { translate, translations, translationSources, translating } = useTranslate();
-  const translationSource = translationSources[message.id];
+  const { translate, translatedText: cachedTranslation, translationSource, isTranslating } = useMessageTranslation(message.id);
   // Translations are keyed by message, not swipe. Show one only for the text it
   // was made from, so a new swipe or a live stream never inherits the old one.
   const translatedText =
     !isStreaming && (translationSource === undefined || translationSource === message.content)
-      ? translations[message.id]
+      ? cachedTranslation
       : undefined;
-  const isTranslating = !!translating[message.id];
 
   const extra = useMemo(() => {
     if (!message.extra) return {};
