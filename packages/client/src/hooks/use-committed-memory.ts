@@ -7,7 +7,9 @@ export function useCommittedMemory(chatId: string) {
   return useQuery({
     queryKey: ["committed-memory", chatId],
     queryFn: () => api.get<CommittedMemoryStatus>(`/chats/${chatId}/committed-memory`),
-    refetchInterval: 5000,
+    // Polled only while an organize job runs; otherwise it refreshes after replies and memory actions
+    // (see CommittedMemoryBubble) and when the window regains focus. Mobile data stays low in long rooms.
+    refetchInterval: (query) => (query.state.data?.state.job?.status === "running" ? 3000 : false),
   });
 }
 export function useCommitMemory(chatId: string, batchSize?: number) {
@@ -51,7 +53,6 @@ export function useMemoryPreview(chatId: string, query: string, enabled: boolean
         waiting?: string[];
       }>(`/chats/${chatId}/committed-memory/preview?query=${encodeURIComponent(query)}`),
     enabled,
-    refetchInterval: enabled ? 5000 : false,
   });
 }
 export function useMemorySource(chatId: string, id: string, enabled: boolean) {
@@ -71,7 +72,6 @@ export function useMemoryConnection(chatId: string) {
       api.get<import("@marinara-engine/shared").CommittedMemoryConnectionStatus>(
         `/chats/${chatId}/committed-memory/connection`,
       ),
-    refetchInterval: 5000,
   });
 }
 export function useEditMemory(chatId: string) {

@@ -133,8 +133,16 @@ export interface CommittedMemorySelection {
   tier?: "always" | "recall" | "flow" | "boundary";
   tokens?: number;
 }
+/** What the status response carries of a change: enough to list it and undo it by ID. */
+export type CommittedMemoryCommitSummary = Pick<CommittedMemoryCommitRecord, "id" | "at" | "kind" | "summary">;
 export interface CommittedMemoryStatus {
-  state: CommittedMemoryState;
+  /**
+   * The memory without its heavy internals: change history is listed without the snapshots it restores from, and
+   * the one-time format-1 backup and set-aside records stay on the server.
+   */
+  state: Omit<CommittedMemoryState, "commits" | "legacyBackup" | "quarantine"> & {
+    commits?: CommittedMemoryCommitSummary[];
+  };
   pending: number;
   selectedPending?: number;
   totalMessages?: number;

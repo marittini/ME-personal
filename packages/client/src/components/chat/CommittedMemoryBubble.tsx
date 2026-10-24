@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { BookCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +38,14 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
   const metadata = chat?.metadata as Record<string, unknown> | undefined;
   const pending = data?.selectedPending ?? data?.pending ?? 0;
   const busy = commit.isPending || data?.state.job?.status === "running";
+  // The status is no longer polled: a finished reply is what changes the unconfirmed count.
+  const queryClient = useQueryClient();
+  const wasStreaming = useRef(streaming);
+  useEffect(() => {
+    if (wasStreaming.current && !streaming)
+      void queryClient.invalidateQueries({ queryKey: ["committed-memory", chatId] });
+    wasStreaming.current = streaming;
+  }, [chatId, queryClient, streaming]);
   const lastJob = useRef<string | undefined>(undefined);
   useEffect(() => {
     const job = data?.state.job;
