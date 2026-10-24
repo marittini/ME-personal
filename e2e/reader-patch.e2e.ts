@@ -216,7 +216,8 @@ for (const mode of ["roleplay", "conversation"] as const) {
       if (mode === "conversation") {
         await expect(speech.locator("[data-dialogue-controls]")).toHaveCount(0);
         // Phones reveal message tools on a tap, desktops on hover.
-        if (test.info().project.name.startsWith("mobile")) await speech.locator(".mari-message-content").first().click();
+        if (test.info().project.name.startsWith("mobile"))
+          await speech.locator(".mari-message-content").first().click();
         else await speech.locator(".mari-message-content").first().hover();
         await expect(speech.getByRole("button", { name: "음성 생성", exact: true })).toBeVisible();
       } else {
@@ -498,4 +499,133 @@ test("bundled Korean can be selected without a language-pack download", async ({
   await select.selectOption("ko");
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
   expect(downloads).toBe(0);
+});
+
+test("roleplay translation-only: controls stay beside tagged lines when the translated narration quotes words too", async ({
+  page,
+  request,
+}) => {
+  // Device report 2026-10-24: Japanese narration quoting 『…』 came back translated with "…", which the reader
+  // also marks as dialogue, so the count no longer matched the tagged lines and every button fell to the bottom.
+  const card = await (await request.post("/api/characters", { data: { data: { name: "IV" } } })).json();
+  const persona = await (await request.post("/api/characters/personas", { data: { name: "세코" } })).json();
+  const chat = await (
+    await request.post("/api/chats", {
+      data: { name: "번역 인용 검증", mode: "roleplay", characterIds: [card.id], personaId: persona.id },
+    })
+  ).json();
+  try {
+    await request.patch(`/api/chats/${chat.id}/metadata`, {
+      data: { ttsTaggedDialogue: true, translationDisplayOnly: true },
+    });
+    const content = [
+      "額が 離れる。",
+      `<audio_character id="${card.id}">"[low, gruff] ……腹 減った。"</audio_character>`,
+      "さっきまで 人の 部屋を 勝手に 検閲して『麦茶と 卵しか ねぇ』と 文句を 言って いた。",
+      `<audio_persona id="${persona.id}">"[calm, flat] ……だから 卵しか ないと 言った だろうが。"</audio_persona>`,
+      "世古も「いつまで いるんだ」とは 聞かない。",
+      `<audio_character id="${card.id}">"[irritated, low] また ゼリーかよ。"</audio_character>`,
+    ].join("\n\n");
+    const translation = [
+      "이마가 떨어진다.",
+      `"……배고파."`,
+      `아까까지 남의 방을 멋대로 검열하며 "보리차랑 달걀밖에 없네"라고 불평하던 사람이다.`,
+      `"……그러니까 달걀밖에 없다고 했잖아."`,
+      `세코도 "언제까지 있을 거냐"고는 묻지 않는다.`,
+      `"또 젤리냐."`,
+    ].join("\n\n");
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", content, characterId: card.id },
+      })
+    ).json();
+    await request.patch(`/api/chats/${chat.id}/messages/${message.id}/extra`, {
+      data: { translation, translationSource: content, translationHidden: false },
+    });
+    const config = await (await request.get("/api/tts/config")).json();
+    await page.route("**/api/tts/config", (route) =>
+      route.fulfill({
+        json: {
+          ...config,
+          source: "openai",
+          voice: "alloy",
+          enabled: true,
+          voiceAssignments: [{ characterId: card.id, characterName: "IV", voice: "char-voice" }],
+          personaVoiceAssignments: [{ personaId: persona.id, personaName: "세코", voice: "persona-voice" }],
+        },
+      }),
+    );
+    await quiet(page, chat.id);
+    await page.goto("/");
+    const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+    await expect(speech).toContainText("배고파");
+    const controls = speech.locator("[data-tts-dialogue] [data-dialogue-controls]");
+    await expect(controls).toHaveCount(3);
+    for (const [index, line] of ["배고파", "달걀밖에 없다고 했잖아", "또 젤리냐"].entries())
+      await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
+    await page.screenshot({ path: ".tmp/translation-only-narration-quotes.png" });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/personas/${persona.id}`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});
+
+test("roleplay original view: controls stay beside tagged lines when the narration quotes words in 『』 and 「」", async ({
+  page,
+  request,
+}) => {
+  // Device report 2026-10-24: Japanese narration quoting 『…』 came back translated with "…", which the reader
+  // also marks as dialogue, so the count no longer matched the tagged lines and every button fell to the bottom.
+  const card = await (await request.post("/api/characters", { data: { data: { name: "IV" } } })).json();
+  const persona = await (await request.post("/api/characters/personas", { data: { name: "세코" } })).json();
+  const chat = await (
+    await request.post("/api/chats", {
+      data: { name: "원문 인용 검증", mode: "roleplay", characterIds: [card.id], personaId: persona.id },
+    })
+  ).json();
+  try {
+    await request.patch(`/api/chats/${chat.id}/metadata`, {
+      data: { ttsTaggedDialogue: true },
+    });
+    const content = [
+      "額が 離れる。",
+      `<audio_character id="${card.id}">"[low, gruff] ……腹 減った。"</audio_character>`,
+      "さっきまで 人の 部屋を 勝手に 検閲して『麦茶と 卵しか ねぇ』と 文句を 言って いた。",
+      `<audio_persona id="${persona.id}">"[calm, flat] ……だから 卵しか ないと 言った だろうが。"</audio_persona>`,
+      "世古も「いつまで いるんだ」とは 聞かない。",
+      `<audio_character id="${card.id}">"[irritated, low] また ゼリーかよ。"</audio_character>`,
+    ].join("\n\n");
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: { role: "assistant", content, characterId: card.id },
+      })
+    ).json();
+    const config = await (await request.get("/api/tts/config")).json();
+    await page.route("**/api/tts/config", (route) =>
+      route.fulfill({
+        json: {
+          ...config,
+          source: "openai",
+          voice: "alloy",
+          enabled: true,
+          voiceAssignments: [{ characterId: card.id, characterName: "IV", voice: "char-voice" }],
+          personaVoiceAssignments: [{ personaId: persona.id, personaName: "세코", voice: "persona-voice" }],
+        },
+      }),
+    );
+    await quiet(page, chat.id);
+    await page.goto("/");
+    const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+    await expect(speech).toContainText("腹 減った");
+    const controls = speech.locator("[data-tts-dialogue] [data-dialogue-controls]");
+    await expect(controls).toHaveCount(3);
+    for (const [index, line] of ["腹 減った", "卵しか ないと", "また ゼリーかよ"].entries())
+      await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
+    await page.screenshot({ path: ".tmp/original-narration-quotes.png" });
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/personas/${persona.id}`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
 });

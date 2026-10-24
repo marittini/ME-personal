@@ -9,6 +9,7 @@ import { useUIStore } from "../../stores/ui.store";
 import { ttsService } from "../../lib/tts-service";
 import { getCachedTTSAudioBlob } from "../../lib/tts-audio-cache";
 import { buildDialogueSpeechGroups } from "../../lib/tts-dialogue-groups";
+import { alignTranslatedQuotes } from "../../lib/tts-translation-anchors";
 import type { TTSAudioParticipant } from "../../lib/tts-audio-tags";
 import { showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import type { CharacterMap, PersonaInfo } from "./chat-area.types";
@@ -142,12 +143,22 @@ export function DialogueSpeechControls({
         ? originalQuotes
         : translatedQuotes.length === groups.length
           ? translatedQuotes
-          : conversation && bubbles.length === groups.length
-            ? bubbles
-            : // A conversation reply without quotes is one spoken line; its control follows the last bubble.
-              conversation && groups.length === 1 && !quotes.length && bubbles.length
-              ? [bubbles[bubbles.length - 1]!]
-              : [];
+          : // The translation quotes more than the original speaks: keep the quotes of the tagged paragraphs.
+            // Tagged lines with more quotes on the page than lines (narration quoting 『…』, 「…」 or a
+            // translation of them): keep the quotes of the tagged paragraphs.
+            chat?.metadata.ttsTaggedDialogue === true
+            ? alignTranslatedQuotes(
+                text,
+                // A shown translation below the original wins; translation-only renders in place of the original.
+                translatedQuotes.length ? translatedQuotes : originalQuotes,
+                groups.length,
+              )
+            : conversation && bubbles.length === groups.length
+              ? bubbles
+              : // A conversation reply without quotes is one spoken line; its control follows the last bubble.
+                conversation && groups.length === 1 && !quotes.length && bubbles.length
+                ? [bubbles[bubbles.length - 1]!]
+                : [];
     const hosts = anchors.map((node) => {
       const host = document.createElement("span");
       host.dataset.ttsControlHost = "";
@@ -159,7 +170,7 @@ export function DialogueSpeechControls({
     return () => {
       hosts.forEach((host) => host.remove());
     };
-  }, [enabled, groups, messageId, translation, chat?.mode, renderRevision]);
+  }, [enabled, groups, messageId, translation, chat?.mode, chat?.metadata.ttsTaggedDialogue, text, renderRevision]);
   const personaSettings = async () => {
     if (!personaInfo?.id) return;
     const value = await showPromptDialog({
