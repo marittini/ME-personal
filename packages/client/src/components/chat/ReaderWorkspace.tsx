@@ -68,7 +68,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
   // Reading notes and the highlighter belong to the novel reader (roleplay); Convo keeps only excerpts.
   const notesActive = enabled && surfaceActive && !conversation;
   const selectionActive = enabled && surfaceActive;
-  useReaderHighlights(root, excerpts, selectionActive, conversation ? [] : highlights);
+  useReaderHighlights(root, excerpts, selectionActive, conversation ? [] : highlights, chatId);
   const saveHighlights = (next: ReaderHighlight[], onSuccess?: () => void) => {
     if (!chatId) return;
     updateMetadata.mutate(

@@ -2,6 +2,7 @@ import { useEffect, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReaderExcerpt, ReaderHighlight } from "@marinara-engine/shared";
 import { restoreExcerptRange } from "../lib/reader-excerpt-anchors";
+import { isReaderHighlightQueryRelevant } from "../lib/reader-highlight-query";
 
 const NOTE_COLORS = ["y", "g", "p", "b"] as const;
 const NOTE_HIGHLIGHTS = [...NOTE_COLORS.map((color) => `reader-note-${color}`), "reader-note-memo"];
@@ -35,6 +36,7 @@ export function useReaderHighlights(
   excerpts: ReaderExcerpt[],
   active: boolean,
   highlights: ReaderHighlight[] = [],
+  chatId: string | null = null,
 ) {
   const client = useQueryClient();
   useEffect(() => {
@@ -67,7 +69,9 @@ export function useReaderHighlights(
       });
     };
     paint();
-    const unsubscribe = client.getQueryCache().subscribe(paint);
+    const unsubscribe = client.getQueryCache().subscribe((event) => {
+      if (isReaderHighlightQueryRelevant(event.query.queryKey, chatId)) paint();
+    });
     host.addEventListener("scroll", paint, true);
     host.addEventListener("reader-content-rendered", paint);
     return () => {
@@ -78,5 +82,5 @@ export function useReaderHighlights(
       CSS.highlights.delete("reader-excerpts");
       for (const name of NOTE_HIGHLIGHTS) CSS.highlights.delete(name);
     };
-  }, [root, excerpts, highlights, active, client]);
+  }, [root, excerpts, highlights, active, client, chatId]);
 }
