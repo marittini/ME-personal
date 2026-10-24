@@ -973,3 +973,83 @@ test("phone: a panel opened on the library home starts right under the Marinara 
   expect(Math.abs(panelBox!.y - (title!.y - 2))).toBeLessThan(1.5);
   expect(panelBox!.y).toBeGreaterThanOrEqual(brand!.y + brand!.height);
 });
+
+test("UI manager: rows share columns, and a remote choice follows into another room of the same mode", async ({
+  page,
+  request,
+}) => {
+  const ids: string[] = [];
+  for (const name of ["Layout room A", "Layout room B"]) {
+    const { id } = await (await request.post("/api/chats", { data: { name, mode: "roleplay" } })).json();
+    ids.push(id);
+    await request.post(`/api/chats/${id}/messages`, { data: { role: "assistant", content: `${name} opening.` } });
+  }
+  try {
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(
+      page,
+      {
+        hasCompletedOnboarding: true,
+        sidebarOpen: false,
+        rightPanelOpen: false,
+        chatHelpSeenModes: ["conversation", "roleplay", "game"],
+      },
+      "merge",
+    );
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    const openRoom = async (id: string) => {
+      await page.evaluate((chatId) => localStorage.setItem("marinara-active-chat-id", chatId), id);
+      await page.reload();
+    };
+    await page.goto("/");
+    await openRoom(ids[0]!);
+    const settings = await openChatSettings(page);
+    await settings.locator("[data-chat-ui-manager-button]").click();
+    const manager = page.locator("[data-chat-ui-manager]");
+    await manager.getByRole("tab", { name: /^Chat Settings/ }).click();
+    await manager.locator('[data-ui-manager-item="connection"]').getByRole("radio", { name: "Hidden" }).click();
+    // Every placement control starts at the same x, hidden rows included.
+    const starts = await manager
+      .locator(".mari-ui-manager__row > .mari-ui-manager__segmented")
+      .evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().left)));
+    expect(starts.length).toBeGreaterThan(3);
+    expect(new Set(starts).size).toBe(1);
+    // The placement control never runs under the order buttons beside it.
+    const overlaps = await manager.locator(".mari-ui-manager__row").evaluateAll(
+      (rows) =>
+        rows.filter((row) => {
+          const seg = row.querySelector(".mari-ui-manager__segmented")?.getBoundingClientRect();
+          const moves = row.querySelector(".mari-ui-manager__moves button")?.getBoundingClientRect();
+          return seg && moves && seg.right > moves.left;
+        }).length,
+    );
+    expect(overlaps).toBe(0);
+    // Names stay readable, and rows stay inside the manager.
+    const box = (await manager.boundingBox())!;
+    const rows = await manager.locator(".mari-ui-manager__row").evaluateAll((nodes) =>
+      nodes.map((row) => ({
+        name: row.querySelector(".mari-ui-manager__name")!.getBoundingClientRect().width,
+        right: Math.max(...Array.from(row.children).map((child) => child.getBoundingClientRect().right)),
+      })),
+    );
+    for (const row of rows) {
+      expect(row.name).toBeGreaterThan(40);
+      expect(row.right).toBeLessThanOrEqual(box.x + box.width + 1);
+    }
+    await page.screenshot({ path: `.tmp/ui-manager-${test.info().project.name}.png` });
+    await manager.locator('[data-ui-manager-item="connection"]').getByRole("radio", { name: "Remote" }).click();
+    await manager.getByRole("tab", { name: /Remote/ }).click();
+    await manager.getByRole("checkbox", { name: "Show the remote" }).check({ force: true });
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Close chat settings", exact: true }).click();
+    const item = page.locator('[data-chat-remote] [data-chat-remote-item="drawer:chat-settings:connection"]');
+    await expect(item).toBeVisible();
+
+    // Another RP room shows the same item on its remote without opening Chat Settings first.
+    await openRoom(ids[1]!);
+    await expect(page.locator('[data-chat-mode="roleplay"]')).toContainText("Layout room B opening.");
+    await expect(item).toBeVisible();
+  } finally {
+    for (const id of ids) await request.delete(`/api/chats/${id}?force=true`);
+  }
+});

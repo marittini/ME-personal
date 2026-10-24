@@ -9437,18 +9437,51 @@ html[data-reader-focus="true"]
 .mari-message-actions > [data-chat-tool-placement="more"] {
   display: none !important;
 }
+/* One grid for the whole list: name · placement · order, so every row's controls share columns. */
 .mari-ui-manager__list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 0.5rem;
+}
+.mari-ui-manager__list > :not(.mari-ui-manager__row) {
+  grid-column: 1 / -1;
+}
+/* The settings tab's category lists share one set of columns too. */
+.mari-ui-manager__lists {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 0.5rem;
+}
+.mari-ui-manager__lists > section {
+  display: contents;
+}
+.mari-ui-manager__lists .mari-ui-manager__heading {
+  grid-column: 1 / -1;
+}
+.mari-ui-manager__lists .mari-ui-manager__list {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
 }
 .mari-ui-manager__row {
-  display: flex;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 0.5rem;
   min-height: 2.75rem;
   padding-block: 0.375rem;
   border-bottom: 1px solid var(--border);
   font-size: 0.8125rem;
+}
+.mari-ui-manager__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mari-ui-manager__moves {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
 }
 .mari-ui-manager__heading {
   margin-block: 0.5rem 0.25rem;
@@ -9476,9 +9509,31 @@ html[data-reader-focus="true"]
 .mari-ui-manager__segmented button:disabled {
   opacity: 0.4;
 }
-@media (max-width: 480px) {
+/* A narrow manager (phones, or the window beside Chat Settings): the name gets its own line; placement and order
+   share the line below it. */
+.mari-ui-manager {
+  container-type: inline-size;
+}
+@container (max-width: 30rem) {
+  .mari-ui-manager__list,
+  .mari-ui-manager__lists {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
   .mari-ui-manager__row {
-    flex-wrap: wrap;
+    row-gap: 0.375rem;
+  }
+  .mari-ui-manager__name {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+  /* The placement choice fills the line beside the order buttons and never runs under them. */
+  .mari-ui-manager__row > .mari-ui-manager__segmented {
+    min-width: 0;
+  }
+  .mari-ui-manager__row > .mari-ui-manager__segmented button {
+    flex: 1 1 auto;
+    padding-inline: 0.3125rem;
+    white-space: nowrap;
   }
 }
 

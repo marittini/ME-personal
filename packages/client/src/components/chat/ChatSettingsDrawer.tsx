@@ -1033,11 +1033,10 @@ export function ChatSettingsDrawer({
     [storedUiLayout],
   );
   const settingsTabs = useChatSettingsTabs(settingsList, uiLayout);
-  // A room of the same mode follows the explicit top/settings choices made in the UI manager (computers only).
+  // Every room of the same mode follows the top / remote / settings choices made in the UI manager.
   const uiLayoutRef = useRef(uiLayout);
   uiLayoutRef.current = uiLayout;
   useEffect(() => {
-    if (!settingsList) return;
     const frame = requestAnimationFrame(() => applyChatUiPlacements(uiLayoutRef.current, settingsList));
     return () => cancelAnimationFrame(frame);
   }, [chat.id, settingsList]);
