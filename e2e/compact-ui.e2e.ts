@@ -878,7 +878,7 @@ test("TTS: persona voices are added only when needed; RP rooms read tagged speak
     // A room that never chose a speaker mode reads tagged participant voices.
     await page.getByRole("button", { name: "Reading settings", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
-    await dialog.getByRole("group", { name: "Voice" }).locator("summary").click();
+    await dialog.locator('[data-reader-settings-group="voice"] > summary').click();
     await expect(dialog.getByRole("combobox", { name: "Dialogue speaker mode", exact: true })).toHaveValue("tagged");
   } finally {
     await request.delete(`/api/characters/personas/${persona.id}`);
