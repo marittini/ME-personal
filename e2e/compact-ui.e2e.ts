@@ -799,3 +799,89 @@ test("roleplay hides character names; Convo translations sit close under their b
     await request.delete(`/api/chats/${convo.id}?force=true`);
   }
 });
+
+test("TTS: persona voices are added only when needed; RP rooms read tagged speakers by default", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes("desktop"), "TTS settings are covered on desktop.");
+  const config: Record<string, unknown> = {
+    enabled: true,
+    source: "elevenlabs",
+    baseUrl: "https://api.elevenlabs.io",
+    apiKey: "••••••",
+    voice: "voice-01",
+    model: "eleven_multilingual_v2",
+    speed: 1,
+    voiceMode: "per-character",
+    voiceAssignments: [],
+    personaVoiceAssignments: [],
+    sourceProfiles: {},
+  };
+  const persona = await (
+    await request.post("/api/characters/personas", { data: { name: `Voice persona ${Date.now()}` } })
+  ).json();
+  const chat = await (await request.post("/api/chats", { data: { name: "Tagged proof", mode: "roleplay" } })).json();
+  try {
+    await page.route("**/api/tts/config", async (route) => {
+      if (route.request().method() === "PUT") {
+        Object.assign(config, route.request().postDataJSON());
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      await route.fulfill({ json: config });
+    });
+    await page.route("**/api/tts/voices", (route) =>
+      route.fulfill({
+        json: {
+          voices: ["voice-01", "voice-02"],
+          voiceOptions: ["voice-01", "voice-02"].map((id) => ({ id, name: id, previewUrl: null, labels: {} })),
+          fromProvider: true,
+          source: "elevenlabs",
+        },
+      }),
+    );
+    await page.route("**/api/tts/models", (route) =>
+      route.fulfill({ json: { models: [{ id: "eleven_multilingual_v2", name: "v2" }], fromProvider: true } }),
+    );
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: "connections",
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id: chat.id, version },
+    );
+    await page.goto("/");
+    const ttsCard = page
+      .locator('[data-component="RightPanel"]')
+      .getByText("Text to Speech", { exact: true })
+      .locator("xpath=../../..");
+    await ttsCard.getByTitle("Expand").click();
+    // No persona is listed until one is added.
+    await expect(ttsCard.locator("[data-persona-voice-row]")).toHaveCount(0);
+    await ttsCard.getByRole("button", { name: "Add persona voice", exact: true }).click();
+    // One row for the first persona without a voice; it is saved with the config.
+    await expect(ttsCard.locator("[data-persona-voice-row]")).toHaveCount(1);
+    await expect.poll(() => (config.personaVoiceAssignments as unknown[]).length).toBe(1);
+    await ttsCard.getByRole("button", { name: "Remove persona voice" }).click();
+    await expect(ttsCard.locator("[data-persona-voice-row]")).toHaveCount(0);
+    await expect.poll(() => (config.personaVoiceAssignments as unknown[]).length).toBe(0);
+
+    // A room that never chose a speaker mode reads tagged participant voices.
+    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
+    await dialog.getByRole("group", { name: "Voice" }).locator("summary").click();
+    await expect(dialog.getByRole("combobox", { name: "Dialogue speaker mode", exact: true })).toHaveValue("tagged");
+  } finally {
+    await request.delete(`/api/characters/personas/${persona.id}`);
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+  }
+});

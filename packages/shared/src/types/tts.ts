@@ -28,6 +28,11 @@ function normalizeDialoguePauseMs(value: number): number {
 export const TTS_REQUEST_TIMEOUT_MS = { default: 60_000, min: 10_000, max: 3_600_000 } as const;
 
 /** A speech request's time limit: the saved one in whole seconds within bounds, otherwise the default. */
+/** RP read-aloud uses each tagged participant's voice unless the room turned it off. */
+export function ttsTaggedDialogueEnabled(ttsTaggedDialogue: unknown): boolean {
+  return ttsTaggedDialogue !== false;
+}
+
 export function resolveTtsRequestTimeoutMs(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return TTS_REQUEST_TIMEOUT_MS.default;
   const { min, max } = TTS_REQUEST_TIMEOUT_MS;

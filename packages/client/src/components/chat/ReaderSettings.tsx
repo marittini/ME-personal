@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -388,7 +389,7 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
             <select
               aria-label={t("reader.speakerMode")}
               className={select}
-              value={chat?.metadata.ttsTaggedDialogue === true ? "tagged" : "native"}
+              value={ttsTaggedDialogueEnabled(chat?.metadata.ttsTaggedDialogue) ? "tagged" : "native"}
               disabled={!chat || updateMetadata.isPending}
               onChange={(event) => saveMetadata({ ttsTaggedDialogue: event.target.value === "tagged" })}
             >

@@ -877,13 +877,17 @@ function CharacterSelect({
   options,
   assignedCharacterIds,
   onChange,
+  persona = false,
 }: {
   value: string;
   options: CharacterOption[];
   assignedCharacterIds: Set<string>;
   onChange: (value: string) => void;
+  /** Lists personas instead of characters (same control, persona wording). */
+  persona?: boolean;
 }) {
   const { t: localizeUi } = useUiTranslation();
+  const label = localizeUi(persona ? "tts.selectPersona" : "ui.panels.ttsconfigcard.selectCharacter");
   return (
     <TtsSearchableSelect
       value={value}
@@ -894,12 +898,12 @@ function CharacterSelect({
         disabled: assignedCharacterIds.has(option.id) && option.id !== value,
       }))}
       disabled={options.length === 0}
-      placeholder={localizeUi("ui.panels.ttsconfigcard.selectCharacter")}
-      ariaLabel={localizeUi("ui.panels.ttsconfigcard.selectCharacter")}
-      searchPlaceholder={localizeUi("ui.panels.ttsconfigcard.searchCharacters")}
-      emptyText={localizeUi("ui.panels.ttsconfigcard.noMatchingCharacters")}
+      placeholder={label}
+      ariaLabel={label}
+      searchPlaceholder={localizeUi(persona ? "tts.searchPersonas" : "ui.panels.ttsconfigcard.searchCharacters")}
+      emptyText={localizeUi(persona ? "tts.noMatchingPersonas" : "ui.panels.ttsconfigcard.noMatchingCharacters")}
       optionKind="character"
-      testId="tts-character-options"
+      testId={persona ? "tts-persona-options" : "tts-character-options"}
       compact
       onChange={onChange}
     />
@@ -1571,6 +1575,18 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
     [voiceAssignments],
   );
   const allCharactersAssigned = characterOptions.length > 0 && assignedCharacterIds.size >= characterOptions.length;
+  const personaOptions = useMemo<CharacterOption[]>(
+    () =>
+      ((personas ?? []) as Array<{ id: string; name: string }>)
+        .map((persona) => ({ id: persona.id, name: persona.name, label: persona.name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [personas],
+  );
+  const assignedPersonaIds = useMemo(
+    () => new Set(personaVoiceAssignments.map((row) => row.personaId).filter(Boolean)),
+    [personaVoiceAssignments],
+  );
+  const allPersonasAssigned = personaOptions.length > 0 && assignedPersonaIds.size >= personaOptions.length;
   const customVoiceCount = voiceAssignments.filter((assignment) => assignment.characterId && assignment.voice).length;
   const selectedSource = TTS_SOURCE_DEFAULTS[source];
   const selectedVoiceLabel =
@@ -1645,6 +1661,20 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
 
   const handleRemoveVoiceAssignment = (index: number) => {
     updateVoiceAssignments(voiceAssignments.filter((_, assignmentIndex) => assignmentIndex !== index));
+  };
+
+  // Persona voices work like character voices: a row only for personas that need their own voice.
+  const updatePersonaVoiceAssignments = (next: NonNullable<TTSConfig["personaVoiceAssignments"]>) => {
+    setPersonaVoiceAssignments(next);
+    mark({ personaVoiceAssignments: next });
+  };
+  const handleAddPersonaVoice = () => {
+    const nextPersona = personaOptions.find((option) => !assignedPersonaIds.has(option.id)) ?? null;
+    if (!nextPersona) return;
+    updatePersonaVoiceAssignments([
+      ...personaVoiceAssignments,
+      { personaId: nextPersona.id, personaName: nextPersona.name, voice: voiceOptions[0]?.id ?? voice },
+    ]);
   };
 
   const toggleNarratorVoice = (enabled: boolean) => {
@@ -1768,7 +1798,7 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
 
       {/* ── Expanded body ── */}
       {expanded && (
-        <div className="mt-3 space-y-4 border-t border-sky-400/10 pt-3">
+        <div className="mt-3 space-y-4 border-t border-[var(--border)] pt-3">
           {/* Source */}
           <FieldRow
             label={localizeUi("ui.panels.ttsconfigcard.source")}
@@ -1831,7 +1861,10 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
                 }
               >
                 <div className="relative">
-                  <Globe size="0.875rem" className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400" />
+                  <Globe
+                    size="0.875rem"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  />
                   <input
                     value={baseUrl}
                     onChange={(e) => {
@@ -1850,7 +1883,10 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
                 help={localizeUi("ui.panels.ttsconfigcard.yourApiKeyForTheTtsProviderEncryptedAt")}
               >
                 <div className="relative">
-                  <Key size="0.875rem" className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400" />
+                  <Key
+                    size="0.875rem"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  />
                   <input
                     value={apiKey}
                     onChange={(e) => {
@@ -2076,39 +2112,74 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
           )}
 
           {voiceMode === "per-character" && (
-            <FieldRow label={localizeUi("tts.personaVoices")}>
-              <div className="space-y-3">
-                {personas?.map((persona) => (
-                  <label key={persona.id} className="block space-y-1 text-xs">
-                    <span>{persona.name}</span>
-                    <VoiceSelect
-                      value={personaVoiceAssignments.find((row) => row.personaId === persona.id)?.voice ?? ""}
-                      options={voiceOptions}
-                      placeholder={localizeUi("ui.panels.ttsconfigcard.selectVoice")}
-                      ariaLabel={persona.name}
-                      disabled={fetchingVoices || voiceOptions.length === 0}
-                      onChange={(voice) => {
-                        const next = personaVoiceAssignments.filter((row) => row.personaId !== persona.id);
-                        if (voice) next.push({ personaId: persona.id, personaName: persona.name, voice });
-                        setPersonaVoiceAssignments(next);
-                        mark({ personaVoiceAssignments: next });
-                      }}
+            <FieldRow label={localizeUi("tts.personaVoices")} help={localizeUi("tts.personaVoicesHelp")}>
+              <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40 p-2">
+                {personaVoiceAssignments.map((row, index) => (
+                  <div
+                    key={`persona-voice-${index}`}
+                    data-persona-voice-row={row.personaId}
+                    className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--background)]/35 p-2"
+                  >
+                    <CharacterSelect
+                      persona
+                      value={row.personaId}
+                      options={personaOptions}
+                      assignedCharacterIds={assignedPersonaIds}
+                      onChange={(personaId) =>
+                        updatePersonaVoiceAssignments(
+                          personaVoiceAssignments.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...item,
+                                  personaId,
+                                  personaName: personaOptions.find((option) => option.id === personaId)?.name ?? "",
+                                }
+                              : item,
+                          ),
+                        )
+                      }
                     />
-                    {personaVoiceAssignments.some((row) => row.personaId === persona.id) && (
+                    <div className="flex min-w-0 gap-2">
+                      <VoiceSelect
+                        value={row.voice}
+                        options={voiceOptions}
+                        placeholder={localizeUi("ui.panels.ttsconfigcard.selectVoice")}
+                        ariaLabel={localizeUi("tts.personaVoiceFor", { name: row.personaName })}
+                        disabled={fetchingVoices || voiceOptions.length === 0}
+                        compact
+                        onChange={(nextVoice) =>
+                          updatePersonaVoiceAssignments(
+                            personaVoiceAssignments.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, voice: nextVoice } : item,
+                            ),
+                          )
+                        }
+                      />
                       <button
                         type="button"
-                        className="min-h-11 text-xs"
-                        onClick={() => {
-                          const next = personaVoiceAssignments.filter((row) => row.personaId !== persona.id);
-                          setPersonaVoiceAssignments(next);
-                          mark({ personaVoiceAssignments: next });
-                        }}
+                        onClick={() =>
+                          updatePersonaVoiceAssignments(
+                            personaVoiceAssignments.filter((_, itemIndex) => itemIndex !== index),
+                          )
+                        }
+                        className="mari-chrome-control mari-chrome-control--small h-9 min-h-0 w-9 shrink-0 p-0"
+                        title={localizeUi("tts.removePersonaVoice")}
+                        aria-label={localizeUi("tts.removePersonaVoice")}
                       >
-                        {localizeUi("tts.useDefaultVoice")}
+                        <X size="0.75rem" />
                       </button>
-                    )}
-                  </label>
+                    </div>
+                  </div>
                 ))}
+                <button
+                  type="button"
+                  onClick={handleAddPersonaVoice}
+                  disabled={personaOptions.length === 0 || allPersonasAssigned}
+                  className="mari-chrome-control w-full text-xs"
+                >
+                  <Plus size="0.75rem" />
+                  {localizeUi("tts.addPersonaVoice")}
+                </button>
               </div>
             </FieldRow>
           )}
@@ -2118,7 +2189,7 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
               label={localizeUi("ui.panels.ttsconfigcard.characterVoices")}
               help={localizeUi("ui.panels.ttsconfigcard.assignVoicesToSpecificCharactersFromYourCharactersTab")}
             >
-              <div className="space-y-2 rounded-xl border border-sky-400/15 bg-sky-400/5 p-2">
+              <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40 p-2">
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -2218,7 +2289,7 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
             label={localizeUi("ui.panels.ttsconfigcard.narratorVoice")}
             help={localizeUi("ui.panels.ttsconfigcard.useASeparateVoiceForNarratorMessagesGameNarration")}
           >
-            <div className="space-y-2 rounded-xl border border-sky-400/15 bg-sky-400/5 p-2">
+            <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40 p-2">
               <ToggleRow
                 label={localizeUi("ui.panels.ttsconfigcard.useSeparateNarratorVoice")}
                 checked={narratorVoiceEnabled}
@@ -2298,7 +2369,7 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
             label={localizeUi("ui.panels.ttsconfigcard.randomNpcVoices")}
             help={localizeUi("ui.panels.ttsconfigcard.whenEnabledTrackedGameNpcsWithoutACharacterSpecific")}
           >
-            <div className="space-y-2 rounded-xl border border-sky-400/15 bg-sky-400/5 p-2">
+            <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40 p-2">
               <ToggleRow
                 label={localizeUi("ui.panels.ttsconfigcard.useDefaultVoicesForRandomNpcs")}
                 checked={npcDefaultVoicesEnabled}
@@ -2619,7 +2690,7 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
             />
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl border border-sky-400/15 bg-sky-400/5 px-2.5 py-2">
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/40 px-2.5 py-2">
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium">{localizeUi("ui.panels.ttsconfigcard.cachedClips")}</div>
               <div className="truncate text-[0.625rem] text-[var(--muted-foreground)]">
@@ -2648,8 +2719,8 @@ export function TTSConfigCard({ defaultExpanded = false }: { defaultExpanded?: b
               className={cn(
                 "flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs ring-1 transition-all",
                 ttsState === "playing" || ttsState === "blocked"
-                  ? "bg-sky-500/10 text-sky-400 ring-sky-400/30 hover:bg-sky-500/20"
-                  : "bg-[var(--secondary)] text-[var(--muted-foreground)] ring-[var(--border)] hover:text-[var(--foreground)] hover:ring-sky-400/60",
+                  ? "bg-[var(--marinara-chat-chrome-highlight-bg)] text-[var(--marinara-chat-chrome-button-text-active)] ring-[var(--marinara-chat-chrome-button-border-active)]"
+                  : "bg-[var(--secondary)] text-[var(--muted-foreground)] ring-[var(--border)] hover:text-[var(--foreground)] hover:ring-[var(--marinara-chat-chrome-button-border-active)]",
                 previewDisabled && "cursor-not-allowed opacity-50",
               )}
               title={previewTitle}

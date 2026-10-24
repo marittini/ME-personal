@@ -297,6 +297,7 @@ export interface ChatMetadata {
   conversationViewerStyle?: "bubble" | "classic" | "legacy";
   /** Speech delivery guidance is room-local and independent of paid audio playback. */
   ttsInstructionsEnabled?: boolean;
+  /** Unset means on (see ttsTaggedDialogueEnabled). */
   ttsTaggedDialogue?: boolean;
   /** Display-only reading annotations, never prompt content. */
   readerExcerpts?: ReaderExcerpt[];

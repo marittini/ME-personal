@@ -1,4 +1,5 @@
 import { findDialogueQuotePairs, markFormattedDialogue, markHtmlDialogue } from "../../lib/dialogue-render";
+import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import { MessageTimestamp } from "./MessageTimestamp";
 import { MessageToolsLayout } from "./MessageToolsLayout";
 import { MessageIntegrationTools } from "./MessageIntegrationTools";
@@ -2147,7 +2148,7 @@ export const ChatMessage = memo(function ChatMessage({
             })),
           ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
         ],
-        isUser ? undefined : ttsChat?.metadata.ttsTaggedDialogue === true ? "tagged" : "native",
+        isUser ? undefined : ttsTaggedDialogueEnabled(ttsChat?.metadata.ttsTaggedDialogue) ? "tagged" : "native",
       );
     } catch {
       return [];

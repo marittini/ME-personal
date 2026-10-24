@@ -1,4 +1,5 @@
 import { notifyRoleplayTTSParagraph, withRoleplayTTSParagraphs } from "../../lib/roleplay-vn-tts";
+import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 // ──────────────────────────────────────────────
 // Chat: Main chat area — mode-aware rendering
 // ──────────────────────────────────────────────
@@ -3243,7 +3244,7 @@ const LocalChatArea = memo(function LocalChatArea({
           if (
             mode === "roleplay" &&
             cfg.roleplaySpeakerExtractorEnabled &&
-            chatMeta.ttsTaggedDialogue === true &&
+            ttsTaggedDialogueEnabled(chatMeta.ttsTaggedDialogue) &&
             !/<audio_(?:character|persona)\b/i.test(message.content)
           ) {
             try {
@@ -3271,7 +3272,7 @@ const LocalChatArea = memo(function LocalChatArea({
                 message.characterId,
                 resolveTTSCharacterId,
                 participants,
-                chatMeta.ttsTaggedDialogue === true ? "tagged" : "native",
+                ttsTaggedDialogueEnabled(chatMeta.ttsTaggedDialogue) ? "tagged" : "native",
               );
             }
           } else {
@@ -3282,7 +3283,7 @@ const LocalChatArea = memo(function LocalChatArea({
               message.characterId,
               resolveTTSCharacterId,
               participants,
-              chatMeta.ttsTaggedDialogue === true ? "tagged" : "native",
+              ttsTaggedDialogueEnabled(chatMeta.ttsTaggedDialogue) ? "tagged" : "native",
             );
           }
           return visualNovel ? withRoleplayTTSParagraphs(requests, message.content, cfg) : requests;
@@ -3328,6 +3329,7 @@ const LocalChatArea = memo(function LocalChatArea({
       characterNames,
       chat,
       chatMeta.roleplayDisplayStyle,
+      chatMeta.ttsTaggedDialogue,
       personaInfo?.name,
       personaInfo?.id,
       resolveTTSCharacterId,

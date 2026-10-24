@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 import { createPortal } from "react-dom";
 import { Loader2, MoreVertical, Play, Plus, RefreshCw, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -74,7 +75,7 @@ export function DialogueSpeechControls({
           swipeIndex,
           characterId,
           speaker: characterId ? characterMap?.get(characterId)?.name : undefined,
-          tagged: chat?.metadata.ttsTaggedDialogue === true,
+          tagged: ttsTaggedDialogueEnabled(chat?.metadata.ttsTaggedDialogue),
           conversation: chat?.mode === "conversation",
           participants,
         }),
@@ -146,7 +147,7 @@ export function DialogueSpeechControls({
           : // The translation quotes more than the original speaks: keep the quotes of the tagged paragraphs.
             // Tagged lines with more quotes on the page than lines (narration quoting 『…』, 「…」 or a
             // translation of them): keep the quotes of the tagged paragraphs.
-            chat?.metadata.ttsTaggedDialogue === true
+            ttsTaggedDialogueEnabled(chat?.metadata.ttsTaggedDialogue)
             ? alignTranslatedQuotes(
                 text,
                 // A shown translation below the original wins; translation-only renders in place of the original.
