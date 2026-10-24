@@ -1,9 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 import { securityHeadersHook } from "../packages/server/src/middleware/security-headers.js";
 
-/** Serves the app page with the server's own connect-src and img-src (the directives the avatar renderers meet).
- *  Vite's dev page needs inline scripts the production build does not, so the other directives stay off. */
-export async function serveWithServerCsp(page: Page) {
+/** Serves the app page with the server's own connect-src and img-src (the directives the avatar renderers meet), or
+ *  the directives named. Vite's dev page needs inline scripts the production build does not, so the others stay off. */
+export async function serveWithServerCsp(page: Page, names: string[] = ["connect", "img"]) {
   let policy = "";
   securityHeadersHook(
     {} as never,
@@ -17,8 +17,8 @@ export async function serveWithServerCsp(page: Page) {
   const directives = policy
     .split(";")
     .map((directive) => directive.trim())
-    .filter((directive) => /^(?:connect|img)-src\s/u.test(directive));
-  expect(directives, "the server sets both directives").toHaveLength(2);
+    .filter((directive) => names.some((name) => directive.startsWith(`${name}-src `)));
+  expect(directives, "the server sets every directive asked for").toHaveLength(names.length);
   await page.route(
     (url) => url.pathname === "/",
     async (route) => {

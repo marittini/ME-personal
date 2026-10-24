@@ -745,13 +745,20 @@ export function ConnectionEditor() {
       return;
     }
     setLocalImageDefaults((current) => {
+      // While the editor loads a connection this can run before the provider is known and clear the profile; fall
+      // back to the connection's saved defaults, never to blank ones (that lost a reopened NovelAI prompt prefix).
       const next =
         current?.service === selectedImageDefaultsService
           ? sanitizeImageGenerationProfile(current, selectedImageDefaultsService)
-          : createDefaultImageGenerationProfile(selectedImageDefaultsService);
+          : (getStoredImageGenerationDefaults(
+              (conn as Record<string, unknown> | null | undefined)?.defaultParameters,
+              selectedImageDefaultsService,
+            ) ?? createDefaultImageGenerationProfile(selectedImageDefaultsService));
       localImageDefaultsRef.current = next;
       return next;
     });
+    // `conn` is read only as the fallback above; a new connection snapshot is loaded by the effect that hydrates it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localProvider, selectedImageDefaultsService]);
 
   useEffect(() => {

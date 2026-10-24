@@ -33,7 +33,8 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  // Registered web fonts (Settings → Web fonts) load from HTTPS font hosts; the client accepts only https: sources.
+  "font-src 'self' data: https:",
   "connect-src 'self' http: https: ws: wss:",
   "frame-src 'self' https://sdk.scdn.co https://accounts.spotify.com https://www.youtube.com https://www.youtube-nocookie.com",
   "worker-src 'self' blob:",
