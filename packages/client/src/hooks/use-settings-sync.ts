@@ -16,6 +16,7 @@ import { normalizeLibraryCustomizations } from "@marinara-engine/shared";
 // edits trigger a push — transient UI state (modal open, detail panels, etc.)
 // is filtered out via `pickSyncedSettings`.
 import { useEffect } from "react";
+import { shallow } from "zustand/shallow";
 import { toast } from "sonner";
 import {
   MAX_APP_SETTINGS_VALUE_LENGTH,
@@ -142,6 +143,11 @@ function serializeSettings(settings: SyncedSettingsObject): string {
   return JSON.stringify(settings);
 }
 
+/** Skip JSON work for unrelated UI changes; retain the existing serialized-value comparison otherwise. */
+export function haveSyncedSettingsChanged(current: SyncedSettingsObject, previous: SyncedSettingsObject): boolean {
+  return !shallow(current, previous) && serializeSettings(current) !== serializeSettings(previous);
+}
+
 function buildServerSettingsValue(settings: SyncedSettingsObject, updatedAt: number): string {
   return JSON.stringify({ ...settings, __updatedAt: updatedAt } satisfies ServerSettingsPayload);
 }
@@ -215,9 +221,7 @@ export function useSettingsSync() {
 
     const unsubscribe = useUIStore.subscribe((state, prev) => {
       if (!ready || disposed) return;
-      const current = serializeSettings(pickSyncedSettings(state));
-      const previous = serializeSettings(pickSyncedSettings(prev));
-      if (current !== previous) {
+      if (haveSyncedSettingsChanged(pickSyncedSettings(state), pickSyncedSettings(prev))) {
         pendingUpdatedAt = Date.now();
         writeLocalUpdatedAt(pendingUpdatedAt);
         schedulePush();
