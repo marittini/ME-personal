@@ -178,6 +178,7 @@ import {
   ToggleSetting,
 } from "./settings/SettingControls";
 import { AppBrandingSetting } from "./settings/AppBrandingSetting";
+import { WebFontSettings } from "./settings/WebFontSettings";
 import { TrackerCardColorSettings } from "./settings/TrackerCardColorSettings";
 import { PromptOverridesEditor } from "./settings/PromptOverridesEditor";
 import { BackgroundPicker } from "./settings/BackgroundPicker";
@@ -3742,6 +3743,8 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
                   {localizeUi("ui.panels.appearancesettings.openFontsFolder")}
                 </button>
               </label>
+
+              <WebFontSettings id={getSettingsControlAnchorId("web-fonts")} />
 
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium inline-flex items-center gap-1">

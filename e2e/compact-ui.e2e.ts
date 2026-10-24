@@ -474,3 +474,74 @@ test("App name and icon: an uploaded icon becomes the favicon and manifest icon,
     await request.delete("/api/branding/icon");
   }
 });
+
+test("web fonts: register @font-face, give Roleplay its own font and size, and the UI its own family", async ({
+  page,
+  request,
+}) => {
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+    settingsTab: "appearance",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+  try {
+    await page.goto("/");
+    await page.getByPlaceholder("Search settings").fill("web font");
+    await page
+      .locator(".mari-settings-search-header button")
+      .filter({ hasText: "Web fonts and fonts per target" })
+      .first()
+      .click();
+    const panel = page.locator("[data-web-fonts]");
+    await expect(panel).toBeVisible();
+    const code = panel.getByLabel("@font-face / @import code");
+    // Plain HTTP font files are refused.
+    await code.fill('@font-face{font-family:"Bad";src:url(http://example.com/bad.woff2)}');
+    await panel.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(page.getByText(/HTTPS font addresses/)).toBeVisible();
+    await expect(panel.locator("[data-web-font-family]")).toHaveCount(0);
+    await code.fill('@font-face{font-family:"Proof Serif";src:url(https://example.com/proof.woff2) format("woff2")}');
+    await panel.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(panel.locator('[data-web-font-family="Proof Serif"]')).toBeVisible();
+
+    await panel.getByRole("radio", { name: "RP", exact: true }).click();
+    await panel.locator("select").selectOption("Proof Serif");
+    await panel.getByRole("button", { name: "Increase Size" }).click();
+    await panel.getByRole("button", { name: "Increase Size" }).click();
+    await panel.getByRole("button", { name: "Apply", exact: true }).click();
+    await panel.getByRole("radio", { name: "UI", exact: true }).click();
+    await expect(panel.locator('[data-web-font-metric="size"]')).toHaveCount(0);
+    await panel.locator("select").selectOption("Proof Serif");
+    await panel.getByRole("button", { name: "Apply", exact: true }).click();
+
+    const probe = async () =>
+      page.evaluate(() => {
+        const host = document.createElement("div");
+        host.dataset.chatMode = "roleplay";
+        const content = document.createElement("div");
+        content.className = "mari-message-content";
+        host.append(content);
+        document.body.append(host);
+        const style = getComputedStyle(content);
+        const result = {
+          family: style.fontFamily,
+          size: style.fontSize,
+          ui: getComputedStyle(document.documentElement).getPropertyValue("--font-user").trim(),
+        };
+        host.remove();
+        return result;
+      });
+    await expect.poll(probe).toEqual({ family: '"Proof Serif", sans-serif', size: "18px", ui: '"Proof Serif"' });
+    await page.screenshot({ path: `.tmp/web-fonts-${test.info().project.name}.png` });
+    // Saved on the server, so it comes back after a reload.
+    await page.reload();
+    await expect.poll(probe).toEqual({ family: '"Proof Serif", sans-serif', size: "18px", ui: '"Proof Serif"' });
+  } finally {
+    await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+  }
+});

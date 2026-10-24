@@ -852,6 +852,26 @@ const ALL_SETTINGS_SEARCHABLE_CONTROLS: readonly SettingsSearchableControlMeta[]
     kind: "Picker",
   },
   {
+    id: "web-fonts",
+    sectionId: "text-scale",
+    labelKey: "settings.webFonts.title",
+    label: "Web fonts and fonts per target",
+    description:
+      "Register web fonts and give the app UI, Roleplay and Conversation their own font, size, spacing and line height.",
+    descriptionKey: "settings.webFonts.help",
+    aliases: [
+      "web font",
+      "font-face",
+      "import",
+      "font size",
+      "letter spacing",
+      "line height",
+      "roleplay font",
+      "conversation font",
+    ],
+    kind: "Button group",
+  },
+  {
     id: "app-branding",
     sectionId: "app-style",
     labelKey: "settings.branding.title",
