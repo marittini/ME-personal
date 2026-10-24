@@ -1,3 +1,4 @@
+import { setTTSPronunciations } from "../../lib/tts-pronunciation";
 import { notifyRoleplayTTSParagraph, withRoleplayTTSParagraphs } from "../../lib/roleplay-vn-tts";
 import { ttsExtraParticipants, ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 // ──────────────────────────────────────────────
@@ -1283,6 +1284,19 @@ const LocalChatArea = memo(function LocalChatArea({
       boxColor: persona.boxColor || undefined,
     };
   }, [chat, chatPersona, identityCharacterRow]);
+  // Read-aloud speaks names as their phonetic names. Registered while rendering (not in an effect) so the line
+  // requests that children build in this same render already use them; it only replaces a small list.
+  useMemo(
+    () =>
+      setTTSPronunciations([
+        ...[...characterMap.values()].map((character) => ({
+          name: character.name,
+          spoken: character.phoneticName ?? "",
+        })),
+        ...(personaInfo ? [{ name: personaInfo.name, spoken: personaInfo.phoneticName ?? "" }] : []),
+      ]),
+    [characterMap, personaInfo],
+  );
 
   const { concludeScene, abandonScene, forkScene, isForking } = useScene();
   const encounterActive = false;
@@ -3331,6 +3345,7 @@ const LocalChatArea = memo(function LocalChatArea({
       chat,
       chatMeta.roleplayDisplayStyle,
       chatMeta.ttsTaggedDialogue,
+      chatMeta.ttsExtraVoices,
       personaInfo?.name,
       personaInfo?.id,
       resolveTTSCharacterId,
