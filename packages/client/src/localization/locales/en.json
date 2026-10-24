@@ -13980,6 +13980,8 @@
   "ui.panels.libraryToolbar.nameColumn": "Name",
   "ui.panels.libraryToolbar.rowActions": "Tools",
   "ui.panels.libraryToolbar.search": "Search",
+  "ui.panels.libraryToolbar.sectionCount": "{{count}} sections",
+  "ui.panels.libraryToolbar.settingCount": "{{count}} settings",
   "ui.panels.lorebookrow.deselectLorebook": "Deselect lorebook",
   "ui.panels.lorebookrow.dragLorebook": "Drag lorebook",
   "ui.panels.lorebookrow.off": "OFF",

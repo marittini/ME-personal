@@ -301,3 +301,33 @@ test("work information: the cover and the text block share one height, Continue 
     await request.delete(`/api/chats/${id}?force=true`);
   }
 });
+
+for (const [panel, placeholder, items] of [
+  ["lorebooks", "Search lorebooks", ["Import", "Select"]],
+  ["presets", "Search presets", ["Import", "Select presets"]],
+  ["connections", "Search connections", ["Import", "Select connections"]],
+  ["agents", null, ["Download Agents", "Import agents", "Select agents"]],
+] as const) {
+  test(`${panel} panel opens with the same icon line: new · search · more`, async ({ page }) => {
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: panel,
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const toolbar = page.locator("[data-library-toolbar]:visible");
+    await expect(toolbar.getByRole("button")).toHaveCount(3);
+    if (placeholder) {
+      await expect(page.getByPlaceholder(placeholder, { exact: true })).toBeHidden();
+      await toolbar.getByRole("button", { name: "Search", exact: true }).click();
+      await expect(page.getByPlaceholder(placeholder, { exact: true })).toBeVisible();
+    }
+    await toolbar.getByRole("button", { name: "More actions", exact: true }).click();
+    await expect(page.getByRole("menuitem")).toHaveText([...items]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+  });
+}

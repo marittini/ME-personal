@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture.js";
 import { clickTopbarPanel } from "./topbar-navigation.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
@@ -37,9 +38,10 @@ test("lorebook tools lint, preview scans, and bulk-enable selected books", async
     await page.goto("/");
     await clickTopbarPanel(page, "lorebooks");
 
-    await page.getByRole("button", { name: "Select", exact: true }).click();
+    await chooseLibraryPanelAction(page, "Select");
     await page.getByRole("button", { name: "Select lorebook", exact: true }).first().click();
     await page.getByRole("button", { name: "Select lorebook", exact: true }).click();
+    await openLibraryPanelSearch(page);
     const search = page.getByPlaceholder("Search lorebooks", { exact: true });
     await search.fill(visibleBook.name);
     await expect(page.getByText(book.name, { exact: true })).not.toBeVisible();
@@ -72,7 +74,7 @@ test("lorebook tools lint, preview scans, and bulk-enable selected books", async
     await expect.poll(async () => (await (await request.get(`/api/lorebooks/${book.id}`)).json()).enabled).toBe(true);
 
     await search.fill("");
-    await page.getByRole("button", { name: "Select", exact: true }).click();
+    await chooseLibraryPanelAction(page, "End selection");
     await page.getByText(book.name, { exact: true }).click();
     await page.getByRole("button", { name: "Check lorebook", exact: true }).click();
     await expect(page.getByText("Keyless sample entry", { exact: true })).toBeVisible();

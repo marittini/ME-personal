@@ -5146,10 +5146,13 @@ function ActionBtn({
   );
 }
 
+// One shared formatter: toLocaleTimeString with options builds a new Intl formatter on every call, which
+// showed up when a room renders hundreds of messages at once (same output as before).
+let timeFormatter: Intl.DateTimeFormat | null = null;
 function formatTime(dateStr: string): string {
   try {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    timeFormatter ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" });
+    return timeFormatter.format(new Date(dateStr));
   } catch {
     return "";
   }

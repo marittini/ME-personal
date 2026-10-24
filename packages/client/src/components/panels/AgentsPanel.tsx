@@ -7,7 +7,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import {
   Sparkles,
   Copy,
-  Plus,
   ChevronDown,
   ChevronRight,
   Trash2,
@@ -109,7 +108,7 @@ import { Modal } from "../ui/Modal";
 import { RulesetImportReviewModal } from "../agents/RulesetImportReviewModal";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
-import { RowActionsToggle } from "./LibraryPanelToolbar";
+import { LibraryPanelToolbar, RowActionsToggle } from "./LibraryPanelToolbar";
 
 type JsonRecord = Record<string, unknown>;
 type NormalizedAgentImport = NonNullable<ReturnType<typeof normalizeAgentImportEntry>>;
@@ -130,7 +129,6 @@ type PendingRulesetImport = {
 };
 const AGENT_GRADIENT_SURFACE =
   "mari-panel-gradient-surface mari-panel-gradient--agents text-[var(--mari-panel-gradient-text)]";
-const AGENT_GRADIENT_BUTTON = "mari-panel-gradient-button mari-panel-gradient--agents";
 
 function isJsonRecord(value: unknown): value is JsonRecord {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -276,6 +274,7 @@ export function AgentsPanel() {
   const sort = useUIStore((s) => s.agentPanelSort);
   const setSort = useUIStore((s) => s.setAgentPanelSort);
   const [agentSearch, setAgentSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [agentModeFilter, setAgentModeFilter] = useState<AgentModeFilterValue>("all");
   const agentImageInputRef = useRef<HTMLInputElement>(null);
   const agentImportInputRef = useRef<HTMLInputElement>(null);
@@ -1297,50 +1296,79 @@ export function AgentsPanel() {
         onChange={(event) => void handleRulesetFileSelected(event)}
       />
 
-      <button
-        type="button"
-        onClick={() => openAgentCatalog()}
-        className="mari-chrome-control mari-chrome-control--primary w-full text-xs"
+      <LibraryPanelToolbar
+        component="AgentLibraryActions"
+        onCreate={handleCreateAgent}
+        searchOpen={searchOpen}
+        onToggleSearch={() => {
+          // Closing search also drops its query, so no hidden filter is left behind.
+          if (searchOpen) setAgentSearch("");
+          setSearchOpen(!searchOpen);
+        }}
+        menuItems={[
+          {
+            label: localizeUi("ui.agents.agentcatalogview.downloadAgents"),
+            icon: <Sparkles size="0.875rem" />,
+            onSelect: () => openAgentCatalog(),
+          },
+          {
+            label: localizeUi("ui.panels.agentspanel.importAgents"),
+            icon: <Download size="0.875rem" />,
+            disabled: agentImportPolicyLoading,
+            onSelect: () => void chooseAgentImportSource(),
+          },
+          {
+            label: selectionMode
+              ? localizeUi("ui.panels.libraryToolbar.endSelection")
+              : localizeUi("ui.panels.agentspanel.selectAgents"),
+            icon: <Check size="0.875rem" />,
+            disabled: selectableAgents.length === 0,
+            onSelect: () => (selectionMode ? exitSelectionMode() : setSelectionMode(true)),
+          },
+        ]}
       >
-        <Sparkles size="0.875rem" />
-        {localizeUi("ui.agents.agentcatalogview.downloadAgents")}
-      </button>
-
-      <div className="flex gap-2">
-        <button
-          onClick={handleCreateAgent}
-          className={cn("flex-1 text-xs", AGENT_GRADIENT_BUTTON)}
-          title={localizeUi("ui.lorebooks.lorebookassignmentsection.new")}
-        >
-          <Plus size="0.8125rem" />
-        </button>
-        <button
-          type="button"
-          onClick={() => void chooseAgentImportSource()}
-          aria-disabled={!agentImportsEnabled || agentImportPolicyLoading}
-          className={cn(
-            "mari-chrome-control mari-chrome-control--primary flex-1 text-xs",
-            (!agentImportsEnabled || agentImportPolicyLoading) && "cursor-not-allowed grayscale opacity-45",
-          )}
-          title={agentImportsEnabled ? localizeUi("ui.panels.agentspanel.importAgents") : agentImportsDisabledHelp}
-        >
-          <Download size="0.8125rem" />
-        </button>
-        <button
-          onClick={() => {
-            if (selectionMode) exitSelectionMode();
-            else setSelectionMode(true);
-          }}
-          disabled={selectableAgents.length === 0}
-          className={cn(
-            "mari-chrome-control mari-chrome-control--primary flex-1 text-xs",
-            selectionMode && "mari-chrome-control--selected",
-          )}
-          title={localizeUi("ui.panels.agentspanel.selectAgents")}
-        >
-          <Check size="0.8125rem" />
-        </button>
-      </div>
+        {hasInstalledAgents && (
+          <div data-library-search="" className="flex gap-1.5">
+            <div className="relative flex-1">
+              <Search
+                size="0.8125rem"
+                className="mari-chrome-field-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+              />
+              <input
+                value={agentSearch}
+                onChange={(event) => setAgentSearch(event.target.value)}
+                placeholder={localize("Search agents")}
+                className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
+              />
+            </div>
+            <div className="relative">
+              <select
+                value={manualOrder.active || folderDrag.active ? "custom" : sort}
+                onChange={(event) => {
+                  manualOrder.setActive(event.target.value === "custom");
+                  folderDrag.setActive(event.target.value === "custom");
+                  if (event.target.value !== "custom") setSort(event.target.value as ResourcePanelSort);
+                }}
+                className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
+                title={localizeUi("ui.panels.agentspanel.sortOrder")}
+                aria-label={localizeUi("ui.panels.agentspanel.sortAgents")}
+              >
+                <option value="custom" title={localizeUi("dragDrop.manualOrderHelp")}>
+                  {localizeUi("dragDrop.manualOrder")}
+                </option>
+                <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
+                <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
+                <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
+                <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
+              </select>
+              <ArrowUpDown
+                size="0.625rem"
+                className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+              />
+            </div>
+          </div>
+        )}
+      </LibraryPanelToolbar>
 
       {agentImportError && (
         <div role="alert" className="rounded-lg bg-red-500/10 px-2 py-1.5 text-xs text-red-500">
@@ -1361,48 +1389,15 @@ export function AgentsPanel() {
           <p className="max-w-[16rem] text-sm font-medium text-[var(--muted-foreground)]">
             {localizeUi("ui.panels.agentspanel.noAgentsInstalledYetClickDownloadAgentsToAdd")}
           </p>
-        </div>
-      )}
-
-      {hasInstalledAgents && (
-        <div className="flex gap-1.5">
-          <div className="relative flex-1">
-            <Search
-              size="0.8125rem"
-              className="mari-chrome-field-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-            />
-            <input
-              value={agentSearch}
-              onChange={(event) => setAgentSearch(event.target.value)}
-              placeholder={localize("Search agents")}
-              className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
-            />
-          </div>
-          <div className="relative">
-            <select
-              value={manualOrder.active || folderDrag.active ? "custom" : sort}
-              onChange={(event) => {
-                manualOrder.setActive(event.target.value === "custom");
-                folderDrag.setActive(event.target.value === "custom");
-                if (event.target.value !== "custom") setSort(event.target.value as ResourcePanelSort);
-              }}
-              className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
-              title={localizeUi("ui.panels.agentspanel.sortOrder")}
-              aria-label={localizeUi("ui.panels.agentspanel.sortAgents")}
-            >
-              <option value="custom" title={localizeUi("dragDrop.manualOrderHelp")}>
-                {localizeUi("dragDrop.manualOrder")}
-              </option>
-              <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
-              <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
-              <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
-              <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
-            </select>
-            <ArrowUpDown
-              size="0.625rem"
-              className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
-            />
-          </div>
+          {/* The empty library keeps a direct way to the catalog; otherwise it lives in the ⋯ menu. */}
+          <button
+            type="button"
+            onClick={() => openAgentCatalog()}
+            className="mari-chrome-control mari-chrome-control--primary text-xs"
+          >
+            <Sparkles size="0.875rem" />
+            {localizeUi("ui.agents.agentcatalogview.downloadAgents")}
+          </button>
         </div>
       )}
 

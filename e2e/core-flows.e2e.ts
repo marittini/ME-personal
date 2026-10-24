@@ -3415,7 +3415,7 @@ test("NovelAI generation defaults survive connection import", async ({ page, req
     await page.goto("/");
     await clickTopbarPanel(page, "connections");
     const rightPanel = page.locator('[data-component="RightPanelDesktop"]');
-    await rightPanel.getByRole("button", { name: "Import connection" }).click();
+    await chooseLibraryPanelAction(rightPanel, "Import");
     const importDialog = page.getByRole("dialog", { name: "Import Connections" });
     await importDialog.locator('input[type="file"]').setInputFiles({
       name: "novelai-defaults.connection.json",
@@ -8749,9 +8749,9 @@ test("external Agent imports require the Danger Zone gate and explicit capabilit
     expect(enabledPolicy.ok()).toBeTruthy();
     await page.reload();
     await clickTopbarPanel(page, "agents");
-    const importAgents = page.getByTitle("Import agents");
-    await expect(importAgents).toHaveCount(1);
-    await expect(importAgents).toHaveAttribute("aria-disabled", "false");
+    await libraryPanelToolbar(page).getByRole("button", { name: "More actions", exact: true }).click();
+    const importAgents = page.getByRole("menuitem", { name: "Import agents", exact: true });
+    await expect(importAgents).toBeEnabled();
     await expect(page.getByTitle("Import agent folder")).toHaveCount(0);
     await importAgents.click();
     const importSourceDialog = page.getByRole("dialog", { name: "Import agents" });
@@ -14800,7 +14800,7 @@ test("downloadable agent catalog is usable on desktop and mobile", async ({ page
   await page.goto("/");
   await clickTopbarPanel(page, "agents");
   await expect(page.getByText("No Agents installed yet, click Download Agents to add them!")).toBeVisible();
-  await page.getByLabel("Agents").getByRole("button", { name: "Download Agents", exact: true }).click();
+  await chooseLibraryPanelAction(page.getByLabel("Agents"), "Download Agents");
 
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   if (testInfo.project.name.includes("mobile")) {
@@ -15037,7 +15037,7 @@ test("Agent updates share one dismissible prompt and remain available after Not 
   expect(singleDeclineRequests).toBe(0);
 
   await clickTopbarPanel(page, "agents");
-  await page.getByLabel("Agents").getByRole("button", { name: "Download Agents", exact: true }).click();
+  await chooseLibraryPanelAction(page.getByLabel("Agents"), "Download Agents");
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   await expect(catalogView.getByRole("heading", { name: "Download Agents" })).toBeVisible();
   if (testInfo.project.name.includes("mobile")) {
@@ -15067,7 +15067,7 @@ test("agent catalog reports API failures without diagnosing an internet outage",
 
   await page.goto("/");
   await clickTopbarPanel(page, "agents");
-  await page.getByLabel("Agents").getByRole("button", { name: "Download Agents", exact: true }).click();
+  await chooseLibraryPanelAction(page.getByLabel("Agents"), "Download Agents");
 
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   await expect(catalogView.getByText("The agent catalog is unavailable.")).toBeVisible();
@@ -15177,7 +15177,7 @@ test("Music Player stays unavailable until Music DJ is installed", async ({ page
   await expect(page.getByText("Download the Music DJ agent to use the Music Player.")).toBeVisible();
 
   await clickTopbarPanel(page, "agents");
-  await page.getByLabel("Agents").getByRole("button", { name: "Download Agents", exact: true }).click();
+  await chooseLibraryPanelAction(page.getByLabel("Agents"), "Download Agents");
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   await expect(catalogView).toBeVisible();
   if (testInfo.project.name.includes("mobile")) {
@@ -15434,7 +15434,7 @@ test("agent catalog can install and uninstall every package", async ({ page }, t
 
   await page.goto("/");
   await clickTopbarPanel(page, "agents");
-  await page.getByRole("button", { name: "Download Agents" }).click();
+  await chooseLibraryPanelAction(page, "Download Agents");
 
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   const installAllButton = catalogView.getByRole("button", { name: "Install All", exact: true });
@@ -15582,7 +15582,7 @@ test("installed package artwork appears in the sidebar and clears immediately on
     "https://example.com/prose-guardian-artwork.gif",
   );
 
-  await agentsSidebar.getByRole("button", { name: "Download Agents" }).click();
+  await chooseLibraryPanelAction(agentsSidebar, "Download Agents");
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   await expect(catalogView.getByRole("button", { name: "Uninstall", exact: true })).toBeVisible();
   await catalogView.getByRole("button", { name: "Uninstall", exact: true }).click();
@@ -17622,7 +17622,7 @@ test("Roleplay setup points empty agent libraries to the Agents tab", async ({ p
     ).toHaveCount(0);
     await page.getByRole("button", { name: "Open Agents tab" }).click();
     await expect(page.locator('[data-component="RightPanelDesktop"]')).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download Agents" })).toBeVisible();
+    await expect(libraryPanelToolbar(page).getByRole("button", { name: "More actions", exact: true })).toBeVisible();
     expect(errors).toEqual([]);
   } finally {
     const afterResponse = await request.get("/api/chats");

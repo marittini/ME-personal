@@ -4,10 +4,13 @@ import type { Locator, Page } from "@playwright/test";
 export const libraryPanelToolbar = (scope: Page | Locator) => scope.locator("[data-library-toolbar]:visible").first();
 
 /** Runs one of the actions behind the toolbar's ⋯ button (Download, Open Library, Import, Select). */
-export async function chooseLibraryPanelAction(scope: Page | Locator, name: string) {
+export async function chooseLibraryPanelAction(scope: Page | Locator, name: string | RegExp) {
   const toolbar = libraryPanelToolbar(scope);
   await toolbar.getByRole("button", { name: "More actions", exact: true }).click();
-  await toolbar.page().getByRole("menuitem", { name, exact: true }).click();
+  await toolbar
+    .page()
+    .getByRole("menuitem", { name, exact: typeof name === "string" })
+    .click();
 }
 
 /** Shows the panel's search and sort row. */

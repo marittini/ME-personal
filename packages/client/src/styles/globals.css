@@ -9316,6 +9316,30 @@ html[data-reader-focus="true"]
     display: inline-flex;
   }
 }
+/* Settings read the same way: folded sections are rows between bars, with their setting count on the right. */
+.mari-settings-panel-chrome :where(div):has(> [data-settings-section][data-settings-tone="default"]) {
+  gap: 0 !important;
+  border-block-start: 0.5rem solid var(--foreground);
+  border-block-end: 0.1875rem solid var(--foreground);
+}
+.mari-settings-panel-chrome [data-settings-section][data-settings-tone="default"] {
+  border-radius: 0;
+  border-width: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.mari-settings-panel-chrome [data-settings-section][data-settings-tone="default"] + [data-settings-section] {
+  border-block-start: 1px solid color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+.mari-settings-panel-chrome [data-settings-section] .mari-settings-section-toggle > div {
+  color: var(--foreground);
+  font-weight: 800;
+}
+[data-settings-count] {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
 /* Inside a folder the folder's own bar opens the list. */
 :has(> [data-receipt-folder]) :where(div):has(> [data-receipt-row]) {
   border-block-start-width: 1px;

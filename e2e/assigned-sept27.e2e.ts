@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 test.use({ actionTimeout: 10_000 });
@@ -92,12 +93,16 @@ test("regex bulk deletion confirms once and keeps failed and unselected scripts"
       const { useUIStore } = await import("/src/stores/ui.store.ts" as string);
       useUIStore.getState().openRightPanel("presets");
     });
-    const selectPresets = page.getByRole("button", { name: "Select presets", exact: true });
+    // Preset selection sits behind the panel toolbar's ⋯ menu.
+    const selectPresets = {
+      click: () => chooseLibraryPanelAction(page, /^(Select presets|Exit preset selection mode)$/u),
+    };
+    const presetToolbarMore = libraryPanelToolbar(page).getByRole("button", { name: "More actions", exact: true });
     const selectRegex = page.getByRole("button", { name: "Select regex scripts", exact: true });
     await selectPresets.click();
-    await expect(page.getByRole("button", { name: "Exit preset selection mode", exact: true })).toBeVisible();
+    await expect(page.locator(".mari-selection-action-bar")).toHaveCount(1);
     await selectRegex.click();
-    await expect(selectPresets).toBeVisible();
+    await expect(presetToolbarMore).toBeVisible();
     await page.getByRole("checkbox", { name: "Select Old pack first", exact: true }).check();
     await expect(page.locator(".mari-selection-action-bar")).toHaveCount(1);
     await selectPresets.click();
