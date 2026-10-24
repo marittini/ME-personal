@@ -777,3 +777,82 @@ for (const keepsWrappers of [true, false])
       await request.delete(`/api/characters/${card.id}`);
     }
   });
+
+test("extras without a card get a room voice in reading settings, and their tagged lines speak in it", async ({
+  page,
+  request,
+}) => {
+  const card = await (await request.post("/api/characters", { data: { data: { name: "IV" } } })).json();
+  const chat = await (
+    await request.post("/api/chats", {
+      data: { name: "엑스트라 음성 검증", mode: "roleplay", characterIds: [card.id] },
+    })
+  ).json();
+  try {
+    await quiet(page, chat.id);
+    const config = await (await request.get("/api/tts/config")).json();
+    await page.route("**/api/tts/config", (route) =>
+      route.fulfill({
+        json: {
+          ...config,
+          source: "openai",
+          voice: "alloy",
+          enabled: true,
+          voiceMode: "per-character",
+          voiceAssignments: [{ characterId: card.id, characterName: "IV", voice: "char-voice" }],
+        },
+      }),
+    );
+    const voices: string[] = [];
+    await page.route("**/api/tts/speak", async (route) => {
+      voices.push(route.request().postDataJSON().voice);
+      await route.fulfill({ body: Buffer.alloc(64), contentType: "audio/wav" });
+    });
+    await page.goto("/");
+    // Give the extra a voice in this room's reading settings.
+    await page.getByRole("button", { name: "읽기 설정", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
+    await dialog.locator('[data-reader-settings-group="voice"] > summary').click();
+    const extras = dialog.locator("[data-reader-extra-voices]");
+    await extras.getByRole("button", { name: "엑스트라 추가", exact: true }).click();
+    await extras.getByLabel("엑스트라 1 이름").fill("엑스트라A");
+    await extras.getByLabel("엑스트라 1 음성").fill("extra-voice");
+    await extras.getByRole("button", { name: "저장", exact: true }).click();
+    let id = "";
+    await expect
+      .poll(async () => {
+        const saved = (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata.ttsExtraVoices ?? [];
+        id = saved[0]?.id ?? "";
+        return saved.map((row: { name: string; voice: string }) => `${row.name}:${row.voice}`);
+      })
+      .toEqual(["엑스트라A:extra-voice"]);
+    expect(id).toMatch(/^extra-/u);
+    await page.keyboard.press("Escape");
+
+    // A reply in which the model wrapped the extra's line with that id.
+    const message = await (
+      await request.post(`/api/chats/${chat.id}/messages`, {
+        data: {
+          role: "assistant",
+          characterId: card.id,
+          content: [
+            `<audio_character id="${card.id}">"누구냐."</audio_character>`,
+            `골목 끝에서 누군가 대답했다. <audio_character id="${id}">"그냥 지나가던 사람이오."</audio_character>`,
+          ].join("\n\n"),
+        },
+      })
+    ).json();
+    await page.reload();
+    const speech = page.locator(`[data-component="ReaderWorkspace"] [data-message-id="${message.id}"]`);
+    await expect(speech).toContainText("지나가던 사람");
+    const controls = speech.locator("[data-tts-dialogue] [data-dialogue-controls]");
+    await expect(controls).toHaveCount(2);
+    await expect(controls.nth(1).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText("지나가던 사람");
+    await speech.locator("[data-tts-dialogue-tappable]").nth(1).click();
+    await speech.getByRole("button", { name: "2번 대사 음성 생성", exact: true }).click();
+    await expect.poll(() => voices).toEqual(["extra-voice"]);
+  } finally {
+    await request.delete(`/api/chats/${chat.id}?force=true`);
+    await request.delete(`/api/characters/${card.id}`);
+  }
+});

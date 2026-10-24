@@ -1,5 +1,5 @@
 import { notifyRoleplayTTSParagraph, withRoleplayTTSParagraphs } from "../../lib/roleplay-vn-tts";
-import { ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
+import { ttsExtraParticipants, ttsTaggedDialogueEnabled } from "@marinara-engine/shared";
 // ──────────────────────────────────────────────
 // Chat: Main chat area — mode-aware rendering
 // ──────────────────────────────────────────────
@@ -3233,6 +3233,7 @@ const LocalChatArea = memo(function LocalChatArea({
               .filter(([id]) => chat?.characterIds.includes(id))
               .map(([id, character]): TTSAudioParticipant => ({ kind: "character", id, name: character.name })),
             ...(personaInfo?.id ? [{ kind: "persona" as const, id: personaInfo.id, name: personaInfo.name }] : []),
+            ...ttsExtraParticipants(chatMeta.ttsExtraVoices),
           ];
           const fallbackSpeaker =
             message.role === "narrator"
