@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { CONVERSATION_SCHEDULE_DAYS, type WeekSchedule } from "@marinara-engine/shared";
 import { seedUIState } from "./ui-state-fixture.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 for (const theme of ["dark", "light"] as const) {
@@ -308,7 +309,7 @@ test("Character card schedules explain missing connections and allow manual edit
     const rightPanel = page.locator(
       `[data-component="${info.project.name.includes("mobile") ? "RightPanelMobile" : "RightPanelDesktop"}"]`,
     );
-    await rightPanel.getByRole("button", { name: "Open Library", exact: true }).click();
+    await chooseLibraryPanelAction(rightPanel, "Open Library");
     const library = page.locator('[data-component="CharacterLibraryView"]');
     await library.getByPlaceholder("Search characters").fill(name);
     await library.getByRole("button", { name: "Edit Character", exact: true }).click();

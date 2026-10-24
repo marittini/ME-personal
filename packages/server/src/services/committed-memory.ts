@@ -254,8 +254,13 @@ export async function committedMemoryStatus(db: DB, chatId: string) {
     return Array.isArray(extra.committedMemoryReceipt) && (!state.epoch || extra.committedMemoryEpoch === state.epoch);
   });
   const readability = committedMemoryReadability(memoryExtra(chat.metadata), chatId);
+  // The status is fetched often; undo snapshots and backups stay on the server (undo works by ID).
+  const { commits, legacyBackup: _backup, quarantine: _quarantine, ...rest } = state;
   return {
-    state,
+    state: {
+      ...rest,
+      ...(commits ? { commits: commits.map(({ id, at, kind, summary }) => ({ id, at, kind, summary })) } : {}),
+    },
     counts: committedMemoryCounts(state),
     ...(state.quarantine?.length ? { quarantined: state.quarantine.length } : {}),
     ...(readability === "unreadable" ? { unreadable: true } : {}),

@@ -202,6 +202,10 @@ export function focusWindowOpener(id: FloatingWindowId) {
   const candidates = [
     takeFloatingWindowOpener(id),
     document.querySelector<HTMLElement>(`[data-window-opener="${CSS.escape(id)}"]`),
+    // A drawer put back where its pop-out button is hidden (Chat Settings) gets focus on its own title.
+    document.querySelector<HTMLElement>(
+      `[data-drawer="${CSS.escape(id.slice(id.lastIndexOf(":") + 1))}"] > .mari-drawer__header [data-drawer-toggle]`,
+    ),
     document.querySelector<HTMLElement>("[data-chat-settings-button]"),
     document.querySelector<HTMLElement>("textarea[data-chat-composer]"),
   ];

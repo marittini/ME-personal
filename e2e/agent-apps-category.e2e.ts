@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { clickTopbarPanel } from "./topbar-navigation.js";
 import { seedUIState } from "./ui-state-fixture.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const APP_VERSION = (
   JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }
@@ -101,7 +102,7 @@ test("standalone apps get their own group in Agents and Download Agents", async 
   await expect(miscCards.filter({ hasText: "Scene Painter" })).toHaveCount(1);
   await expect(miscCards.filter({ hasText: "Story Pack" })).toHaveCount(1);
 
-  await agentsPanel.getByRole("button", { name: "Download Agents", exact: true }).click();
+  await chooseLibraryPanelAction(agentsPanel, "Download Agents");
   const catalogView = page.locator('[data-component="AgentCatalogView"]');
   await expect(catalogView.locator("aside h3")).toHaveText(["Apps", "Misc Agents"]);
   const catalogSection = (title: string) => catalogView.locator("aside h3", { hasText: title }).locator("..");

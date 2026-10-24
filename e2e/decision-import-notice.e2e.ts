@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { seedUIState } from "./ui-state-fixture.js";
+import { chooseLibraryPanelAction, libraryPanelToolbar, openLibraryPanelSearch } from "./library-panel-tools.js";
 
 const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
@@ -34,7 +35,7 @@ for (const selected of [null, "fixture-decision", undefined]) {
       useUIStore.getState().openRightPanel("agents");
     });
     const upload = async (agents: unknown[]) => {
-      await expect(page.getByRole("button", { name: "Import agents", exact: true })).toBeEnabled();
+      await expect(libraryPanelToolbar(page).getByRole("button", { name: "More actions", exact: true })).toBeVisible();
       await page.locator('input[type="file"][accept="application/json,application/zip,.json,.zip"]').setInputFiles({
         name: "agents.json",
         mimeType: "application/json",

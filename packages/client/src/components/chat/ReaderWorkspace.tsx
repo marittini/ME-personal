@@ -122,6 +122,7 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     if (!focus) setRevealed(false);
     else focusSince.current = Date.now();
   }, [focus]);
+  const edgeHovered = useRef(false);
   const reveal = () => {
     if (Date.now() - focusSince.current > 500) setRevealed(true);
   };
@@ -147,7 +148,9 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
     if (!focus) return;
     const key = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      // Only a dialog on screen closes first; windows hidden by focus mode itself do not count.
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]');
+      if (Array.from(dialogs).some((dialog) => dialog.getClientRects().length > 0)) return;
       setFocus(false);
     };
     window.addEventListener("keydown", key);
@@ -332,8 +335,15 @@ export function ReaderWorkspace({ children, surfaceActive }: { children: ReactNo
           aria-label={t("reader.focusReveal")}
           className="fixed inset-x-0 top-0 z-[2147483000] h-12 cursor-default bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]"
           onPointerEnter={(event) => {
-            if (event.pointerType === "mouse") reveal();
+            // Only a real hovering mouse; phones (no hover) bring the bar back with a tap.
+            if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover)").matches) return;
+            // A mouse already resting here when focus starts waits out the guard, then still brings the bar back.
+            edgeHovered.current = true;
+            const wait = 500 - (Date.now() - focusSince.current);
+            if (wait <= 0) reveal();
+            else window.setTimeout(() => edgeHovered.current && reveal(), wait + 20);
           }}
+          onPointerLeave={() => (edgeHovered.current = false)}
           onClick={reveal}
         />
       )}

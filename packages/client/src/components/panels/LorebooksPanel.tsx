@@ -16,7 +16,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
-  Plus,
   Copy,
   Download,
   Check,
@@ -71,6 +70,7 @@ import { useTranslation as useUiTranslation } from "react-i18next";
 import { PanelLoadMoreBar } from "./PanelLoadMoreBar";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
+import { LibraryPanelToolbar, RowActionsToggle } from "./LibraryPanelToolbar";
 
 const CATEGORIES: Array<{ id: LorebookCategory | "all" | "active"; label: string }> = [
   { id: "all", label: "All" },
@@ -134,6 +134,7 @@ export function LorebooksPanel() {
   const activeCategory = useUIStore((s) => s.lorebookPanelCategory);
   const setActiveCategory = useUIStore((s) => s.setLorebookPanelCategory);
   const searchQuery = useUIStore((s) => s.lorebookPanelSearch);
+  const [searchOpen, setSearchOpen] = useState(() => searchQuery !== "");
   const setSearchQuery = useUIStore((s) => s.setLorebookPanelSearch);
   const sort = useUIStore((s) => s.lorebookPanelSort);
   const setSort = useUIStore((s) => s.setLorebookPanelSort);
@@ -754,78 +755,74 @@ export function LorebooksPanel() {
         onChange={handleLorebookImageSelected}
       />
 
-      {/* Action buttons */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => openModal("create-lorebook")}
-          className="mari-panel-gradient-button mari-panel-gradient--lorebooks flex-1 text-xs"
-          title={localizeUi("ui.lorebooks.lorebookassignmentsection.new")}
-        >
-          <Plus size="0.8125rem" />
-        </button>
-        <button
-          onClick={() => openModal("import-lorebook")}
-          className="mari-chrome-control mari-chrome-control--primary flex-1 text-xs"
-          title={localizeUi("ui.chat.chatbranchselector.import")}
-        >
-          <Download size="0.8125rem" />
-        </button>
-        <button
-          onClick={() => {
-            if (selectionMode) exitSelectionMode();
-            else setSelectionMode(true);
-          }}
-          className={cn(
-            "mari-chrome-control mari-chrome-control--primary flex-1 text-xs",
-            selectionMode && "mari-chrome-control--selected",
-          )}
-          title={localizeUi("settings.common.select")}
-        >
-          <Check size="0.8125rem" />
-        </button>
-      </div>
-
-      {/* Search + Sort */}
-      <div className="flex gap-1.5">
-        <div className="relative flex-1">
-          <Search
-            size="0.8125rem"
-            className="mari-chrome-field-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-          />
-          <input
-            type="text"
-            placeholder={localize("Search lorebooks")}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
-          />
+      <LibraryPanelToolbar
+        component="LorebookLibraryActions"
+        onCreate={() => openModal("create-lorebook")}
+        searchOpen={searchOpen}
+        onToggleSearch={() => {
+          // Closing search also drops its query, so no hidden filter is left behind.
+          if (searchOpen) setSearchQuery("");
+          setSearchOpen(!searchOpen);
+        }}
+        menuItems={[
+          {
+            label: localizeUi("ui.chat.chatbranchselector.import"),
+            icon: <Download size="0.875rem" />,
+            onSelect: () => openModal("import-lorebook"),
+          },
+          {
+            label: selectionMode
+              ? localizeUi("ui.panels.libraryToolbar.endSelection")
+              : localizeUi("settings.common.select"),
+            icon: <Check size="0.875rem" />,
+            onSelect: () => {
+              if (selectionMode) exitSelectionMode();
+              else setSelectionMode(true);
+            },
+          },
+        ]}
+      >
+        <div data-library-search="" className="flex gap-1.5">
+          <div className="relative flex-1">
+            <Search
+              size="0.8125rem"
+              className="mari-chrome-field-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+            />
+            <input
+              type="text"
+              placeholder={localize("Search lorebooks")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={manualOrderActive || folderDrag.active ? "custom" : sort}
+              onChange={(e) => {
+                manualOrder.setActive(e.target.value === "custom");
+                folderDrag.setActive(e.target.value === "custom");
+                if (e.target.value !== "custom") setSort(e.target.value as LorebookPanelSort);
+              }}
+              className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
+              title={localizeUi("ui.panels.agentspanel.sortOrder")}
+            >
+              <option value="custom" title={localizeUi("dragDrop.manualOrderHelp")}>
+                {localizeUi("dragDrop.manualOrder")}
+              </option>
+              <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
+              <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
+              <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
+              <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
+              <option value="tokens">{localizeUi("ui.lorebooks.lorebookeditor.tokenBudget")}</option>
+            </select>
+            <ArrowUpDown
+              size="0.625rem"
+              className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+            />
+          </div>
         </div>
-        <div className="relative">
-          <select
-            value={manualOrderActive || folderDrag.active ? "custom" : sort}
-            onChange={(e) => {
-              manualOrder.setActive(e.target.value === "custom");
-              folderDrag.setActive(e.target.value === "custom");
-              if (e.target.value !== "custom") setSort(e.target.value as LorebookPanelSort);
-            }}
-            className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
-            title={localizeUi("ui.panels.agentspanel.sortOrder")}
-          >
-            <option value="custom" title={localizeUi("dragDrop.manualOrderHelp")}>
-              {localizeUi("dragDrop.manualOrder")}
-            </option>
-            <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
-            <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
-            <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
-            <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
-            <option value="tokens">{localizeUi("ui.lorebooks.lorebookeditor.tokenBudget")}</option>
-          </select>
-          <ArrowUpDown
-            size="0.625rem"
-            className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
-          />
-        </div>
-      </div>
+      </LibraryPanelToolbar>
 
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1">
@@ -1181,6 +1178,12 @@ export function LorebooksPanel() {
           )}
 
           <div className="stagger-children flex min-h-8 flex-col gap-1 rounded-xl transition-colors">
+            {rootLorebooks.length > 0 && (
+              <div data-receipt-columns="" aria-hidden="true">
+                <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
+                <span>{localizeUi("ui.panels.libraryToolbar.entriesColumn")}</span>
+              </div>
+            )}
             {rootLorebooks.map((lb) => renderLorebookRow(lb))}
           </div>
         </>
@@ -1331,7 +1334,7 @@ function LorebookRow({
           </span>
         </button>
       )}
-      <div className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-24 [@media(pointer:coarse)]:pr-24")}>
+      <div className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-7 [@media(pointer:coarse)]:pr-7")}>
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="min-w-0 truncate text-sm font-medium">{lorebook.name}</span>
           {!lorebook.enabled && (
@@ -1351,9 +1354,22 @@ function LorebookRow({
             lorebook.description || "No description"
           )}
         </div>
+        {lorebook.entryCount !== undefined && (
+          <span
+            data-receipt-value=""
+            className="text-[0.8125rem]"
+            aria-label={localizeUi("ui.panels.libraryToolbar.entryCount", { count: lorebook.entryCount })}
+          >
+            {lorebook.entryCount.toLocaleString()}
+          </span>
+        )}
       </div>
+      {!selectionMode && <RowActionsToggle />}
       {!selectionMode && (
-        <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+        <div
+          data-row-actions=""
+          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto group-data-[actions-open]:[&_button]:pointer-events-auto"
+        >
           <ChatResourceActionButton
             payload={{ version: 1, kind: "lorebook", ids: [lorebook.id], label: lorebook.name }}
           />

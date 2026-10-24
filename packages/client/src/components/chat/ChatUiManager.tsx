@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { readFloatingWindowBounds } from "../ui/FloatingWindow";
 import { getDrawerWindowId } from "../../lib/floating-window-layout";
@@ -13,6 +13,7 @@ import { useUIStore } from "../../stores/ui.store";
 import {
   messageToolId,
   messageToolLabel,
+  moveBefore,
   moveInOrder,
   normalizeChatUiLayout,
   type ChatUiLayout,
@@ -163,6 +164,35 @@ function collectTools(layout: ChatUiLayout): ToolItem[] {
     .map(({ item }) => item);
 }
 
+/**
+ * On a computer the manager opens beside Chat Settings (left or right, whichever has room), else above or below it,
+ * and as a centered window when neither fits. Phones use the full-screen dialog.
+ */
+function besideChatSettings(open: boolean): CSSProperties | undefined {
+  if (!open || typeof window === "undefined" || isPhoneWindowLayout()) return undefined;
+  const host = document.querySelector<HTMLElement>('.mari-window[data-window="chat-settings"]');
+  const rect = host && host.getClientRects().length ? host.getBoundingClientRect() : null;
+  if (!rect) return undefined;
+  const width = Math.min(372, window.innerWidth - 16);
+  const height = Math.min(504, window.innerHeight - 16);
+  const gap = 8;
+  const top = Math.min(Math.max(8, rect.top), window.innerHeight - height - 8);
+  const place = (left: number, y = top): CSSProperties => ({
+    position: "fixed",
+    left,
+    top: y,
+    width,
+    maxHeight: height,
+    margin: 0,
+  });
+  if (rect.left - gap - width >= 8) return place(rect.left - gap - width);
+  if (rect.right + gap + width <= window.innerWidth - 8) return place(rect.right + gap);
+  const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+  if (rect.top - gap - height >= 8) return place(left, rect.top - gap - height);
+  if (rect.bottom + gap + height <= window.innerHeight - 8) return place(left, rect.bottom + gap);
+  return undefined;
+}
+
 function Segmented<T extends string>({
   label,
   value,
@@ -237,8 +267,29 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
     const peers = tools.filter((entry) => entry.placement === item.placement).map((entry) => entry.id);
     setLayout(mode, (current) => ({ ...current, toolOrder: moveInOrder(current.toolOrder, peers, item.id, step) }));
   };
+  const [dragging, setDragging] = useState<string | null>(null);
   const moveButtons = (name: string, peers: string[], id: string, move: (step: -1 | 1) => void) => (
     <span className="flex shrink-0 gap-1">
+      <button
+        type="button"
+        className={`${SETTINGS_ICON_BUTTON_CLASS} mari-ui-manager__grip`}
+        aria-label={t("chat.uiManager.reorder", { name })}
+        title={t("chat.uiManager.reorder", { name })}
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", id);
+          setDragging(id);
+        }}
+        onDragEnd={() => setDragging(null)}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+          event.preventDefault();
+          move(event.key === "ArrowUp" ? -1 : 1);
+        }}
+      >
+        <GripVertical size="0.75rem" />
+      </button>
       <button
         type="button"
         className={SETTINGS_ICON_BUTTON_CLASS}
@@ -264,7 +315,22 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
       .filter((entry) => entry.category === item.category && entry.placement === "settings")
       .map((entry) => entry.id);
     return (
-      <li key={item.id} className="mari-ui-manager__row" data-ui-manager-item={item.id}>
+      <li
+        key={item.id}
+        className="mari-ui-manager__row"
+        data-ui-manager-item={item.id}
+        data-drop-target={dragging && dragging !== item.id && peers.includes(dragging) ? "true" : undefined}
+        onDragOver={(event) => {
+          if (dragging && dragging !== item.id && peers.includes(dragging)) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          const moved = event.dataTransfer.getData("text/plain");
+          if (!peers.includes(moved) || moved === item.id) return;
+          setLayout(mode, (current) => ({ ...current, order: moveBefore(current.order, peers, moved, item.id) }));
+          setDragging(null);
+        }}
+      >
         <span className="min-w-0 flex-1 truncate">{item.title}</span>
         <Segmented
           label={t("chat.uiManager.placementFor", { name: item.title })}
@@ -282,7 +348,14 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={t("chat.uiManager.title")} width="max-w-lg" mobileFullscreen>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t("chat.uiManager.title")}
+      width="max-w-lg"
+      mobileFullscreen
+      panelStyle={besideChatSettings(open)}
+    >
       <div className="mari-ui-manager flex flex-col gap-3 p-4" data-chat-ui-manager="">
         <div role="tablist" aria-label={t("chat.uiManager.title")} className="mari-chat-settings-tabs flex gap-1">
           {(["top", "settings", "tools"] as const).map((value) => (
@@ -295,6 +368,13 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
               onClick={() => setTab(value)}
             >
               {t(`chat.uiManager.tabs.${value}`)}
+              <span className="mari-ui-manager__count">
+                {value === "top"
+                  ? settings.filter((item) => item.placement === "top").length
+                  : value === "settings"
+                    ? settings.filter((item) => item.placement !== "top").length
+                    : tools.length}
+              </span>
             </button>
           ))}
         </div>
@@ -312,7 +392,10 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
             const items = settings.filter((item) => item.category === category && item.placement !== "top");
             return items.length ? (
               <section key={category}>
-                <h3 className="mari-ui-manager__heading">{t(`chat.settings.tabs.${category}`)}</h3>
+                <h3 className="mari-ui-manager__heading">
+                  {t(`chat.settings.tabs.${category}`)}
+                  <span className="mari-ui-manager__count">{items.length}</span>
+                </h3>
                 <ul className="mari-ui-manager__list">{items.map(settingsRow)}</ul>
               </section>
             ) : null;
@@ -323,7 +406,25 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
               <li className="text-xs text-[var(--muted-foreground)]">{t("chat.uiManager.emptyTools")}</li>
             )}
             {tools.map((item) => (
-              <li key={item.id} className="mari-ui-manager__row" data-ui-manager-tool={item.id}>
+              <li
+                key={item.id}
+                className="mari-ui-manager__row"
+                data-ui-manager-tool={item.id}
+                onDragOver={(event) => {
+                  if (dragging && dragging !== item.id) event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const moved = event.dataTransfer.getData("text/plain");
+                  const peers = tools.filter((entry) => entry.placement === item.placement).map((entry) => entry.id);
+                  if (!peers.includes(moved) || moved === item.id) return;
+                  setLayout(mode, (current) => ({
+                    ...current,
+                    toolOrder: moveBefore(current.toolOrder, peers, moved, item.id),
+                  }));
+                  setDragging(null);
+                }}
+              >
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 <Segmented
                   label={t("chat.uiManager.placementFor", { name: item.label })}

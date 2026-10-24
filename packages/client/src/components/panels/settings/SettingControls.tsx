@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Bell, BellRing, ChevronRight, Loader2, Play, Trash2, Upload, Volume2 } from "lucide-react";
 import { flushSync } from "react-dom";
 import { useTranslation, useTranslation as useUiTranslation } from "react-i18next";
@@ -97,6 +97,7 @@ export function SettingsSection({
   collapsible?: boolean;
 }) {
   const localize = useLocalizedUiText();
+  const { t: localizeUi } = useUiTranslation();
   const localizedDescription = localizeStringNode(description, localize);
   const contentId = useId();
   const sectionRef = useRef<HTMLElement>(null);
@@ -115,6 +116,15 @@ export function SettingsSection({
   };
   const setOpenRef = useRef(setOpen);
   setOpenRef.current = setOpen;
+  // The folded header shows how many searchable settings the section holds, like a label's value column.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [settingCount, setSettingCount] = useState(0);
+  useLayoutEffect(() => {
+    if (!collapsible) return;
+    const next = contentRef.current?.querySelectorAll('[id^="settings-control-"]').length ?? 0;
+    setSettingCount((current) => (current === next ? current : next));
+    // The section's own children decide which controls it renders.
+  }, [collapsible, children]);
   useEffect(() => {
     const node = sectionRef.current;
     if (!node || !collapsible) return;
@@ -138,6 +148,7 @@ export function SettingsSection({
       ref={sectionRef}
       id={anchorId}
       data-settings-section={collapsible ? (open ? "open" : "closed") : undefined}
+      data-settings-tone={tone}
       className={cn(
         "overflow-hidden rounded-lg border bg-[var(--background)]/35 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_8%,transparent)]",
         tone === "danger" ? "border-[var(--destructive)]/30 bg-[var(--destructive)]/5" : "border-[var(--border)]/70",
@@ -185,9 +196,21 @@ export function SettingsSection({
             </div>
           )}
         </div>
+        {collapsible && settingCount > 0 && (
+          <span
+            data-receipt-value=""
+            data-settings-count=""
+            className="mt-1 shrink-0 text-xs"
+            title={localizeUi("ui.panels.libraryToolbar.settingCount", { count: settingCount })}
+            aria-label={localizeUi("ui.panels.libraryToolbar.settingCount", { count: settingCount })}
+          >
+            {settingCount}
+          </span>
+        )}
         {headerAction && <div className="shrink-0">{headerAction}</div>}
       </div>
       <div
+        ref={contentRef}
         id={contentId}
         hidden={!open}
         className={cn("border-t border-[var(--border)]/60 px-3 pb-3 pt-2.5", contentClassName)}

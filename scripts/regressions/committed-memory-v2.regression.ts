@@ -328,7 +328,14 @@ try {
   assert.equal(status.state.entities?.length, 1);
   assert.equal(status.counts?.currentFacts, 1);
   const firstCommit = status.state.commits?.at(-1);
-  assert(firstCommit && firstCommit.added.length === 1);
+  // The status lists changes without their undo snapshots (sent every refresh); the stored record keeps them.
+  assert(firstCommit && firstCommit.kind === "commit" && !("before" in firstCommit) && !("added" in firstCommit));
+  const storedCommits = (
+    policy.memoryExtra((await chats.getById(chat.id))!.metadata).committedMemory as {
+      commits: Array<{ added: string[] }>;
+    }
+  ).commits;
+  assert.equal(storedCommits.at(-1)!.added.length, 1);
 
   // A failing batch writes nothing; the memory stays exactly as it was.
   await chats.createMessage({

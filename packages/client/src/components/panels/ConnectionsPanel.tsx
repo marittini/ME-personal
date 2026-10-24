@@ -61,7 +61,6 @@ import {
 } from "@marinara-engine/shared";
 import { confirmNonEmptyFolderDelete, showConfirmDialog } from "../../lib/app-dialogs";
 import {
-  Plus,
   Trash2,
   Link,
   Check,
@@ -111,6 +110,7 @@ import { useTranslation as useUiTranslation } from "react-i18next";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { createLocalSidecarConnectionOption, isLanguageGenerationConnection } from "../../lib/connection-filters";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
+import { LibraryPanelToolbar, RowActionsToggle } from "./LibraryPanelToolbar";
 
 const CONNECTION_ICON_COLORS = {
   from: "from-sky-400",
@@ -1310,6 +1310,7 @@ function ConnectionRow({
         event.dataTransfer.dropEffect = "move";
       }}
       onDrop={onDropOnRow}
+      data-receipt-row=""
       className={cn(
         "group relative flex touch-pan-y cursor-grab active:cursor-grabbing items-center gap-3 rounded-xl p-2.5 transition-all hover:bg-[var(--sidebar-accent)]",
         isSelected && `ring-1 ${colors.ring} bg-[var(--sidebar-accent)]/50`,
@@ -1369,15 +1370,20 @@ function ConnectionRow({
           </div>
         )}
       </button>
-      <div className="min-w-0 flex-1 pr-0 max-md:pr-32 [@media(pointer:coarse)]:pr-32">
+      <div className="min-w-0 flex-1 pr-0 max-md:pr-7 [@media(pointer:coarse)]:pr-7">
         <div className="truncate text-sm font-medium leading-5" title={conn.name}>
           {conn.name}
         </div>
-        <div className="truncate text-[0.6875rem] leading-4 text-[var(--muted-foreground)]">
-          {conn.provider} • {conn.model || "No model set"}
-        </div>
+        <div className="truncate text-[0.6875rem] leading-4 text-[var(--muted-foreground)]">{conn.provider}</div>
+        <span data-receipt-value="" className="max-w-[9rem] truncate text-[0.75rem]" title={conn.model || undefined}>
+          {conn.model || "No model set"}
+        </span>
       </div>
-      <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-foreground/10 transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+      <RowActionsToggle />
+      <div
+        data-row-actions=""
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-foreground/10 transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto group-data-[actions-open]:[&_button]:pointer-events-auto"
+      >
         <ChatResourceActionButton
           payload={{
             version: 1,
@@ -1648,6 +1654,7 @@ export function ConnectionsPanel() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedConnectionIds, setSelectedConnectionIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [exportingSelected, setExportingSelected] = useState(false);
   const connectionImageInputRef = useRef<HTMLInputElement>(null);
   const imageTargetConnectionIdRef = useRef<string | null>(null);
@@ -2083,82 +2090,68 @@ export function ConnectionsPanel() {
         onChange={handleConnectionImageSelected}
       />
 
-      {/* Action buttons */}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => openModal("create-connection")}
-          className="mari-panel-gradient-button mari-panel-gradient--connections flex-1 text-xs"
-          aria-label={localizeUi("ui.panels.connectionspanel.createConnection")}
-          title={localizeUi("ui.lorebooks.lorebookassignmentsection.new")}
-        >
-          <Plus size="0.8125rem" />
-        </button>
-        <button
-          type="button"
-          onClick={() => openModal("import-connection")}
-          className="mari-chrome-control mari-chrome-control--primary flex-1 text-xs"
-          aria-label={localizeUi("ui.panels.connectionspanel.importConnection")}
-          title={localizeUi("ui.chat.chatbranchselector.import")}
-        >
-          <Download size="0.8125rem" />
-        </button>
-        <button
-          type="button"
-          onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
-          disabled={connectionsList.length === 0}
-          className={cn(
-            "mari-chrome-control mari-chrome-control--primary flex-1 text-xs",
-            selectionMode && "mari-chrome-control--selected",
-          )}
-          aria-label={
-            selectionMode
+      <LibraryPanelToolbar
+        component="ConnectionLibraryActions"
+        onCreate={() => openModal("create-connection")}
+        searchOpen={searchOpen}
+        onToggleSearch={() => {
+          // Closing search also drops its query, so no hidden filter is left behind.
+          if (searchOpen) setSearch("");
+          setSearchOpen(!searchOpen);
+        }}
+        menuItems={[
+          {
+            label: localizeUi("ui.chat.chatbranchselector.import"),
+            icon: <Download size="0.875rem" />,
+            onSelect: () => openModal("import-connection"),
+          },
+          {
+            label: selectionMode
               ? localizeUi("ui.panels.connectionspanel.exitConnectionSelectionMode")
-              : localizeUi("ui.panels.connectionspanel.selectConnections")
-          }
-          title={localizeUi("settings.common.select")}
-        >
-          <Check size="0.8125rem" />
-        </button>
-      </div>
-
-      {/* Search + Sort */}
-      <div className="flex gap-1.5">
-        <div className="relative flex-1">
-          <Search
-            size="0.8125rem"
-            className="mari-chrome-field-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
-          />
-          <input
-            type="text"
-            placeholder={localize("Search connections")}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
-          />
+              : localizeUi("ui.panels.connectionspanel.selectConnections"),
+            icon: <Check size="0.875rem" />,
+            onSelect: () => (selectionMode ? exitSelectionMode() : setSelectionMode(true)),
+            disabled: connectionsList.length === 0,
+          },
+        ]}
+      >
+        <div data-library-search="" className="flex gap-1.5">
+          <div className="relative flex-1">
+            <Search
+              size="0.8125rem"
+              className="mari-chrome-field-icon pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+            />
+            <input
+              type="text"
+              placeholder={localize("Search connections")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as ConnectionPanelSort);
+              }}
+              className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
+              title={localizeUi("ui.panels.agentspanel.sortOrder")}
+              aria-label={localizeUi("ui.panels.connectionspanel.sortConnections")}
+            >
+              <option value="custom">{localizeUi("settings.notifications.customSound.status.custom")}</option>
+              <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
+              <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
+              <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
+              <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
+            </select>
+            <ArrowUpDown
+              size="0.625rem"
+              className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+            />
+          </div>
         </div>
-        <div className="relative">
-          <select
-            value={sort}
-            onChange={(event) => {
-              setSort(event.target.value as ConnectionPanelSort);
-            }}
-            className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
-            title={localizeUi("ui.panels.agentspanel.sortOrder")}
-            aria-label={localizeUi("ui.panels.connectionspanel.sortConnections")}
-          >
-            <option value="custom">{localizeUi("settings.notifications.customSound.status.custom")}</option>
-            <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
-            <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
-            <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
-            <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
-          </select>
-          <ArrowUpDown
-            size="0.625rem"
-            className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
-          />
-        </div>
-      </div>
+      </LibraryPanelToolbar>
 
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1">
@@ -2302,6 +2295,12 @@ export function ConnectionsPanel() {
         {draggedConnectionId && (
           <div className="pointer-events-none px-2 py-1 text-[0.625rem] text-[var(--marinara-chat-chrome-button-text-active)]">
             {localizeUi("ui.panels.agentspanel.dropHereToMoveOutOfFolder")}
+          </div>
+        )}
+        {unfiledConnections.length > 0 && (
+          <div data-receipt-columns="" aria-hidden="true">
+            <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
+            <span>{localizeUi("ui.panels.libraryToolbar.modelColumn")}</span>
           </div>
         )}
         {unfiledConnections.map(renderConnectionRow)}

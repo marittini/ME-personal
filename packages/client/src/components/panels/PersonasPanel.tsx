@@ -22,7 +22,6 @@ import {
 import { useUIStore } from "../../stores/ui.store";
 import { sortPanelFolders } from "../../lib/panel-sort";
 import {
-  Plus,
   Trash2,
   User,
   VenetianMask,
@@ -59,6 +58,8 @@ import {
 } from "../../lib/card-library-search";
 import { clearActiveChatResourceDrag, writeChatResourceDragPayload } from "../../lib/chat-resource-drag";
 import { ChatResourceActionButton } from "../chat/ChatResourceActionButton";
+import { formatEstimatedTokens } from "../../lib/character-token-count";
+import { LibraryPanelToolbar, RowActionsToggle } from "./LibraryPanelToolbar";
 import { estimateTextTokens, type Persona } from "@marinara-engine/shared";
 
 type PersonaGroupRow = { id: string; name: string; description: string; personaIds: string; createdAt: string };
@@ -86,17 +87,6 @@ function parseDroppedPersonaIds(payload: string): unknown {
 function estimateTokens(p: Persona): number {
   const text = [p.description, p.personality, p.scenario, p.backstory, p.appearance].join("");
   return estimateTextTokens(text);
-}
-
-function getPersonaPreviewMetadata(p: Persona): string | null {
-  const parts: string[] = [];
-  const creator = p.creator.trim();
-  const version = p.personaVersion.trim();
-
-  if (creator) parts.push(`by ${creator}`);
-  if (version) parts.push(`v${version}`);
-
-  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 function useTouchSafePersonaDragMode() {
@@ -147,6 +137,7 @@ export function PersonasPanel() {
   const [avatarTargetId, setAvatarTargetId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortOption>("name-asc");
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -572,107 +563,77 @@ export function PersonasPanel() {
 
   return (
     <div className="flex min-h-full flex-col gap-2 p-3">
-      <div
-        className="mari-chrome-segmented mari-chrome-segmented--two"
-        data-component="PersonaLibraryActions"
-        style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
+      <LibraryPanelToolbar
+        component="PersonaLibraryActions"
+        onCreate={handleCreate}
+        searchOpen={searchOpen}
+        onToggleSearch={() => {
+          // Closing search also drops its query, so no hidden filter is left behind.
+          if (searchOpen) setSearch("");
+          setSearchOpen(!searchOpen);
+        }}
+        menuItems={[
+          {
+            label: localizeUi("ui.panels.resourceLibraryLauncher.downloadCards"),
+            icon: <Bot size="0.875rem" />,
+            onSelect: openBotBrowser,
+          },
+          {
+            label: localizeUi("ui.panels.resourceLibraryLauncher.openLibrary"),
+            icon: <VenetianMask size="0.875rem" />,
+            onSelect: openPersonaLibrary,
+          },
+          {
+            label: localizeUi("ui.chat.chatbranchselector.import"),
+            icon: <Download size="0.875rem" />,
+            onSelect: () => openModal("import-persona"),
+          },
+          {
+            label: selectionMode
+              ? localizeUi("ui.panels.libraryToolbar.endSelection")
+              : localizeUi("settings.common.select"),
+            icon: <Check size="0.875rem" />,
+            onSelect: () => (selectionMode ? exitSelectionMode() : setSelectionMode(true)),
+          },
+        ]}
       >
-        <button
-          type="button"
-          onClick={openBotBrowser}
-          className="mari-chrome-segmented__button min-w-0 justify-center gap-1 overflow-hidden px-1.5 py-2 text-[0.625rem] leading-normal"
-          title={localizeUi("ui.panels.resourceLibraryLauncher.downloadCards")}
-        >
-          <span className="shrink-0 leading-none">
-            <Bot size="0.875rem" />
-          </span>
-          <span className="inline-flex min-h-4 min-w-0 items-center justify-center truncate whitespace-nowrap pb-px leading-normal">
-            {localizeUi("ui.panels.resourceLibraryLauncher.download")}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={openPersonaLibrary}
-          className="mari-chrome-segmented__button min-w-0 justify-center gap-1 overflow-hidden px-1.5 py-2 text-[0.625rem] leading-normal"
-          title={localizeUi("ui.panels.personaspanel.openPersonasLibrary")}
-        >
-          <span className="shrink-0 leading-none">
-            <VenetianMask size="0.875rem" />
-          </span>
-          <span className="inline-flex min-h-4 min-w-0 items-center justify-center truncate whitespace-nowrap pb-px leading-normal">
-            {localizeUi("ui.panels.resourceLibraryLauncher.openLibrary")}
-          </span>
-        </button>
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={handleCreate}
-          className="mari-panel-gradient-button mari-panel-gradient--personas flex-1 text-xs"
-          title={localizeUi("ui.lorebooks.lorebookassignmentsection.new")}
-        >
-          <Plus size="0.8125rem" />
-        </button>
-        <button
-          onClick={() => openModal("import-persona")}
-          className="mari-chrome-control mari-chrome-control--primary flex-1 text-xs"
-          title={localizeUi("ui.chat.chatbranchselector.import")}
-        >
-          <Download size="0.8125rem" />
-        </button>
-        <button
-          onClick={() => {
-            if (selectionMode) exitSelectionMode();
-            else setSelectionMode(true);
-          }}
-          className={cn(
-            "mari-chrome-control mari-chrome-control--primary flex-1 text-xs",
-            selectionMode && "mari-chrome-control--selected",
-          )}
-          title={localizeUi("settings.common.select")}
-        >
-          <Check size="0.8125rem" />
-        </button>
-      </div>
-
-      {/* Search + Sort */}
-      <div className="flex gap-1.5">
-        <div className="relative flex-1">
-          <Search size="0.8125rem" className="mari-chrome-field-icon absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={localize("Search personas")}
-            className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
-          />
+        <div data-library-search="" className="flex gap-1.5">
+          <div className="relative flex-1">
+            <Search size="0.8125rem" className="mari-chrome-field-icon absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={localize("Search personas")}
+              className="mari-chrome-field h-10 w-full py-0 pl-8 pr-3 text-xs md:h-9"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={manualOrderActive || folderDrag.active ? "custom" : sort}
+              onChange={(e) => {
+                manualOrder.setActive(e.target.value === "custom");
+                folderDrag.setActive(e.target.value === "custom");
+                if (e.target.value !== "custom") setSort(e.target.value as SortOption);
+              }}
+              className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
+              title={localizeUi("ui.panels.agentspanel.sortOrder")}
+            >
+              <option value="custom" title={localizeUi("dragDrop.manualOrderHelp")}>
+                {localizeUi("dragDrop.manualOrder")}
+              </option>
+              <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
+              <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
+              <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
+              <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
+              <option value="tokens">{localizeUi("ui.panels.personaspanel.tokens")}</option>
+            </select>
+            <ArrowUpDown
+              size="0.625rem"
+              className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+            />
+          </div>
         </div>
-        <div className="relative">
-          <select
-            value={manualOrderActive || folderDrag.active ? "custom" : sort}
-            onChange={(e) => {
-              manualOrder.setActive(e.target.value === "custom");
-              folderDrag.setActive(e.target.value === "custom");
-              if (e.target.value !== "custom") setSort(e.target.value as SortOption);
-            }}
-            className="mari-chrome-field mari-chrome-sort-field mari-accent-animated h-10 appearance-none py-0 pl-2.5 pr-7 text-[0.6875rem] md:h-9"
-            title={localizeUi("ui.panels.agentspanel.sortOrder")}
-          >
-            <option value="custom" title={localizeUi("dragDrop.manualOrderHelp")}>
-              {localizeUi("dragDrop.manualOrder")}
-            </option>
-            <option value="name-asc">{localizeUi("ui.panels.backgroundpicker.aZ")}</option>
-            <option value="name-desc">{localizeUi("ui.panels.backgroundpicker.zA")}</option>
-            <option value="newest">{localizeUi("ui.panels.backgroundpicker.newest")}</option>
-            <option value="oldest">{localizeUi("ui.panels.backgroundpicker.oldest")}</option>
-            <option value="tokens">{localizeUi("ui.panels.personaspanel.tokens")}</option>
-          </select>
-          <ArrowUpDown
-            size="0.625rem"
-            className="mari-chrome-field-icon mari-chrome-sort-icon mari-accent-animated pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
-          />
-        </div>
-      </div>
+      </LibraryPanelToolbar>
 
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1">
@@ -852,6 +813,16 @@ export function PersonasPanel() {
                   )}
                 </div>
                 {folderMemberIds.length > 0 && (
+                  <span data-receipt-value="" data-folder-token-total="" className="shrink-0 text-[0.75rem]">
+                    {folderMemberIds
+                      .reduce((total, id) => {
+                        const member = personaMap.get(id);
+                        return total + (member ? estimateTokens(member) : 0);
+                      }, 0)
+                      .toLocaleString()}
+                  </span>
+                )}
+                {folderMemberIds.length > 0 && (
                   <span
                     data-folder-item-count="inline"
                     className="shrink-0 text-[0.5625rem] text-[var(--muted-foreground)] max-md:hidden [@media(pointer:coarse)]:hidden"
@@ -901,7 +872,6 @@ export function PersonasPanel() {
                       const p = personaMap.get(pid);
                       if (!p) return null;
                       const isBulkSelected = selectedPersonaIds.has(pid);
-                      const personaMetadata = getPersonaPreviewMetadata(p);
                       return (
                         <div
                           key={pid}
@@ -969,6 +939,7 @@ export function PersonasPanel() {
                           }}
                           role="button"
                           tabIndex={0}
+                          data-receipt-row=""
                           className={cn(
                             "group group/member relative flex min-h-11 touch-pan-y cursor-grab active:cursor-grabbing items-center gap-2 rounded-lg p-1.5 text-xs transition-all hover:bg-[var(--sidebar-accent)]",
                             touchSafePersonaDragMode && "select-none",
@@ -1017,7 +988,7 @@ export function PersonasPanel() {
                           <div
                             className={cn(
                               "min-w-0 flex-1",
-                              !selectionMode && "pr-0 max-md:pr-14 [@media(pointer:coarse)]:pr-14",
+                              !selectionMode && "pr-0 max-md:pr-7 [@media(pointer:coarse)]:pr-7",
                             )}
                           >
                             <div className="truncate text-[0.75rem] font-medium">{p.name}</div>
@@ -1026,17 +997,19 @@ export function PersonasPanel() {
                                 {p.comment}
                               </div>
                             )}
-                            {personaMetadata && (
-                              <div className="truncate text-[0.5625rem] text-[var(--muted-foreground)]">
-                                {personaMetadata}
-                              </div>
-                            )}
-                            <div className="truncate text-[0.625rem] text-[var(--muted-foreground)]">
-                              {p.description || "No description"}
-                            </div>
                           </div>
+                          <span
+                            data-receipt-value=""
+                            className="shrink-0 text-[0.75rem]"
+                            aria-label={formatEstimatedTokens(estimateTokens(p), localizeUi)}
+                          >
+                            {estimateTokens(p).toLocaleString()}
+                          </span>
                           {!selectionMode && (
-                            <div className="pointer-events-none absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] p-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover/member:opacity-100 [@media(pointer:fine)]:group-focus-within/member:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover/member:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within/member:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+                            <div
+                              data-persona-row-actions=""
+                              className="pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 bg-[var(--sidebar)] p-0.5 opacity-0 transition-opacity group-hover/member:opacity-100 [@media(pointer:fine)]:group-focus-within/member:opacity-100 group-hover/member:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within/member:[&_button]:pointer-events-auto max-md:right-7 [@media(pointer:coarse)]:right-7 group-data-[actions-open]/member:opacity-100 group-data-[actions-open]/member:[&_button]:pointer-events-auto"
+                            >
                               <ChatResourceActionButton
                                 payload={{ version: 1, kind: "persona", ids: [pid], label: p.name }}
                                 className="flex h-6 min-h-6 w-6 items-center justify-center p-0"
@@ -1053,6 +1026,7 @@ export function PersonasPanel() {
                               </button>
                             </div>
                           )}
+                          {!selectionMode && <RowActionsToggle />}
                         </div>
                       );
                     })}
@@ -1102,9 +1076,14 @@ export function PersonasPanel() {
       )}
 
       <div className="stagger-children flex min-h-8 flex-col gap-1 rounded-xl transition-colors">
+        {visibleRootPersonas.length > 0 && (
+          <div data-receipt-columns="" aria-hidden="true">
+            <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
+            <span>{localizeUi("ui.panels.personaspanel.tokens")}</span>
+          </div>
+        )}
         {visibleRootPersonas.map((persona) => {
           const isBulkSelected = selectedPersonaIds.has(persona.id);
-          const personaMetadata = getPersonaPreviewMetadata(persona);
 
           return (
             <div
@@ -1233,26 +1212,28 @@ export function PersonasPanel() {
               </button>
 
               {/* Info */}
-              <div
-                className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-32 [@media(pointer:coarse)]:pr-32")}
-              >
+              <div className={cn("min-w-0 flex-1", !selectionMode && "pr-0 max-md:pr-7 [@media(pointer:coarse)]:pr-7")}>
                 <div className="w-fit max-w-full truncate text-sm font-medium">{persona.name}</div>
                 {persona.comment && (
                   <div className="truncate text-[0.625rem] italic text-[var(--muted-foreground)]">
                     {persona.comment}
                   </div>
                 )}
-                {personaMetadata && (
-                  <div className="truncate text-[0.625rem] text-[var(--muted-foreground)]">{personaMetadata}</div>
-                )}
-                <div className="truncate text-[0.6875rem] text-[var(--muted-foreground)]">
-                  {persona.description || "No description"}
+                <div
+                  data-receipt-value=""
+                  className="text-[0.8125rem]"
+                  aria-label={formatEstimatedTokens(estimateTokens(persona), localizeUi)}
+                >
+                  {estimateTokens(persona).toLocaleString()}
                 </div>
               </div>
 
               {/* Actions */}
               {!selectionMode && (
-                <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 opacity-0 shadow-sm ring-1 ring-[var(--border)] transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:opacity-100 [@media(pointer:coarse)]:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:[&_button]:pointer-events-auto [@media(pointer:coarse)]:[&_button]:pointer-events-auto">
+                <div
+                  data-persona-row-actions=""
+                  className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 shrink-0 items-center gap-0.5 bg-[var(--sidebar)] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-data-[actions-open]:[&_button]:pointer-events-auto"
+                >
                   <ChatResourceActionButton
                     payload={{ version: 1, kind: "persona", ids: [persona.id], label: persona.name }}
                   />
@@ -1296,6 +1277,7 @@ export function PersonasPanel() {
                   </button>
                 </div>
               )}
+              {!selectionMode && <RowActionsToggle />}
             </div>
           );
         })}

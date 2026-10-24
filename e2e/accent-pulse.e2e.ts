@@ -403,10 +403,8 @@ for (const theme of ["dark", "light"] as const) {
         "background-color",
         await renderedColor("color-mix(in oklab, var(--sidebar) 35%, transparent)"),
       );
-      await expect(page.locator("#settings-control-theme-mode select")).toHaveCSS(
-        "background-color",
-        await renderedColor("var(--sidebar)"),
-      );
+      // The dark/light select became the four page colors (2026-10-24); their swatches show instead.
+      await expect(page.locator("#settings-control-theme-mode [data-reader-page-swatch]")).toHaveCount(4);
       const settingsHeader = page.locator(".mari-right-panel-header:visible > div.absolute");
       await expect(settingsHeader).toHaveCSS(
         "background-color",
