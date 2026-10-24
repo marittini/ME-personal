@@ -2,6 +2,7 @@
 // Linear message layout (chat-style rows)
 // ──────────────────────────────────────────────
 import { User } from "lucide-react";
+import { MessageTimestamp } from "./MessageTimestamp";
 import { cn } from "../../lib/utils";
 import { PendingTypingDots } from "./PendingTypingDots";
 import {
@@ -19,7 +20,6 @@ import {
   ConversationMessageTranslation,
   ConversationMessageName,
   diceRollReplacesMessageContent,
-  formatTimestamp,
   type MessageRenderContext,
 } from "./ConversationMessageShared";
 import { useTranslation as useUiTranslation } from "react-i18next";
@@ -170,9 +170,11 @@ export function ConversationMessageLine({ ctx }: { ctx: MessageRenderContext }) 
               onOpenAboutMe={ctx.onOpenAboutMe}
             />
             {!hideTimestamp && (
-              <span className="mari-message-timestamp mari-conversation-transcript-chrome-text text-[0.6875rem]">
-                {formatTimestamp(message.createdAt)}
-              </span>
+              <MessageTimestamp
+                createdAt={message.createdAt}
+                mode="conversation"
+                className="mari-message-timestamp mari-conversation-transcript-chrome-text text-[0.6875rem]"
+              />
             )}
             {ctx.speechReplay}
           </div>

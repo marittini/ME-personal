@@ -2,6 +2,7 @@
 // Bubble message layout (Messenger-style)
 // ──────────────────────────────────────────────
 import { User } from "lucide-react";
+import { MessageTimestamp } from "./MessageTimestamp";
 import { normalizeTextForMatch, splitGroupedSegmentDisplayLines } from "@marinara-engine/shared";
 import { cn } from "../../lib/utils";
 import { PendingTypingDots } from "./PendingTypingDots";
@@ -21,7 +22,6 @@ import {
   ConversationMessageName,
   diceRollReplacesMessageContent,
   nameColorStyle,
-  formatTimestamp,
   type MessageRenderContext,
 } from "./ConversationMessageShared";
 import { useTranslation as useUiTranslation } from "react-i18next";
@@ -176,7 +176,7 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
         {/* Body column — header + bubble + attachments (no swipes) */}
         <div
           className={cn(
-            "mari-message-body min-w-0 flex max-w-[72%] flex-initial flex-col",
+            "mari-message-body mari-message-body--bubble min-w-0 flex max-w-[72%] flex-initial flex-col",
             isUser ? "items-end" : "items-start",
           )}
         >
@@ -197,9 +197,11 @@ export function ConversationMessageBubble({ ctx }: { ctx: MessageRenderContext }
                 />
               )}
               {!hideTimestamp && !isUser && (
-                <span className="mari-message-timestamp mari-conversation-transcript-chrome-text text-[0.6875rem]">
-                  {formatTimestamp(message.createdAt)}
-                </span>
+                <MessageTimestamp
+                  createdAt={message.createdAt}
+                  mode="conversation"
+                  className="mari-message-timestamp mari-conversation-transcript-chrome-text text-[0.6875rem]"
+                />
               )}
               {ctx.speechReplay}
             </div>

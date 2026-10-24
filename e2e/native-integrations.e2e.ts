@@ -19,7 +19,10 @@ async function setup(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.getByRole("navigation", { name: "서재 탐색" }).getByRole("button", { name: "설정", exact: true }).click();
 }
-test("native tools save weather room settings and encrypted keys", async ({ page, request }) => {
+test("native tools save weather room settings; My page leaves out speech, extensions and the key vault", async ({
+  page,
+  request,
+}) => {
   const snapshot = await (await request.get("/api/native-integrations/settings")).json();
   const chat = await (
     await request.post("/api/chats", { data: { name: "통합 도구 검증", mode: "conversation", characterIds: [] } })
@@ -39,19 +42,10 @@ test("native tools save weather room settings and encrypted keys", async ({ page
       )
       .toBe(true);
     await page.getByRole("button", { name: "마이페이지로 돌아가기", exact: true }).click();
-    await page.getByRole("button", { name: "연결 키 보관함", exact: true }).click();
-    await page.getByLabel("마스터 비밀번호 (4자 이상)", { exact: true }).fill("browser-master");
-    const confirm = page.getByLabel("마스터 비밀번호 확인", { exact: true });
-    if (await confirm.isVisible()) await confirm.fill("browser-master");
-    await page.getByRole("button", { name: "보관함 열기·생성", exact: true }).click();
-    await page.getByLabel("키 이름", { exact: true }).fill("모바일 키");
-    await page.getByLabel("비밀 키", { exact: true }).fill("sk-browser-fixture");
-    await page.getByRole("button", { name: "키 저장", exact: true }).click();
-    await expect(page.getByText(/(?:^|· )모바일 키$/)).toBeVisible();
-    expect(await page.locator("body").innerText()).not.toContain("sk-browser-fixture");
-    await page.getByRole("button", { name: "잠그기", exact: true }).click();
-    await expect(page.getByLabel("마스터 비밀번호 (4자 이상)", { exact: true })).toHaveValue("");
-    await page.getByRole("button", { name: "마이페이지로 돌아가기", exact: true }).click();
+    // My page leaves out Speech & calls (reachable from Connections), extension management and the key vault.
+    for (const name of ["음성·통화 설정", "확장 관리", "연결 키 보관함"])
+      await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "NovelAI 요청 대기열", exact: true })).toBeVisible();
     await page.screenshot({ path: `.tmp/native-tools-${test.info().project.name}.png`, fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   } finally {

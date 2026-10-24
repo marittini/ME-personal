@@ -13,6 +13,8 @@ import {
   type ConversationReaderPreferences,
   type ReaderPreferences,
   type RoleplayReaderPreferences,
+  READER_TIMESTAMP_STYLES,
+  type ReaderTimestampStyle,
 } from "../../lib/reader-preferences";
 import { ReaderNumberSetting } from "./ReaderNumberSetting";
 import { ReaderPagePicker } from "../ui/ReaderPagePicker";
@@ -191,6 +193,21 @@ export function ReaderSettings({ chat, onAdvanced }: { chat: Chat | undefined; o
           step={0.25}
           onChange={(paragraphGap) => patchMode({ paragraphGap })}
         />
+        <label className={row}>
+          {t("reader.timestamp")}
+          <select
+            aria-label={t("reader.timestamp")}
+            className={select}
+            value={view.timestamp}
+            onChange={(event) => patchMode({ timestamp: event.target.value as ReaderTimestampStyle })}
+          >
+            {READER_TIMESTAMP_STYLES.map((style) => (
+              <option key={style} value={style}>
+                {t(`reader.timestampStyle.${style}`)}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className={row}>
           {t("reader.alignment")}
           <select

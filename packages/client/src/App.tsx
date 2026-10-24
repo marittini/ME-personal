@@ -62,6 +62,8 @@ import { getChatWidgetFontFamily, stripFontFamilyQuotes, toCssFontFamilyValue } 
 import { useSettingsSync } from "./hooks/use-settings-sync";
 import { useStorageMigrationNotice } from "./hooks/use-storage-migration-notice";
 import { useCustomNotificationSoundStatus } from "./hooks/use-custom-notification-sound";
+import { useApplyAppBranding } from "./hooks/use-app-branding";
+import { useApplyWebFonts } from "./hooks/use-web-fonts";
 import { useReducedAmbientEffects } from "./hooks/use-reduced-ambient-effects";
 import { installLongTaskWarner } from "./lib/perf-diagnostics";
 import { getStoreBackLayers } from "./lib/back-layers";
@@ -466,6 +468,8 @@ export function App() {
   const settingsTab = useUIStore((s) => s.settingsTab);
   const appearanceSettingsActive = rightPanelOpen && rightPanel === "settings" && settingsTab === "appearance";
   const { data: customNotificationSound } = useCustomNotificationSoundStatus();
+  useApplyAppBranding();
+  useApplyWebFonts();
   useSettingsSync();
   const showDownloadModal = useSidecarStore((s) => s.showDownloadModal);
   const setShowDownloadModal = useSidecarStore((s) => s.setShowDownloadModal);

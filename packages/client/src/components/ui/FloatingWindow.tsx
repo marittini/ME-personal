@@ -51,6 +51,9 @@ import { CHAT_VISUAL_VIEWPORT_CHANGE_EVENT } from "../../hooks/use-visual-viewpo
 import { BUBBLE_SNAP_GAP_PX } from "../../lib/window-bubble-snap";
 import { DrawerHostContext, type DrawerHost } from "./drawer-host";
 import { WindowBubble } from "./WindowBubble";
+import { useChatRemoteSlot } from "../../lib/chat-remote";
+import { useUIStore } from "../../stores/ui.store";
+import { createPortal } from "react-dom";
 import { useChatToolsMenuStore } from "../../stores/chat-tools-menu.store";
 import {
   FLOATING_WINDOW_Z_BASE,
@@ -481,7 +484,11 @@ export function FloatingWindow({
   const focusBubbleRef = useRef(false);
   // A phone shows a minimizable window as its bubble, and as a sheet while it is open.
   const phoneBubble = sheet && !!minimizable;
-  const phoneMenu = phoneBubble && minimizable?.phoneMenu === true;
+  const remoteSlot = useChatRemoteSlot();
+  const remoteIndex = useUIStore((state) => (state.chatRemote.enabled ? state.chatRemote.windows.indexOf(id) : -1));
+  // A window placed on the chat remote shows there, not in the phone menu or as a bubble.
+  const onRemote = !!remoteSlot && remoteIndex >= 0;
+  const phoneMenu = phoneBubble && minimizable?.phoneMenu === true && !onRemote;
   const openInStore = useFloatingWindowStore((state) => state.open[id] === true);
   const savedPhoneBubble = useFloatingWindowStore((state) => state.phoneBubbles[id]);
   const phoneBounds = usePhoneBubbleBounds(phoneBubble);
@@ -779,7 +786,27 @@ export function FloatingWindow({
 
   const minimizedBubble =
     minimized && minimizable && !hidden && !phoneMenu ? (
-      phoneBubble ? (
+      onRemote && remoteSlot ? (
+        // Placed on the chat remote (UI manager): its button lives in the dock instead of floating as a bubble.
+        createPortal(
+          <button
+            type="button"
+            className="mari-chat-remote__item"
+            data-chat-remote-item={id}
+            style={{ order: remoteIndex }}
+            aria-label={minimizable.label}
+            title={minimizable.label}
+            onClick={(event) => restoreFromBubble(event.currentTarget)}
+          >
+            <span className="mari-chat-remote__icon" aria-hidden="true">
+              {minimizable.icon}
+            </span>
+            <span className="mari-chat-remote__label">{minimizable.label}</span>
+            {minimizable.bubbleBadge}
+          </button>,
+          remoteSlot,
+        )
+      ) : phoneBubble ? (
         <WindowBubble
           buttonRef={bubbleRef}
           id={id}

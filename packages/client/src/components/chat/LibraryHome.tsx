@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -7,7 +7,6 @@ import {
   Home,
   LibraryBig,
   MessageCircle,
-  Plus,
   Search,
   Settings,
   ScrollText,
@@ -27,7 +26,7 @@ import { cn, getAvatarCropStyle } from "../../lib/utils";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { buildRecordToc } from "../../lib/library-record-toc";
 import { useChatStore } from "../../stores/chat.store";
-import { useUIStore } from "../../stores/ui.store";
+import { isMobileShellViewport, useUIStore } from "../../stores/ui.store";
 import { useDialogStore } from "../../stores/dialog.store";
 
 const LibrarySettingsHome = lazy(() =>
@@ -101,6 +100,19 @@ function WorkCover({ work, className }: { work: VirtualWork; className?: string 
       )}
     </span>
   );
+}
+
+const EXIT_PRESS_WINDOW_MS = 2000;
+
+/** Matches the shell's phone layout and follows it when the window is resized or rotated. */
+function useIsMobileShellViewport() {
+  const [mobile, setMobile] = useState(() => isMobileShellViewport());
+  useEffect(() => {
+    const update = () => setMobile(isMobileShellViewport());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return mobile;
 }
 
 export function LibraryHome() {
@@ -177,6 +189,21 @@ export function LibraryHome() {
 
   const selectedWork = works.find((work) => work.id === navigation.selectedWorkId) ?? null;
   useBackDismiss(!!selectedWork && !overlayOpen && !dialogOpen, () => setSelectedWork(null));
+  // Phones: back walks Library / Record / My page back to Home, and Home needs two presses in a row to leave.
+  const [exitArmed, setExitArmed] = useState(false);
+  const onPhone = useIsMobileShellViewport();
+  const atRest = !selectedWork && !overlayOpen && !dialogOpen;
+  useBackDismiss(onPhone && atRest && section !== "home", () => setSection("home"));
+  useBackDismiss(onPhone && atRest && section === "home" && !exitArmed, () => {
+    // This press is used up here; the next one within two seconds falls through and leaves the app.
+    setExitArmed(true);
+    toast(t("libraryShell.backAgainToExit"), { id: "library-back-exit", duration: EXIT_PRESS_WINDOW_MS });
+  });
+  useEffect(() => {
+    if (!exitArmed) return;
+    const timer = window.setTimeout(() => setExitArmed(false), EXIT_PRESS_WINDOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [exitArmed]);
   const readWorks = useMemo(
     () =>
       works
@@ -293,13 +320,34 @@ export function LibraryHome() {
     };
   }, []);
 
+  // Phone panels open below the library header (the engine top bar they normally sit under is hidden here),
+  // so the header's title never peeks out above a panel.
+  const headerObserver = useRef<ResizeObserver | null>(null);
+  const libraryHeaderRef = useCallback((header: HTMLElement | null) => {
+    headerObserver.current?.disconnect();
+    headerObserver.current = null;
+    const root = document.documentElement;
+    if (!header) {
+      root.style.removeProperty("--mari-library-header-bottom");
+      return;
+    }
+    const update = () =>
+      root.style.setProperty("--mari-library-header-bottom", `${header.getBoundingClientRect().bottom}px`);
+    update();
+    headerObserver.current = new ResizeObserver(update);
+    headerObserver.current.observe(header);
+  }, []);
+
   if (selectedWork && section !== "settings") {
     return (
       <main
         className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]"
         data-component="LibraryWorkDetail"
       >
-        <header className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-10 md:pt-7">
+        <header
+          ref={libraryHeaderRef}
+          className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-10 md:pt-7"
+        >
           <div className="mx-auto flex max-w-3xl items-center">
             <button
               type="button"
@@ -457,7 +505,10 @@ export function LibraryHome() {
       className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]"
       data-component="LibraryHome"
     >
-      <header className="shrink-0 px-5 pb-3 pt-[max(1.15rem,env(safe-area-inset-top))] md:px-10 md:pt-8">
+      <header
+        ref={libraryHeaderRef}
+        className="shrink-0 px-5 pb-3 pt-[max(1.15rem,env(safe-area-inset-top))] md:px-10 md:pt-8"
+      >
         <div className="mx-auto flex w-full max-w-5xl items-end justify-between gap-4">
           <div>
             <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
@@ -473,15 +524,6 @@ export function LibraryHome() {
                     : t("libraryShell.record.title")}
             </h1>
           </div>
-          <button
-            type="button"
-            onClick={() => useUIStore.getState().openCharacterLibrary()}
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-transparent text-[var(--foreground)] transition-colors hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-            aria-label={t("libraryShell.newWork")}
-            title={t("libraryShell.newWork")}
-          >
-            <Plus size="1.15rem" aria-hidden="true" />
-          </button>
         </div>
       </header>
 
@@ -539,33 +581,37 @@ export function LibraryHome() {
                 onClick={() => openWork(continueWork)}
                 className="group grid w-full grid-cols-[6.6rem_minmax(0,1fr)] gap-5 border-y border-[var(--border)] py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] md:grid-cols-[8rem_minmax(0,1fr)] md:gap-8 md:py-7"
               >
-                <WorkCover work={continueWork} className="aspect-[2/3] w-full" />
-                <span className="flex min-w-0 flex-col justify-center">
-                  <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
-                    {t("libraryShell.continue")}
+                {/* The cover and the text share one height: the text runs from the label to the excerpt. */}
+                <span className="relative block min-w-0" data-continue-cover="">
+                  <span className="block aspect-[2/3] w-full" aria-hidden="true" />
+                  <WorkCover work={continueWork} className="absolute inset-0" />
+                </span>
+                <span className="flex min-w-0 flex-col" data-continue-info="">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                      {t("libraryShell.continue")}
+                    </span>
+                    {continueWork.unreadCount > 0 ? (
+                      <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-medium text-[var(--primary-foreground)]">
+                        {t("libraryShell.newPassages", { count: continueWork.unreadCount })}
+                      </span>
+                    ) : null}
+                    <ChevronRight
+                      size="1.1rem"
+                      className="ml-auto shrink-0 transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                      data-continue-arrow=""
+                    />
                   </span>
                   <span className="mt-2 line-clamp-2 text-xl font-semibold tracking-[-0.02em] md:text-3xl">
                     {continueWork.title}
                   </span>
                   <span className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{continueWork.author}</span>
                   {continueWork.preview ? (
-                    <span className="mt-4 line-clamp-2 max-w-xl text-sm leading-relaxed text-[var(--muted-foreground)]">
+                    <span className="mt-auto line-clamp-3 max-w-xl pt-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
                       {continueWork.preview}
                     </span>
                   ) : null}
-                  <span className="mt-5 flex items-center gap-2 text-xs font-medium text-[var(--foreground)]">
-                    {formatReadTime(continueWork.lastMessageAt, locale, t("libraryShell.ready"))}
-                    {continueWork.unreadCount > 0 ? (
-                      <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[var(--primary-foreground)]">
-                        {t("libraryShell.newPassages", { count: continueWork.unreadCount })}
-                      </span>
-                    ) : null}
-                    <ChevronRight
-                      size="0.95rem"
-                      className="ml-auto transition-transform group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </span>
                 </span>
               </button>
 

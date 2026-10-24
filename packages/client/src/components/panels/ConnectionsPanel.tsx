@@ -18,6 +18,7 @@ import {
   type DragEvent,
   type ReactNode,
   type TouchEvent,
+  type CSSProperties,
 } from "react";
 import { Reorder } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -429,6 +430,7 @@ function SidecarCard() {
         "rounded-xl border border-sky-400/20 bg-gradient-to-br from-sky-400/5 to-blue-500/5 p-3 transition-all",
         expanded && "border-sky-400/30",
       )}
+      data-local-model-card=""
     >
       <div
         className="flex cursor-pointer items-center gap-2.5"
@@ -1143,12 +1145,12 @@ function ConnectionDefaultsSection({ connectionsList }: { connectionsList: Conne
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-xl border border-sky-400/20 bg-gradient-to-br from-sky-400/5 to-blue-500/5 p-3 transition-all",
-        open && "border-sky-400/30",
+        // Page-color theme, like the Text to Speech card beside it (was a fixed sky-blue gradient).
+        "overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] p-3 transition-all",
       )}
     >
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-sm">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--secondary)] text-[var(--foreground)]">
           <Settings2 size="1rem" />
         </div>
         <div className="min-w-0 flex-1">
@@ -1176,7 +1178,10 @@ function ConnectionDefaultsSection({ connectionsList }: { connectionsList: Conne
         </button>
       </div>
       <SmoothFolderContent open={open}>
-        <div id="connection-defaults-content" className="mt-3 divide-y divide-sky-400/10 border-t border-sky-400/10">
+        <div
+          id="connection-defaults-content"
+          className="mt-3 divide-y divide-[var(--border)] border-t border-[var(--border)]"
+        >
           <ConnectionDefaultPair
             title={localizeUi("ui.panels.connectiondefaultssection.main")}
             icon={<MessageSquareText size="0.875rem" />}
@@ -1374,10 +1379,13 @@ function ConnectionRow({
         <div className="truncate text-sm font-medium leading-5" title={conn.name}>
           {conn.name}
         </div>
-        <div className="truncate text-[0.6875rem] leading-4 text-[var(--muted-foreground)]">{conn.provider}</div>
-        <span data-receipt-value="" className="max-w-[9rem] truncate text-[0.75rem]" title={conn.model || undefined}>
+        {/* The model reads under the name; the value column stays empty for connections. */}
+        <div
+          className="truncate text-[0.6875rem] leading-4 text-[var(--muted-foreground)]"
+          title={conn.model || undefined}
+        >
           {conn.model || "No model set"}
-        </span>
+        </div>
       </div>
       <RowActionsToggle />
       <div
@@ -1554,7 +1562,8 @@ function ConnectionFolderRow({
             onRename: beginRename,
           });
         }}
-        className="group relative flex items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-[var(--sidebar-accent)]/40"
+        data-receipt-folder=""
+        className="group relative flex items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-[var(--sidebar-accent)]/40 max-md:pr-8 [@media(pointer:coarse)]:pr-8"
       >
         <ChevronRight
           size="0.75rem"
@@ -1591,21 +1600,23 @@ function ConnectionFolderRow({
             {folder.name}
           </span>
         )}
+        {entries.length > 0 && (
+          <span data-folder-item-count="inline" className="shrink-0 text-[0.5625rem] text-[var(--muted-foreground)]">
+            {entries.length}
+          </span>
+        )}
+        <RowActionsToggle />
         <div
           data-folder-actions
-          className="flex shrink-0 items-center gap-0.5 rounded-lg bg-[var(--sidebar)] px-1 py-0.5 ring-1 ring-transparent transition-[opacity,box-shadow] group-hover:ring-[var(--border)] max-md:ring-[var(--border)] [@media(pointer:coarse)]:ring-[var(--border)]"
+          data-row-actions=""
+          className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 shrink-0 items-center gap-0.5 bg-[var(--sidebar)] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:opacity-100 group-hover:[&_button]:pointer-events-auto [@media(pointer:fine)]:group-focus-within:[&_button]:pointer-events-auto max-md:right-8 [@media(pointer:coarse)]:right-8 group-data-[actions-open]:opacity-100 group-data-[actions-open]:[&_button]:pointer-events-auto"
         >
-          {entries.length > 0 && (
-            <span data-folder-item-count="actions" className="px-1 text-[0.5625rem] text-[var(--muted-foreground)]">
-              {entries.length}
-            </span>
-          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
               onDelete(folder);
             }}
-            className="mari-chrome-control mari-chrome-control--small pointer-events-none shrink-0 p-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [@media(pointer:fine)]:group-focus-within:pointer-events-auto [@media(pointer:fine)]:group-focus-within:opacity-100 max-md:pointer-events-auto max-md:opacity-100 [@media(pointer:coarse)]:pointer-events-auto [@media(pointer:coarse)]:opacity-100"
+            className="mari-chrome-control mari-chrome-control--small shrink-0 p-1"
             title={localizeUi("ui.panels.backgroundpicker.deleteFolder")}
           >
             <Trash2 size="0.75rem" />
@@ -1618,9 +1629,8 @@ function ConnectionFolderRow({
         className="ml-4 border-l border-[var(--border)]/20 pl-1"
         innerClassName="flex flex-col gap-0.5"
       >
-        {entries.map((c) => (
-          <div key={c.id}>{renderConnectionRow(c)}</div>
-        ))}
+        {/* Rows sit directly in the list so the label's bars wrap the folder's list once, not each row. */}
+        {entries.map(renderConnectionRow)}
       </SmoothFolderContent>
     </Reorder.Item>
   );
@@ -2298,9 +2308,8 @@ export function ConnectionsPanel() {
           </div>
         )}
         {unfiledConnections.length > 0 && (
-          <div data-receipt-columns="" aria-hidden="true">
+          <div data-receipt-columns="" aria-hidden="true" style={{ "--receipt-lead": "3.25rem" } as CSSProperties}>
             <span>{localizeUi("ui.panels.libraryToolbar.nameColumn")}</span>
-            <span>{localizeUi("ui.panels.libraryToolbar.modelColumn")}</span>
           </div>
         )}
         {unfiledConnections.map(renderConnectionRow)}

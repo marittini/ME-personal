@@ -17,7 +17,7 @@ import { useEffectiveGenerationParameters } from "../../hooks/use-effective-gene
 // Full-Page Connection Editor
 // Click a connection → opens this editor (like presets/characters)
 // ──────────────────────────────────────────────
-import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense, type ChangeEvent } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import { useUIStore } from "../../stores/ui.store";
 import {
   useConnection,
@@ -325,9 +325,6 @@ function normalizeMaxParallelJobs(value: unknown): number {
 //  Main Editor
 // ═══════════════════════════════════════════════
 
-const ConnectionKeyVault = lazy(() =>
-  import("./ConnectionKeyVault").then((module) => ({ default: module.ConnectionKeyVault })),
-);
 export function ConnectionEditor() {
   const { t: localizeUi } = useUiTranslation();
   const { t } = useTranslation();
@@ -367,7 +364,6 @@ export function ConnectionEditor() {
   const [localProvider, setLocalProvider] = useState<APIProvider>("openai");
   const [localBaseUrl, setLocalBaseUrl] = useState("");
   const [localApiKey, setLocalApiKey] = useState("");
-  const [vaultOpen, setVaultOpen] = useState(false);
   const [clearStoredApiKeyOnSave, setClearStoredApiKeyOnSave] = useState(false);
   /** NanoGPT: usage-only management token (`usage:read`) and the widget toggle. */
   const [localManagementToken, setLocalManagementToken] = useState("");
@@ -2190,21 +2186,6 @@ export function ConnectionEditor() {
               </FieldGroup>
 
               {/* ── NanoGPT management token + subscription usage ── */}
-              <details open={vaultOpen} onToggle={(event) => setVaultOpen(event.currentTarget.open)}>
-                <summary className="min-h-11 cursor-pointer py-3 text-sm">{t("integrations.vault")}</summary>
-                {vaultOpen && (
-                  <Suspense fallback={<p role="status">{t("integrations.loading")}</p>}>
-                    <ConnectionKeyVault
-                      key={connectionDetailId ?? "new"}
-                      connectionId={connectionDetailId}
-                      onSelect={(key) => {
-                        setLocalApiKey(key);
-                        markDirty();
-                      }}
-                    />
-                  </Suspense>
-                )}
-              </details>
               {isNanoGptProvider && (
                 // A fragment's children are not direct children of the parent's
                 // space-y-6, so this block carries its own vertical rhythm.

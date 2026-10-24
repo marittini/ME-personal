@@ -43,6 +43,8 @@ import { loadMediaQueueUiSettings } from "../services/image/image-generation-que
 
 const ALLOWED_KEYS = new Set([
   "ui",
+  // Registered web fonts and the per-target (UI / Roleplay / Conversation) font choices; see the client's web-fonts.ts.
+  "web-fonts",
   TRANSLATOR_DEFAULTS_SETTINGS_KEY,
   CHAT_SUMMARY_PROMPT_SETTINGS_KEY,
   CUSTOM_GENERATION_PARAMETERS_SETTINGS_KEY,

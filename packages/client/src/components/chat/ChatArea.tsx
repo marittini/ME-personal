@@ -60,6 +60,7 @@ import { hasActiveTextSelection } from "../../lib/text-selection";
 import { readChatMetadata } from "../../lib/chat-wizard-defaults";
 import { useChatWindowLayout } from "../../hooks/use-chat-window-layout";
 import { ChatSettingsBubble } from "./ChatSettingsBubble";
+import { ChatCodeBlockCopy, ChatRemote } from "./ChatRemote";
 import { ChatWindowWelcomeModal } from "../modals/ChatWindowWelcomeModal";
 import { useGameModeStore } from "../../stores/game-mode.store";
 import { useGenerate } from "../../hooks/use-generate";
@@ -609,13 +610,22 @@ export const ChatArea = memo(function ChatArea({
     return (
       <ChatOpeningState error={error} onRetry={refetch} onBack={() => useChatStore.getState().setActiveChatId(null)} />
     );
+  const chatMode = chat ? readChatMode(chat) : null;
   const chatSettingsButton =
     chat && chatSettingsHosted ? (
-      <ChatSettingsBubble
-        chatId={chat.id}
-        mode={readChatMode(chat)}
-        advancedMemory={normalizeAdvancedMemorySettings(metadata.advancedMemory).enabled}
-      />
+      <>
+        <ChatSettingsBubble
+          chatId={chat.id}
+          mode={readChatMode(chat)}
+          advancedMemory={normalizeAdvancedMemorySettings(metadata.advancedMemory).enabled}
+        />
+        {(chatMode === "roleplay" || chatMode === "conversation") && (
+          <>
+            <ChatRemote chatId={chat.id} />
+            <ChatCodeBlockCopy />
+          </>
+        )}
+      </>
     ) : null;
   if (chat && (metadata.multiplayerSetup === true || metadata.multiplayer)) {
     return (

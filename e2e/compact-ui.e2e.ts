@@ -331,3 +331,379 @@ for (const [panel, placeholder, items] of [
     await expect(page.getByRole("menu")).toHaveCount(0);
   });
 }
+
+test("connections: folder rows share one list, the model sits under the name, Name lines up with names", async ({
+  page,
+  request,
+}) => {
+  const folder = await (await request.post("/api/connection-folders", { data: { name: "Label folder" } })).json();
+  const conns = await Promise.all(
+    ["Label conn 1", "Label conn 2", "Label conn 3"].map(async (name, index) =>
+      (
+        await request.post("/api/connections", {
+          data: { name, provider: "openai", model: `label-model-${index}`, apiKey: "x" },
+        })
+      ).json(),
+    ),
+  );
+  await request.post("/api/connection-folders/reorder-connections", {
+    data: { folderId: folder.id, orderedConnectionIds: conns.slice(0, 2).map((c) => c.id) },
+  });
+  try {
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: true,
+      rightPanel: "connections",
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const header = page.locator("[data-receipt-folder]:visible").filter({ hasText: "Label folder" });
+    if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
+    const first = page.locator("[data-receipt-row]:visible").filter({ hasText: "Label conn 1" });
+    const second = page.locator("[data-receipt-row]:visible").filter({ hasText: "Label conn 2" });
+    await expect(second).toBeVisible();
+    // Both folder rows sit in the same list: one hairline between them, no bar per row.
+    expect(
+      await first.evaluate((row, other) => row.parentElement === other?.parentElement, await second.elementHandle()),
+    ).toBe(true);
+    expect(parseFloat(await second.evaluate((row) => getComputedStyle(row).borderTopWidth))).toBe(1);
+    await expect(first).toContainText("label-model-0");
+    await expect(first.locator("[data-receipt-value]")).toHaveCount(0);
+    // The local model card stays out of the panel.
+    await expect(page.locator("[data-local-model-card]")).toBeHidden();
+    const nameLabel = page.locator("[data-receipt-columns]:visible > :first-child");
+    const rootName = page
+      .locator("[data-receipt-row]:visible")
+      .filter({ hasText: "Label conn 3" })
+      .locator(".font-medium")
+      .first();
+    const [labelBox, nameBox] = [await nameLabel.boundingBox(), await rootName.boundingBox()];
+    const labelStart = labelBox!.x + parseFloat(await nameLabel.evaluate((n) => getComputedStyle(n).paddingLeft));
+    expect(Math.abs(labelStart - nameBox!.x)).toBeLessThan(6);
+  } finally {
+    for (const conn of conns) await request.delete(`/api/connections/${conn.id}`);
+    await request.delete(`/api/connection-folders/${folder.id}`);
+  }
+});
+
+test("Settings tabs sit in one row of six", async ({ page }) => {
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await page.goto("/");
+  const tabs = page.locator("[data-settings-tabs] [role=tab]");
+  await expect(tabs).toHaveCount(6);
+  const ys = await tabs.evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().top)));
+  expect(new Set(ys).size).toBe(1);
+});
+
+test("phone back walks a library tab back to Home, then needs two presses to leave", async ({ page }) => {
+  test.skip(!test.info().project.name.startsWith("mobile"), "the exit guard is for the phone layout");
+  await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await page.goto("/");
+  const home = page.locator('[data-component="LibraryHome"]');
+  await expect(home).toBeVisible();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await expect(home.getByRole("heading", { level: 1 })).not.toHaveText("Your library");
+  // Back: the tab returns to Home.
+  await page.evaluate(() => history.back());
+  await expect(home.getByRole("heading", { level: 1 })).toHaveText("Your library");
+  // First back on Home: a hint, and the app stays.
+  await page.evaluate(() => history.back());
+  await expect(page.getByText("Press back again to exit", { exact: true })).toBeVisible();
+  await expect(home).toBeVisible();
+  // A second press within two seconds leaves the page (here: back to the blank tab it came from).
+  const left = page.waitForEvent("framenavigated", { timeout: 5_000 });
+  await page.evaluate(() => history.back());
+  await left;
+  expect(page.url()).not.toContain("127.0.0.1");
+});
+
+test("App name and icon: an uploaded icon becomes the favicon and manifest icon, the name the tab title", async ({
+  page,
+  request,
+}) => {
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+    settingsTab: "appearance",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  try {
+    await page.goto("/");
+    await page.getByPlaceholder("Search settings").fill("app icon");
+    await page.locator(".mari-settings-search-header button").filter({ hasText: "App name and icon" }).first().click();
+    const setting = page.locator("[data-app-branding]");
+    await expect(setting).toBeVisible();
+    await setting.locator('input[type="file"]').setInputFiles({
+      name: "icon.png",
+      mimeType: "image/png",
+      buffer: readFileSync(new URL("../packages/client/public/icon-192.png", import.meta.url)),
+    });
+    await expect.poll(() => page.locator('link[rel="icon"]').getAttribute("href")).toContain("/api/branding/icon/64");
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", /\/api\/branding\/icon\/192/);
+    await setting.getByLabel("App name").fill("My Shelf");
+    await setting.getByLabel("Short name (home screen)").fill("Shelf");
+    await setting.getByRole("button", { name: "Save names" }).click();
+    await expect(page).toHaveTitle("My Shelf");
+    await setting.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `.tmp/app-branding-${test.info().project.name}.png` });
+    const manifest = await (await request.get("/api/branding/manifest.json")).json();
+    expect(manifest.name).toBe("My Shelf");
+    expect(manifest.short_name).toBe("Shelf");
+    expect(manifest.icons[2].src).toContain("/api/branding/icon/512");
+    const icon = await request.get(manifest.icons[2].src);
+    expect(icon.headers()["content-type"]).toBe("image/png");
+    await setting.getByRole("button", { name: "Default icon" }).click();
+    await expect.poll(() => page.locator('link[rel="icon"]').getAttribute("href")).toBe("/favicon.png");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/api/branding/manifest.json");
+  } finally {
+    await request.put("/api/branding", { data: { name: "", shortName: "" } });
+    await request.delete("/api/branding/icon");
+  }
+});
+
+test("web fonts: register @font-face, give Roleplay its own font and size, and the UI its own family", async ({
+  page,
+  request,
+}) => {
+  await seedUIState(page, {
+    hasCompletedOnboarding: true,
+    sidebarOpen: false,
+    rightPanelOpen: true,
+    rightPanel: "settings",
+    settingsTab: "appearance",
+  });
+  await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+  await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+  await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+  try {
+    await page.goto("/");
+    await page.getByPlaceholder("Search settings").fill("web font");
+    await page
+      .locator(".mari-settings-search-header button")
+      .filter({ hasText: "Web fonts and fonts per target" })
+      .first()
+      .click();
+    const panel = page.locator("[data-web-fonts]");
+    await expect(panel).toBeVisible();
+    const code = panel.getByLabel("@font-face / @import code");
+    // Plain HTTP font files are refused.
+    await code.fill('@font-face{font-family:"Bad";src:url(http://example.com/bad.woff2)}');
+    await panel.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(page.getByText(/HTTPS font addresses/)).toBeVisible();
+    await expect(panel.locator("[data-web-font-family]")).toHaveCount(0);
+    await code.fill('@font-face{font-family:"Proof Serif";src:url(https://example.com/proof.woff2) format("woff2")}');
+    await panel.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(panel.locator('[data-web-font-family="Proof Serif"]')).toBeVisible();
+
+    await panel.getByRole("radio", { name: "RP", exact: true }).click();
+    await panel.locator("select").selectOption("Proof Serif");
+    await panel.getByRole("button", { name: "Increase Size" }).click();
+    await panel.getByRole("button", { name: "Increase Size" }).click();
+    await panel.getByRole("button", { name: "Apply", exact: true }).click();
+    await panel.getByRole("radio", { name: "UI", exact: true }).click();
+    await expect(panel.locator('[data-web-font-metric="size"]')).toHaveCount(0);
+    await panel.locator("select").selectOption("Proof Serif");
+    await panel.getByRole("button", { name: "Apply", exact: true }).click();
+
+    const probe = async () =>
+      page.evaluate(() => {
+        const host = document.createElement("div");
+        host.dataset.chatMode = "roleplay";
+        const content = document.createElement("div");
+        content.className = "mari-message-content";
+        host.append(content);
+        document.body.append(host);
+        const style = getComputedStyle(content);
+        const result = {
+          family: style.fontFamily,
+          size: style.fontSize,
+          ui: getComputedStyle(document.documentElement).getPropertyValue("--font-user").trim(),
+        };
+        host.remove();
+        return result;
+      });
+    await expect.poll(probe).toEqual({ family: '"Proof Serif", sans-serif', size: "18px", ui: '"Proof Serif"' });
+    await page.screenshot({ path: `.tmp/web-fonts-${test.info().project.name}.png` });
+    // Saved on the server, so it comes back after a reload.
+    await page.reload();
+    await expect.poll(probe).toEqual({ family: '"Proof Serif", sans-serif', size: "18px", ui: '"Proof Serif"' });
+  } finally {
+    await request.put("/api/app-settings/web-fonts", { data: { value: "" } });
+  }
+});
+
+test("chat remote: on/off in the UI manager, an item placed on it, message steps, jump, and code copy", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/chats", { data: { name: "Remote proof", mode: "roleplay" } });
+  const { id } = await created.json();
+  try {
+    for (let i = 1; i <= 8; i++)
+      await request.post(`/api/chats/${id}/messages`, {
+        data: {
+          role: i % 2 ? "assistant" : "user",
+          content:
+            i === 8
+              ? "Here is code:\n\n```js\nconsole.log(42);\n```"
+              : `Message ${i}. ` + "A long line of story text. ".repeat(30),
+        },
+      });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id, version },
+    );
+    await page.goto("/");
+    // Code blocks in messages get a copy button.
+    await expect(page.locator(".mari-message-content pre.mari-md-codeblock .mari-code-copy").last()).toHaveText("Copy");
+    await expect(page.locator("[data-chat-remote]")).toHaveCount(0);
+
+    const settings = await openChatSettings(page);
+    await settings.locator("[data-chat-ui-manager-button]").click();
+    const manager = page.locator("[data-chat-ui-manager]");
+    await manager.getByRole("tab", { name: /Remote/ }).click();
+    await manager.getByRole("checkbox", { name: "Show the remote" }).check({ force: true });
+    await manager.getByRole("tab", { name: /^Chat Settings/ }).click();
+    await manager.locator('[data-ui-manager-item="connection"]').getByRole("radio", { name: "Remote" }).click();
+    await manager.getByRole("tab", { name: /Remote/ }).click();
+    await expect(manager.locator('[data-ui-manager-item="connection"]')).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Close chat settings", exact: true }).click();
+
+    const remote = page.locator("[data-chat-remote]");
+    await expect(remote).toBeVisible();
+    const item = remote.locator('[data-chat-remote-item="drawer:chat-settings:connection"]');
+    await expect(item).toBeVisible();
+    await expect(page.locator('.mari-window-bubble[data-window="drawer:chat-settings:connection"]')).toHaveCount(0);
+    await page.screenshot({ path: `.tmp/chat-remote-${test.info().project.name}.png` });
+    await item.click();
+    await expect(page.locator('.mari-window[data-window="drawer:chat-settings:connection"]')).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Message steps move the transcript; the jump goes to a numbered message.
+    const scroll = page.locator('[data-chat-mode="roleplay"] [data-chat-scroll]').first();
+    await scroll.evaluate((node) => node.scrollTo({ top: 0 }));
+    const before = await scroll.evaluate((node) => node.scrollTop);
+    await remote.getByRole("button", { name: "Next message" }).click();
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(before);
+    await remote.getByRole("button", { name: "Go to message" }).click();
+    await remote.getByLabel("Number").fill("1");
+    await remote.getByRole("button", { name: "Go", exact: true }).click();
+    await expect.poll(() => scroll.evaluate((node) => node.scrollTop)).toBeLessThan(40);
+
+    // Settings are kept: side, and the item's place.
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("marinara-engine-ui") ?? ""))
+      .toContain('"drawer:chat-settings:connection"');
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});
+
+test("convo: message time follows the reading settings, new speakers start further down, bubbles keep a narrower column", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/chats", { data: { name: "Timestamp proof", mode: "conversation" } });
+  const { id } = await created.json();
+  try {
+    await request.post(`/api/chats/${id}/messages`, { data: { role: "user", content: "Sir Ivan." } });
+    await request.post(`/api/chats/${id}/messages`, {
+      data: { role: "assistant", content: "What is it, Your Majesty? " + "Don't tell me you need help. ".repeat(6) },
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id, version },
+    );
+    await page.goto("/");
+    const assistant = page.locator('[data-message-role="assistant"]').last();
+    const stamp = assistant.locator("[data-message-timestamp]");
+    await expect(stamp).toHaveText(/^Today at /u);
+    const row = assistant.locator(".mari-message").first();
+    expect(parseFloat(await row.evaluate((node) => getComputedStyle(node).marginTop))).toBeGreaterThanOrEqual(12);
+    const body = assistant.locator(".mari-message-body--bubble").first();
+    const [bodyBox, rowBox] = [await body.boundingBox(), await row.boundingBox()];
+    expect(bodyBox!.width).toBeLessThanOrEqual(rowBox!.width * 0.83);
+
+    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
+    const select = dialog.getByRole("combobox", { name: "Message time", exact: true });
+    await select.selectOption("time");
+    await expect(stamp).not.toHaveText(/Today/u);
+    await expect(stamp).toHaveText(/\d{1,2}:\d{2}/u);
+    await select.selectOption("hidden");
+    await expect(assistant.locator("[data-message-timestamp]")).toHaveCount(0);
+    await select.selectOption("datetime");
+    await expect(stamp).toHaveText(/^Today at /u);
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});
+
+test("library home: no new-work shortcut; Continue reading has no time, the arrow at the top and the cover's height", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/chats", { data: { name: "Continue proof", mode: "roleplay" } });
+  const { id } = await created.json();
+  try {
+    await request.post(`/api/chats/${id}/messages`, {
+      data: { role: "assistant", content: "A short opening for the excerpt." },
+    });
+    await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const home = page.locator('[data-component="LibraryHome"]');
+    await expect(home.getByRole("button", { name: "Choose a character for a new work" })).toHaveCount(0);
+    const cover = home.locator("[data-continue-cover]");
+    const info = home.locator("[data-continue-info]");
+    await expect(info).toBeVisible();
+    const [coverBox, infoBox, arrowBox] = [
+      await cover.boundingBox(),
+      await info.boundingBox(),
+      await home.locator("[data-continue-arrow]").boundingBox(),
+    ];
+    expect(Math.abs(coverBox!.height - infoBox!.height)).toBeLessThan(1);
+    expect(Math.abs(coverBox!.y - infoBox!.y)).toBeLessThan(1);
+    expect(arrowBox!.y).toBeLessThan(infoBox!.y + 40);
+    await expect(info).not.toContainText(/\d{1,2}:\d{2}/u);
+    await page.screenshot({ path: `.tmp/library-continue-${test.info().project.name}.png` });
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});

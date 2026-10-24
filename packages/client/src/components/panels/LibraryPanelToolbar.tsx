@@ -93,7 +93,7 @@ export function RowActionsToggle() {
       onClick={(event) => {
         event.stopPropagation();
         const button = event.currentTarget;
-        const row = button.closest("[data-receipt-row]");
+        const row = button.closest("[data-receipt-row], [data-receipt-folder]");
         if (!row) return;
         const open = !row.hasAttribute("data-actions-open");
         document.querySelectorAll("[data-actions-open]").forEach((other) => {

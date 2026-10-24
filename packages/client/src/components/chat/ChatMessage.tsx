@@ -1,4 +1,5 @@
 import { findDialogueQuotePairs, markFormattedDialogue, markHtmlDialogue } from "../../lib/dialogue-render";
+import { MessageTimestamp } from "./MessageTimestamp";
 import { MessageToolsLayout } from "./MessageToolsLayout";
 import { MessageIntegrationTools } from "./MessageIntegrationTools";
 import { useMessagePresetVariables } from "../../hooks/use-message-preset-variables";
@@ -4091,7 +4092,11 @@ export const ChatMessage = memo(function ChatMessage({
                     <NameColorText color={msgNameColor}>{displayName}</NameColorText>
                   )}
                 </span>
-                <span className="text-[0.625rem] text-white/30">{formatTime(message.createdAt)}</span>
+                <MessageTimestamp
+                  createdAt={message.createdAt}
+                  mode="roleplay"
+                  className="text-[0.625rem] text-white/30"
+                />
                 {genLabel && (
                   <span className="text-[0.5625rem] text-white/25 italic truncate max-w-[15.625rem]" title={genLabel}>
                     {genLabel}
@@ -4722,9 +4727,11 @@ export const ChatMessage = memo(function ChatMessage({
           {/* Timestamp + model — only for last in a group or standalone */}
           {!isGrouped && (
             <div className={cn("mari-message-meta flex items-center gap-2 px-3", isUser && "flex-row-reverse")}>
-              <span className="mari-message-timestamp text-[0.625rem] text-[var(--muted-foreground)]/50">
-                {formatTime(message.createdAt)}
-              </span>
+              <MessageTimestamp
+                createdAt={message.createdAt}
+                mode="roleplay"
+                className="mari-message-timestamp text-[0.625rem] text-[var(--muted-foreground)]/50"
+              />
               {genLabel && (
                 <span
                   className="text-[0.5625rem] text-[var(--muted-foreground)]/40 italic truncate max-w-[15.625rem]"
@@ -5147,16 +5154,4 @@ function ActionBtn({
       thinkingAction={thinkingAction}
     />
   );
-}
-
-// One shared formatter: toLocaleTimeString with options builds a new Intl formatter on every call, which
-// showed up when a room renders hundreds of messages at once (same output as before).
-let timeFormatter: Intl.DateTimeFormat | null = null;
-function formatTime(dateStr: string): string {
-  try {
-    timeFormatter ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit" });
-    return timeFormatter.format(new Date(dateStr));
-  } catch {
-    return "";
-  }
 }

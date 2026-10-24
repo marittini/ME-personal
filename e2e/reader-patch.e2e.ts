@@ -358,18 +358,17 @@ test("conversation: the voice button stays visible without a voice and asks for 
     await request.delete(`/api/characters/${card.id}`);
   }
 });
-test("settings tab opens a function hub and native voice settings", async ({ page }) => {
+test("settings tab opens a function hub; voice settings live in Connections", async ({ page }) => {
   await quiet(page);
   await page.goto("/");
   await page.getByRole("navigation", { name: "서재 탐색" }).getByRole("button", { name: "설정", exact: true }).click();
   await expect(page.getByRole("heading", { name: "마이페이지", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "음성·통화 설정", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "음성·통화 설정", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "마이페이지로 돌아가기", exact: true })).toBeVisible();
-  const voice = page.locator('[data-component="TTSConfigCard"]');
+  // My page no longer lists Speech & calls; the same card opens from the Connections panel.
+  await expect(page.getByRole("button", { name: "음성·통화 설정", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "모델·이미지 연결", exact: true }).click();
+  const voice = page.locator('[data-component="TTSConfigCard"]:visible');
   await expect(voice).toBeVisible();
   await expect(voice.getByRole("checkbox", { name: "TTS 활성화", exact: true })).toBeVisible();
-  await expect(voice.getByRole("combobox").first()).toBeVisible();
   await page.screenshot({ path: ".tmp/settings-hub-voice.png" });
 });
 
@@ -622,6 +621,10 @@ test("roleplay original view: controls stay beside tagged lines when the narrati
     await expect(controls).toHaveCount(3);
     for (const [index, line] of ["腹 減った", "卵しか ないと", "また ゼリーかよ"].entries())
       await expect(controls.nth(index).locator("xpath=ancestor::*[@data-tts-dialogue][1]")).toContainText(line);
+    // Per-line buttons are small, so they sit inside the line instead of pushing it apart.
+    const button = (await controls.first().locator("button").first().boundingBox())!;
+    expect(button.height).toBeLessThan(30); // 1.5rem (was 2.75rem)
+    expect(button.width).toBeLessThan(30);
     await page.screenshot({ path: ".tmp/original-narration-quotes.png" });
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);

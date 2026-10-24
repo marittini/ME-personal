@@ -18,8 +18,22 @@ export type ReaderLayoutPreferences = {
   /** How many px smaller a translation shown under the original is than the message text. */
   translationSizeOffset: number;
 };
-export type RoleplayReaderPreferences = ReaderLayoutPreferences & { indent: number };
+/** How a message's time shows: date and time, the time only, or not at all. */
+export type ReaderTimestampStyle = "datetime" | "time" | "hidden";
+export const READER_TIMESTAMP_STYLES: ReaderTimestampStyle[] = ["datetime", "time", "hidden"];
+/** What each mode showed before the choice existed: Convo the day and time, RP the time. */
+export const DEFAULT_READER_TIMESTAMP: Record<ReaderMode, ReaderTimestampStyle> = {
+  roleplay: "time",
+  conversation: "datetime",
+};
+export function readerTimestampStyle(value: unknown, mode: ReaderMode): ReaderTimestampStyle {
+  return READER_TIMESTAMP_STYLES.includes(value as ReaderTimestampStyle)
+    ? (value as ReaderTimestampStyle)
+    : DEFAULT_READER_TIMESTAMP[mode];
+}
+export type RoleplayReaderPreferences = ReaderLayoutPreferences & { indent: number; timestamp: ReaderTimestampStyle };
 export type ConversationReaderPreferences = ReaderLayoutPreferences & {
+  timestamp: ReaderTimestampStyle;
   /** "card" keeps each character's/persona's own look, "global" uses the colors below for all. */
   bubbleScope: "card" | "global";
   bubbleCharacterBg: string;
@@ -80,9 +94,14 @@ function reader(source: Record<string, unknown>) {
     translationSizeOffset: number("translationSizeOffset", 0, 0, 8),
   });
   return {
-    roleplay: (): RoleplayReaderPreferences => ({ ...layout(), indent: number("indent", 0, 0, 4) }),
+    roleplay: (): RoleplayReaderPreferences => ({
+      ...layout(),
+      indent: number("indent", 0, 0, 4),
+      timestamp: readerTimestampStyle(source.timestamp, "roleplay"),
+    }),
     conversation: (): ConversationReaderPreferences => ({
       ...layout(),
+      timestamp: readerTimestampStyle(source.timestamp, "conversation"),
       bubbleScope: source.bubbleScope === "global" ? "global" : "card",
       bubbleCharacterBg: color("bubbleCharacterBg"),
       bubbleCharacterText: color("bubbleCharacterText"),
@@ -140,6 +159,7 @@ export function readerModePreferences(preferences: ReaderPreferences, mode: Read
     align: own.align,
     sideMargin: own.sideMargin,
     translationSizeOffset: own.translationSizeOffset,
+    timestamp: own.timestamp,
     // Paragraph indent is a novel-page setting; Convo bubbles never indent.
     indent: mode === "roleplay" ? roleplay.indent : 0,
     bubbleScope: conversation.bubbleScope,

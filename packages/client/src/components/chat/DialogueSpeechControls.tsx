@@ -231,7 +231,7 @@ export function DialogueSpeechControls({
     const active = playback.id === `${prefix}${index}` && !["idle", "error"].includes(playback.state);
     const loading = active && playback.state === "loading";
     const style =
-      "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md align-middle text-current hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:opacity-40";
+      "inline-flex h-6 min-h-6 w-6 min-w-6 items-center justify-center rounded align-middle text-current hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:opacity-40";
     return (
       <span className="inline-flex align-middle" data-dialogue-controls={index} onClick={(e) => e.stopPropagation()}>
         <button
@@ -248,13 +248,13 @@ export function DialogueSpeechControls({
           }}
         >
           {loading ? (
-            <Loader2 size={14} className="animate-spin" />
+            <Loader2 size={12} className="animate-spin" />
           ) : active ? (
-            <Square size={14} />
+            <Square size={12} />
           ) : cached[index] ? (
-            <Play size={14} />
+            <Play size={12} />
           ) : (
-            <Plus size={14} />
+            <Plus size={12} />
           )}
         </button>
         {cached[index] && (
@@ -265,7 +265,7 @@ export function DialogueSpeechControls({
             aria-label={t("reader.dialogueRegenerateNumber", { number: index + 1 })}
             onClick={() => void play(index, true)}
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={12} />
           </button>
         )}
         {groups[index]?.persona && (
@@ -275,7 +275,7 @@ export function DialogueSpeechControls({
             aria-label={t("reader.personaVoice")}
             onClick={() => void personaSettings()}
           >
-            <MoreVertical size={14} />
+            <MoreVertical size={12} />
           </button>
         )}
       </span>

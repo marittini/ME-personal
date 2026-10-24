@@ -54,9 +54,17 @@ function syncDocumentLocale(locale: string, metadata: LocaleMetadata) {
   document.documentElement.dir = metadata.direction;
 }
 
+let documentTitleOverride: string | null = null;
+
 function syncDocumentTitle() {
   if (typeof document === "undefined") return;
-  document.title = i18n.t("app.documentTitle");
+  document.title = documentTitleOverride ?? i18n.t("app.documentTitle");
+}
+
+/** A custom app name (Settings › App Style) replaces the translated title; null restores it. */
+export function setDocumentTitleOverride(title: string | null) {
+  documentTitleOverride = title?.trim() || null;
+  syncDocumentTitle();
 }
 
 export async function activateLocale(requestedLocale: unknown, refresh = false): Promise<AppLanguage> {

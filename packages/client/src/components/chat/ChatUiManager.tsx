@@ -22,9 +22,9 @@ import {
   type ChatUiToolPlacement,
 } from "../../lib/chat-ui-layout";
 import { CHAT_SETTINGS_TABS, chatSettingsCategory, sectionIdOf, type ChatSettingsTab } from "./chat-settings-tabs";
-import { SETTINGS_ICON_BUTTON_CLASS } from "../panels/settings/SettingControls";
+import { SETTINGS_ICON_BUTTON_CLASS, SettingsSwitch } from "../panels/settings/SettingControls";
 
-type ManagerTab = "top" | "settings" | "tools";
+type ManagerTab = "top" | "remote" | "settings" | "tools";
 interface SettingsItem {
   id: string;
   title: string;
@@ -41,12 +41,21 @@ interface ToolItem {
 
 const drawerWindowId = (sectionId: string) => getDrawerWindowId(CHAT_SETTINGS_WINDOW_ID, sectionId);
 
-/** Puts one Chat Settings drawer in its own minimized window (a top bubble) or back into Chat Settings. */
+/**
+ * Puts one Chat Settings drawer in its own minimized window (a top bubble, or a button on the chat remote) or back
+ * into Chat Settings.
+ */
 export function placeChatSettingsDrawer(sectionId: string, placement: ChatUiPlacement) {
   const windows = useFloatingWindowStore.getState();
   const windowId = drawerWindowId(sectionId);
   const detached = windows.detached[windowId] === true;
-  if (placement === "top" && !detached) {
+  const ui = useUIStore.getState();
+  const onRemote = ui.chatRemote.windows.includes(windowId);
+  if (placement === "remote" && !onRemote) ui.setChatRemote({ windows: [...ui.chatRemote.windows, windowId] });
+  if (placement !== "remote" && onRemote)
+    ui.setChatRemote({ windows: ui.chatRemote.windows.filter((id) => id !== windowId) });
+  const popsOut = placement === "top" || placement === "remote";
+  if (popsOut && !detached) {
     const bounds = readFloatingWindowBounds();
     windows.detachDrawer(
       windowId,
@@ -62,7 +71,7 @@ export function placeChatSettingsDrawer(sectionId: string, placement: ChatUiPlac
       { focus: false },
     );
     windows.minimizeWindow(windowId);
-  } else if (placement !== "top" && detached) {
+  } else if (!popsOut && detached) {
     windows.dockDrawer(windowId);
   }
 }
@@ -88,6 +97,8 @@ function collectSettings(layout: ChatUiLayout): SettingsItem[] {
   const list = document.querySelector<HTMLElement>('[data-window="chat-settings"] [data-chat-settings-tab]');
   if (!list) return [];
   const detached = useFloatingWindowStore.getState().detached;
+  const remote = new Set(useUIStore.getState().chatRemote.windows);
+  const poppedOut = (id: string): ChatUiPlacement => (remote.has(drawerWindowId(id)) ? "remote" : "top");
   const nodes = [
     ...Array.from(list.children).flatMap((child) =>
       child.hasAttribute("data-chat-control-dock") ? Array.from(child.children) : [child],
@@ -109,7 +120,7 @@ function collectSettings(layout: ChatUiLayout): SettingsItem[] {
       title: knownTitles.get(id) ?? id,
       category: chatSettingsCategory(id),
       canTop: true,
-      placement: layout.placement[id] === "hidden" ? "hidden" : "top",
+      placement: layout.placement[id] === "hidden" ? "hidden" : poppedOut(id),
     });
   }
   for (const node of nodes) {
@@ -128,7 +139,11 @@ function collectSettings(layout: ChatUiLayout): SettingsItem[] {
       category: chatSettingsCategory(id),
       canTop: !isControl,
       placement:
-        layout.placement[id] === "hidden" ? "hidden" : !isControl && detached[drawerWindowId(id)] ? "top" : "settings",
+        layout.placement[id] === "hidden"
+          ? "hidden"
+          : !isControl && detached[drawerWindowId(id)]
+            ? poppedOut(id)
+            : "settings",
     });
   }
   const order = (item: SettingsItem) => {
@@ -241,8 +256,11 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
     return () => cancelAnimationFrame(frame);
   }, [open, stored, detached]);
 
+  const remote = useUIStore((state) => state.chatRemote);
+  const setRemote = useUIStore((state) => state.setChatRemote);
   const placementLabels: Record<ChatUiPlacement, string> = {
     top: t("chat.uiManager.placement.top"),
+    remote: t("chat.uiManager.placement.remote"),
     settings: t("chat.uiManager.placement.settings"),
     hidden: t("chat.uiManager.placement.hidden"),
   };
@@ -335,10 +353,10 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
         <Segmented
           label={t("chat.uiManager.placementFor", { name: item.title })}
           value={item.placement}
-          options={(["top", "settings", "hidden"] as const).map((value) => ({
+          options={(["top", "remote", "settings", "hidden"] as const).map((value) => ({
             value,
             label: placementLabels[value],
-            disabled: value === "top" && !item.canTop,
+            disabled: (value === "top" || value === "remote") && !item.canTop,
           }))}
           onChange={(value) => setPlacement(item, value)}
         />
@@ -358,7 +376,7 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
     >
       <div className="mari-ui-manager flex flex-col gap-3 p-4" data-chat-ui-manager="">
         <div role="tablist" aria-label={t("chat.uiManager.title")} className="mari-chat-settings-tabs flex gap-1">
-          {(["top", "settings", "tools"] as const).map((value) => (
+          {(["top", "remote", "settings", "tools"] as const).map((value) => (
             <button
               key={value}
               type="button"
@@ -369,10 +387,10 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
             >
               {t(`chat.uiManager.tabs.${value}`)}
               <span className="mari-ui-manager__count">
-                {value === "top"
-                  ? settings.filter((item) => item.placement === "top").length
+                {value === "top" || value === "remote"
+                  ? settings.filter((item) => item.placement === value).length
                   : value === "settings"
-                    ? settings.filter((item) => item.placement !== "top").length
+                    ? settings.filter((item) => item.placement !== "top" && item.placement !== "remote").length
                     : tools.length}
               </span>
             </button>
@@ -387,9 +405,44 @@ export function ChatUiManager({ open, onClose, mode }: { open: boolean; onClose:
             )}
           </ul>
         )}
+        {tab === "remote" && (
+          <div className="flex flex-col gap-2" data-chat-remote-settings="">
+            <SettingsSwitch
+              checked={remote.enabled}
+              onChange={(enabled) => setRemote({ enabled })}
+              label={t("chat.remote.enable")}
+              labelPosition="end"
+              className="min-h-9 gap-2 px-0"
+              labelClassName="text-xs"
+            />
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span>{t("chat.remote.side")}</span>
+              <Segmented
+                label={t("chat.remote.side")}
+                value={remote.side}
+                options={(["left", "right"] as const).map((value) => ({ value, label: t(`chat.remote.${value}`) }))}
+                onChange={(side) => setRemote({ side })}
+              />
+              <Segmented
+                label={t("chat.remote.style")}
+                value={remote.list ? "list" : "icons"}
+                options={(["icons", "list"] as const).map((value) => ({ value, label: t(`chat.remote.${value}`) }))}
+                onChange={(style) => setRemote({ list: style === "list" })}
+              />
+            </div>
+            <ul className="mari-ui-manager__list">
+              {settings.filter((item) => item.placement === "remote").map(settingsRow)}
+              {!settings.some((item) => item.placement === "remote") && (
+                <li className="text-xs text-[var(--muted-foreground)]">{t("chat.uiManager.emptyRemote")}</li>
+              )}
+            </ul>
+          </div>
+        )}
         {tab === "settings" &&
           CHAT_SETTINGS_TABS.map((category) => {
-            const items = settings.filter((item) => item.category === category && item.placement !== "top");
+            const items = settings.filter(
+              (item) => item.category === category && item.placement !== "top" && item.placement !== "remote",
+            );
             return items.length ? (
               <section key={category}>
                 <h3 className="mari-ui-manager__heading">

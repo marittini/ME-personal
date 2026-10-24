@@ -3,20 +3,8 @@ import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUIStore, type Panel } from "../../stores/ui.store";
 
-const Speech = lazy(() =>
-  import("../panels/settings/TTSConfigCard").then((module) => ({
-    default: function SpeechSettings() {
-      return <module.TTSConfigCard defaultExpanded />;
-    },
-  })),
-);
 const Queue = lazy(() =>
   import("../panels/settings/NaiQueueSettings").then((module) => ({ default: module.NaiQueueSettings })),
-);
-const Extensions = lazy(() =>
-  import("../panels/settings/PersonalExtensionsSettings").then((module) => ({
-    default: module.PersonalExtensionsSettings,
-  })),
 );
 const NaiPrompt = lazy(() =>
   import("./NaiCharacterPromptTool").then((module) => ({ default: module.NaiCharacterPromptTool })),
@@ -31,17 +19,13 @@ const GlobalPreset = lazy(() =>
     default: () => <module.NativeIntegrationSettings kind="globalPreset" />,
   })),
 );
-const KeyVault = lazy(() =>
-  import("../connections/ConnectionKeyVault").then((module) => ({ default: module.ConnectionKeyVault })),
-);
+// Owner request (3rd update): Speech & calls (also reachable from Connections) and extension management are
+// left out of My page; the connection key vault has no screen any more (its stored data is left as it is).
 const FEATURES = {
-  speech: Speech,
   queue: Queue,
-  extensions: Extensions,
   naiPrompt: NaiPrompt,
   weather: Weather,
   globalPreset: GlobalPreset,
-  keyVault: KeyVault,
 };
 type Feature = keyof typeof FEATURES;
 

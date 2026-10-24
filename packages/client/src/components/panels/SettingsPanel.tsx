@@ -177,6 +177,8 @@ import {
   SettingsSwitch,
   ToggleSetting,
 } from "./settings/SettingControls";
+import { AppBrandingSetting } from "./settings/AppBrandingSetting";
+import { WebFontSettings } from "./settings/WebFontSettings";
 import { TrackerCardColorSettings } from "./settings/TrackerCardColorSettings";
 import { PromptOverridesEditor } from "./settings/PromptOverridesEditor";
 import { BackgroundPicker } from "./settings/BackgroundPicker";
@@ -1602,7 +1604,8 @@ export function SettingsPanel() {
         <div
           role="tablist"
           aria-label={localize("Settings categories")}
-          className="grid grid-cols-3 gap-x-1.5 gap-y-1 rounded-xl border border-[var(--border)]/70 bg-[var(--background)]/32 p-1 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_7%,transparent)]"
+          data-settings-tabs=""
+          className="grid grid-cols-6 gap-x-1 rounded-xl border border-[var(--border)]/70 bg-[var(--background)]/32 p-1 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_7%,transparent)]"
         >
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -1641,7 +1644,7 @@ export function SettingsPanel() {
                 >
                   <Icon size="0.6875rem" />
                 </span>
-                <span className="w-full min-w-0 break-words px-0.5">{t(tab.labelKey)}</span>
+                <span className="w-full min-w-0 truncate px-0.5">{t(tab.labelKey)}</span>
               </button>
             );
           })}
@@ -3359,6 +3362,7 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
                   {localizeUi("ui.panels.appearancesettings.resetAppearance")}
                 </button>
               </div>
+              <AppBrandingSetting id={getSettingsControlAnchorId("app-branding")} />
               {/* ── Visual Style ── */}
               <div className="flex min-w-0 flex-col gap-2" id={getSettingsControlAnchorId("desktop-sidebar-width")}>
                 <label htmlFor="desktop-sidebar-width" className="text-xs font-medium">
@@ -3739,6 +3743,8 @@ function AppearanceSettings({ group = "app" }: { group?: AppearanceGroup }) {
                   {localizeUi("ui.panels.appearancesettings.openFontsFolder")}
                 </button>
               </label>
+
+              <WebFontSettings id={getSettingsControlAnchorId("web-fonts")} />
 
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-medium inline-flex items-center gap-1">
