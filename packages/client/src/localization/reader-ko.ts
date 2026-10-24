@@ -278,7 +278,6 @@ export const readerKoreanMessages: Record<string, string> = {
   "libraryShell.newPassages_other": "새 문단 {{count}}개",
   "libraryShell.newRecord": "새 기록",
   "libraryShell.newRecordName": "{{name}} · 새 기록",
-  "libraryShell.newWork": "새 작품의 캐릭터 선택",
   "libraryShell.ready": "읽을 준비가 되었습니다",
   "libraryShell.recent": "최근 작품",
   "libraryShell.record.title": "읽기 기록",
@@ -700,4 +699,8 @@ export const readerKoreanMessages: Record<string, string> = {
   "chat.remote.noChat": "열려 있는 메시지가 없습니다.",
   "chat.remote.first": "이전 메시지가 없습니다.",
   "chat.remote.last": "마지막 메시지입니다.",
+  "reader.timestamp": "타임스탬프",
+  "reader.timestampStyle.datetime": "날짜+시간",
+  "reader.timestampStyle.time": "시간만",
+  "reader.timestampStyle.hidden": "표시 안 함",
 };

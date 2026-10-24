@@ -7,7 +7,6 @@ import {
   Home,
   LibraryBig,
   MessageCircle,
-  Plus,
   Search,
   Settings,
   ScrollText,
@@ -525,15 +524,6 @@ export function LibraryHome() {
                     : t("libraryShell.record.title")}
             </h1>
           </div>
-          <button
-            type="button"
-            onClick={() => useUIStore.getState().openCharacterLibrary()}
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-[var(--border)] bg-transparent text-[var(--foreground)] transition-colors hover:bg-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-            aria-label={t("libraryShell.newWork")}
-            title={t("libraryShell.newWork")}
-          >
-            <Plus size="1.15rem" aria-hidden="true" />
-          </button>
         </div>
       </header>
 
@@ -591,33 +581,37 @@ export function LibraryHome() {
                 onClick={() => openWork(continueWork)}
                 className="group grid w-full grid-cols-[6.6rem_minmax(0,1fr)] gap-5 border-y border-[var(--border)] py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] md:grid-cols-[8rem_minmax(0,1fr)] md:gap-8 md:py-7"
               >
-                <WorkCover work={continueWork} className="aspect-[2/3] w-full" />
-                <span className="flex min-w-0 flex-col justify-center">
-                  <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
-                    {t("libraryShell.continue")}
+                {/* The cover and the text share one height: the text runs from the label to the excerpt. */}
+                <span className="relative block min-w-0" data-continue-cover="">
+                  <span className="block aspect-[2/3] w-full" aria-hidden="true" />
+                  <WorkCover work={continueWork} className="absolute inset-0" />
+                </span>
+                <span className="flex min-w-0 flex-col" data-continue-info="">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--primary)]">
+                      {t("libraryShell.continue")}
+                    </span>
+                    {continueWork.unreadCount > 0 ? (
+                      <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-xs font-medium text-[var(--primary-foreground)]">
+                        {t("libraryShell.newPassages", { count: continueWork.unreadCount })}
+                      </span>
+                    ) : null}
+                    <ChevronRight
+                      size="1.1rem"
+                      className="ml-auto shrink-0 transition-transform group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                      data-continue-arrow=""
+                    />
                   </span>
                   <span className="mt-2 line-clamp-2 text-xl font-semibold tracking-[-0.02em] md:text-3xl">
                     {continueWork.title}
                   </span>
                   <span className="mt-1 truncate text-sm text-[var(--muted-foreground)]">{continueWork.author}</span>
                   {continueWork.preview ? (
-                    <span className="mt-4 line-clamp-2 max-w-xl text-sm leading-relaxed text-[var(--muted-foreground)]">
+                    <span className="mt-auto line-clamp-3 max-w-xl pt-3 text-sm leading-relaxed text-[var(--muted-foreground)]">
                       {continueWork.preview}
                     </span>
                   ) : null}
-                  <span className="mt-5 flex items-center gap-2 text-xs font-medium text-[var(--foreground)]">
-                    {formatReadTime(continueWork.lastMessageAt, locale, t("libraryShell.ready"))}
-                    {continueWork.unreadCount > 0 ? (
-                      <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[var(--primary-foreground)]">
-                        {t("libraryShell.newPassages", { count: continueWork.unreadCount })}
-                      </span>
-                    ) : null}
-                    <ChevronRight
-                      size="0.95rem"
-                      className="ml-auto transition-transform group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
-                  </span>
                 </span>
               </button>
 

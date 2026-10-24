@@ -1216,7 +1216,8 @@ export const ConversationMessage = memo(function ConversationMessage({
           className={cn(
             "mari-message relative w-full min-w-0 max-w-full px-4 transition-colors",
             isBubbleStyle
-              ? cn("py-1", isUser ? "mari-message-user" : "mari-message-assistant", !isGrouped && "mt-0.5")
+              ? // A new speaker starts a little further down than the next bubble of the same speaker.
+                cn("py-1", isUser ? "mari-message-user" : "mari-message-assistant", !isGrouped && "mt-3")
               : cn(
                   "py-0.5 hover:bg-[var(--secondary)]/30",
                   isUser ? "mari-message-user" : "mari-message-assistant",

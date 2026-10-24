@@ -623,3 +623,87 @@ test("chat remote: on/off in the UI manager, an item placed on it, message steps
     await request.delete(`/api/chats/${id}?force=true`);
   }
 });
+
+test("convo: message time follows the reading settings, new speakers start further down, bubbles keep a narrower column", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/chats", { data: { name: "Timestamp proof", mode: "conversation" } });
+  const { id } = await created.json();
+  try {
+    await request.post(`/api/chats/${id}/messages`, { data: { role: "user", content: "Sir Ivan." } });
+    await request.post(`/api/chats/${id}/messages`, {
+      data: { role: "assistant", content: "What is it, Your Majesty? " + "Don't tell me you need help. ".repeat(6) },
+    });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id, version },
+    );
+    await page.goto("/");
+    const assistant = page.locator('[data-message-role="assistant"]').last();
+    const stamp = assistant.locator("[data-message-timestamp]");
+    await expect(stamp).toHaveText(/^Today at /u);
+    const row = assistant.locator(".mari-message").first();
+    expect(parseFloat(await row.evaluate((node) => getComputedStyle(node).marginTop))).toBeGreaterThanOrEqual(12);
+    const body = assistant.locator(".mari-message-body--bubble").first();
+    const [bodyBox, rowBox] = [await body.boundingBox(), await row.boundingBox()];
+    expect(bodyBox!.width).toBeLessThanOrEqual(rowBox!.width * 0.83);
+
+    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
+    const select = dialog.getByRole("combobox", { name: "Message time", exact: true });
+    await select.selectOption("time");
+    await expect(stamp).not.toHaveText(/Today/u);
+    await expect(stamp).toHaveText(/\d{1,2}:\d{2}/u);
+    await select.selectOption("hidden");
+    await expect(assistant.locator("[data-message-timestamp]")).toHaveCount(0);
+    await select.selectOption("datetime");
+    await expect(stamp).toHaveText(/^Today at /u);
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});
+
+test("library home: no new-work shortcut; Continue reading has no time, the arrow at the top and the cover's height", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/chats", { data: { name: "Continue proof", mode: "roleplay" } });
+  const { id } = await created.json();
+  try {
+    await request.post(`/api/chats/${id}/messages`, {
+      data: { role: "assistant", content: "A short opening for the excerpt." },
+    });
+    await seedUIState(page, { hasCompletedOnboarding: true, sidebarOpen: false, rightPanelOpen: false });
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await page.addInitScript((value) => localStorage.setItem("marinara:whats-new:seen-version", value), version);
+    await page.goto("/");
+    const home = page.locator('[data-component="LibraryHome"]');
+    await expect(home.getByRole("button", { name: "Choose a character for a new work" })).toHaveCount(0);
+    const cover = home.locator("[data-continue-cover]");
+    const info = home.locator("[data-continue-info]");
+    await expect(info).toBeVisible();
+    const [coverBox, infoBox, arrowBox] = [
+      await cover.boundingBox(),
+      await info.boundingBox(),
+      await home.locator("[data-continue-arrow]").boundingBox(),
+    ];
+    expect(Math.abs(coverBox!.height - infoBox!.height)).toBeLessThan(1);
+    expect(Math.abs(coverBox!.y - infoBox!.y)).toBeLessThan(1);
+    expect(arrowBox!.y).toBeLessThan(infoBox!.y + 40);
+    await expect(info).not.toContainText(/\d{1,2}:\d{2}/u);
+    await page.screenshot({ path: `.tmp/library-continue-${test.info().project.name}.png` });
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});

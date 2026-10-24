@@ -9672,3 +9672,14 @@ html[data-reader-focus="true"]
   inset-inline-start: 0;
   inset-inline-end: auto;
 }
+
+/* Convo bubbles keep a narrower column (the generic .mari-message-body rule had lifted it to the full width), and a
+   translation shown under a bubble sits below a faint line. */
+.mari-message-body.mari-message-body--bubble {
+  max-width: min(82%, 40rem);
+}
+[data-conversation-translation="outside"] {
+  margin-top: 0.375rem;
+  padding-top: 0.375rem;
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+}

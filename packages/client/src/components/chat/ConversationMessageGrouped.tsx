@@ -2,6 +2,7 @@
 // Grouped multi-speaker message layout (merged group chat / Name: text format)
 // ──────────────────────────────────────────────
 import { Fragment, type ReactNode, type RefObject } from "react";
+import { MessageTimestamp } from "./MessageTimestamp";
 import {
   normalizeTextForMatch,
   splitMessageParagraphs,
@@ -18,7 +19,6 @@ import {
   ConversationMessageSwipes,
   IMAGE_URL_RE,
   nameColorStyle,
-  formatTimestamp,
   type MessageRenderContext,
 } from "./ConversationMessageShared";
 import { ConversationMessageActions } from "./ConversationMessageActions";
@@ -285,9 +285,11 @@ export function ConversationMessageGrouped({
                           {segName}
                         </span>
                         {isFirst && !hideTimestamp && (
-                          <span className="mari-conversation-transcript-chrome-text shrink-0 text-[0.625rem]">
-                            {formatTimestamp(message.createdAt)}
-                          </span>
+                          <MessageTimestamp
+                            createdAt={message.createdAt}
+                            mode="conversation"
+                            className="mari-conversation-transcript-chrome-text shrink-0 text-[0.625rem]"
+                          />
                         )}
                         {isFirst && ctx.speechReplay}
                         {segAddButton}
@@ -363,9 +365,11 @@ export function ConversationMessageGrouped({
                         {segName}
                       </span>
                       {isFirst && !hideTimestamp && (
-                        <span className="mari-conversation-transcript-chrome-text text-[0.6875rem]">
-                          {formatTimestamp(message.createdAt)}
-                        </span>
+                        <MessageTimestamp
+                          createdAt={message.createdAt}
+                          mode="conversation"
+                          className="mari-conversation-transcript-chrome-text text-[0.6875rem]"
+                        />
                       )}
                       {isFirst && ctx.speechReplay}
                       {segAddButton}
