@@ -151,7 +151,7 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     await page.goto("/");
     const drawer = await openChatSettingsTool(page, "chat-summary");
     const vault = drawer.locator("[data-committed-memory]");
-    await vault.getByRole("button", { name: "Promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
     await vault.getByRole("button", { name: "In progress", exact: true }).click();
     await expect(vault.locator(".memory-vault__row")).toHaveCount(1);
     await expect(vault.locator(".memory-vault__row")).toContainText("진행 중 여행 약속");
@@ -175,7 +175,7 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     expect(updated.progress).toBe("completed");
     await vault.getByRole("button", { name: "Settings", exact: true }).click();
     await setSwitch(vault.getByRole("checkbox", { name: "Show Korean memory text" }), false);
-    await vault.getByRole("button", { name: "Promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
     await expect(vault.locator(".memory-vault__row").filter({ hasText: "active trip" })).toBeVisible();
   } finally {
     await request.delete(`/api/chats/${id}?force=true`);
@@ -312,5 +312,178 @@ test("format 2: overview counts and undoable tidy-up, namesake review, call-up c
   } finally {
     await request.delete(`/api/chats/${id}?force=true`);
     await request.delete(`/api/characters/${character.id}`);
+  }
+});
+
+test("format 3: scenes with exact lines, threads, state history, waiting batch and re-commit offer", async ({
+  page,
+  request,
+}, testInfo) => {
+  const { memoryFingerprint } = await import("../packages/server/src/services/committed-memory-policy.js");
+  const created = await request.post("/api/chats", { data: { name: "Scene ledger", mode: "roleplay" } });
+  expect(created.ok()).toBeTruthy();
+  const { id } = await created.json();
+  try {
+    const post = async (content: string) => {
+      const response = await request.post(`/api/chats/${id}/messages`, { data: { role: "assistant", content } });
+      expect(response.ok()).toBeTruthy();
+      return response.json();
+    };
+    const old = await post("Mira was human at the inn.");
+    const scene = await post('Mira turns into a borzoi. Ren whispers, "You were human a moment ago."');
+    // Three messages wait; batches are five, so nothing can be committed yet.
+    for (const content of ["They walk.", "They rest.", "They eat."]) await post(content);
+    const createdAt = new Date().toISOString();
+    const memory = {
+      version: 3,
+      ownerChatId: id,
+      enabled: true,
+      entities: [{ id: "mira", name: "Mira", aliases: ["미라"], kind: "person", createdAt }],
+      batches: [
+        {
+          id: "old-batch",
+          turn: 1,
+          createdAt,
+          sources: [{ id: old.id, fingerprint: memoryFingerprint(old) }],
+          summary: "Mira is human at the inn.",
+          core: "Mira is human.",
+          summaryKo: "미라는 여관에서 인간이었다.",
+          coreKo: "미라는 인간이다.",
+          facts: [],
+        },
+        {
+          id: "scene-batch",
+          turn: 2,
+          createdAt,
+          sources: [{ id: scene.id, fingerprint: memoryFingerprint(scene) }],
+          summary: "Mira becomes a borzoi in front of Ren.",
+          core: "Mira is a borzoi.",
+          summaryKo: "미라가 렌 앞에서 보르조이가 되었다.",
+          coreKo: "미라는 보르조이다.",
+          facts: [
+            {
+              id: "mira-form",
+              kind: "state",
+              key: "Mira form",
+              keyKo: "미라 형태",
+              content: "Mira is a borzoi.",
+              contentKo: "미라는 보르조이다.",
+              status: "current",
+              audience: "shared",
+              sourceIds: [scene.id],
+              entityId: "mira",
+              attribute: "form",
+              previous: [
+                {
+                  id: "mira-form",
+                  kind: "state",
+                  key: "Mira form",
+                  content: "Mira is human.",
+                  contentKo: "미라는 인간이다.",
+                  status: "current",
+                  audience: "shared",
+                  sourceIds: [old.id],
+                  entityId: "mira",
+                  attribute: "form",
+                  dependencies: [{ id: old.id, fingerprint: memoryFingerprint(old) }],
+                  turn: 1,
+                },
+              ],
+            },
+            {
+              id: "howl",
+              kind: "thread",
+              key: "night howl",
+              keyKo: "밤의 울음",
+              content: "Something howls at night.",
+              contentKo: "밤마다 무언가 운다.",
+              endCondition: "the source of the howl is found",
+              endConditionKo: "울음의 정체가 밝혀진다",
+              status: "current",
+              audience: "shared",
+              sourceIds: [scene.id],
+            },
+          ],
+          scenes: [
+            {
+              id: "borzoi-scene",
+              when: "night",
+              where: "forest",
+              participants: ["Mira", "Ren"],
+              event: "Mira turns into a borzoi in front of Ren.",
+              eventKo: "미라가 렌 앞에서 보르조이로 변한다.",
+              lines: [{ speaker: "Ren", to: "Mira", text: "You were human a moment ago.", sourceId: scene.id }],
+              changes: ["Mira: human → borzoi"],
+              changesKo: ["미라: 인간 → 보르조이"],
+              audience: "shared",
+              sourceIds: [scene.id],
+            },
+          ],
+        },
+      ],
+    };
+    expect(
+      (
+        await request.patch(`/api/chats/${id}/metadata`, {
+          data: { committedMemory: memory, committedMemoryBatchSize: 5 },
+        })
+      ).ok(),
+    ).toBeTruthy();
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id, version },
+    );
+    await page.goto("/");
+    await expect(page.locator("[data-memory-commit] [data-memory-suggest]")).toHaveCount(0);
+    await expect(page.locator("[data-memory-commit]")).toContainText("3/5");
+    const drawer = await openChatSettingsTool(page, "chat-summary");
+    const vault = drawer.locator("[data-committed-memory]");
+    await expect(vault.locator("[data-memory-pending]")).toHaveText("Waiting 3/5");
+    await expect(vault.locator("[data-memory-partial]")).toBeVisible();
+    await expect(vault.getByRole("button", { name: "Commit memory", exact: true })).toBeDisabled();
+    // The batch without scenes is offered a re-commit.
+    await expect(vault.locator("[data-memory-legacy]")).toContainText("1");
+    await expect(
+      vault.locator("[data-memory-legacy]").getByRole("button", { name: "Re-commit in the new format" }),
+    ).toBeVisible();
+
+    await vault.getByRole("button", { name: "Scenes", exact: true }).click();
+    await expect(vault.locator("[data-memory-scene]")).toHaveCount(1);
+    await vault.locator("[data-memory-scene]").click();
+    const detail = vault.locator("[data-memory-scene-detail]");
+    await expect(detail).toContainText("미라가 렌 앞에서 보르조이로 변한다.");
+    await expect(detail.locator(".memory-vault__quote")).toContainText("Ren → Mira");
+    await expect(detail.locator(".memory-vault__quote")).toContainText("“You were human a moment ago.”");
+    await expect(detail).toContainText("미라: 인간 → 보르조이");
+    await testInfo.attach("memory-scene", { body: await vault.screenshot(), contentType: "image/png" });
+
+    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
+    const thread = vault.locator(".memory-vault__row").filter({ hasText: "밤의 울음" });
+    await expect(thread).toContainText("Open thread");
+    await thread.click();
+    await expect(vault.locator("[data-memory-end-condition]")).toHaveText("Closes when: 울음의 정체가 밝혀진다");
+
+    await vault.getByRole("button", { name: "Entities", exact: true }).click();
+    const state = vault.locator(".memory-vault__row").filter({ hasText: "미라 형태" });
+    await expect(state).toContainText("State");
+    await state.click();
+    await expect(vault.locator("[data-memory-previous]")).toContainText("Earlier values (1)");
+
+    // A full batch turns the badge into a commit suggestion.
+    for (const content of ["They talk.", "They sleep."]) await post(content);
+    await page.reload();
+    await expect(page.locator("[data-memory-commit] [data-memory-suggest]")).toHaveText("5");
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
   }
 });

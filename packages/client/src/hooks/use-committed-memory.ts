@@ -90,10 +90,10 @@ export function useEditMemory(chatId: string) {
 export function useMemoryMaintenance(chatId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (action: "reset" | "cancel" | "enrich" | "rebuild") =>
+    mutationFn: (action: "reset" | "cancel" | "enrich" | "rebuild" | "recommit") =>
       api.post<CommittedMemoryStatus>(
         `/chats/${chatId}/committed-memory/${action}`,
-        action === "reset" ? { confirm: true } : {},
+        action === "reset" || action === "recommit" ? { confirm: true } : {},
       ),
     onSuccess: (data) => {
       qc.setQueryData(["committed-memory", chatId], data);
@@ -146,4 +146,13 @@ export function useMemoryHistoryAction(chatId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.detail(chatId) });
     },
   });
+}
+/**
+ * What the commit button will do: in "pending" mode only full batches are committed, so 3 waiting messages at
+ * batch size 5 commit nothing yet ("3/5").
+ */
+export function memoryCommitReadiness(data: CommittedMemoryStatus | undefined) {
+  const pending = data?.selectedPending ?? data?.pending ?? 0;
+  const ready = data?.ready ?? pending;
+  return { pending, ready, size: data?.batchSize, partial: ready === 0 && pending > 0 };
 }
