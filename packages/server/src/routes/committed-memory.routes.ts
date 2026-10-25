@@ -14,6 +14,7 @@ import {
   rebuildCommittedMemoryIndex,
   undoCommittedMemory,
   organizeCommittedMemoryChat,
+  startCommittedMemoryRecommit,
   mergeCommittedMemoryEntities,
   confirmDistinctCommittedMemoryEntity,
 } from "../services/committed-memory.js";
@@ -40,6 +41,16 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
     if ((app as unknown as { activeGenerations?: Map<string, unknown> }).activeGenerations?.has(req.params.id))
       return reply.status(409).send({ error: "Wait for the reply to finish before committing memory" });
     return startCommittedMemory(app.db, req.params.id, body.data.debugMode, body.data);
+  });
+  app.post<{ Params: { id: string } }>("/:id/committed-memory/recommit", async (req, reply) => {
+    const body = z
+      .object({ confirm: z.literal(true), debugMode: z.boolean().optional() })
+      .strict()
+      .safeParse(req.body);
+    if (!body.success) return reply.status(400).send({ error: "Re-commit confirmation required" });
+    if ((app as unknown as { activeGenerations?: Map<string, unknown> }).activeGenerations?.has(req.params.id))
+      return reply.status(409).send({ error: "Wait for the reply to finish before committing memory" });
+    return startCommittedMemoryRecommit(app.db, req.params.id, body.data.debugMode);
   });
   app.post<{ Params: { id: string } }>("/:id/committed-memory/reset", async (req, reply) => {
     if (

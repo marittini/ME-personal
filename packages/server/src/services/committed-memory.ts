@@ -9,6 +9,7 @@ import {
   type CommittedMemoryCommitOptions,
   type CommittedMemorySelection,
   type CommittedMemoryRecallConfig,
+  type CommittedMemoryState,
 } from "@marinara-engine/shared";
 import type { DB } from "../db/connection.js";
 import { logger, logDebugOverride } from "../lib/logger.js";
@@ -416,6 +417,42 @@ export async function startCommittedMemory(
   debugMode = false,
   options: CommittedMemoryCommitOptions = {},
 ) {
+  return launchCommittedMemoryJob(db, chatId, debugMode, "append", ({ state, messages, metadata }) => {
+    const batchSize = resolveCommittedMemoryBatchSize(metadata, options);
+    return planCommittedMemoryBatches(
+      selectCommitSources(state, messages, metadata, options),
+      batchSize,
+      (options.sourceMode ?? metadata.committedMemorySourceMode ?? "pending") === "pending",
+    ).batches;
+  });
+}
+/**
+ * "다시 정리": extracts every committed batch again, in its original groups, in the current format (scenes, key
+ * lines, states with history, threads). Nothing changes until all of them succeed; then the new batches replace
+ * the old ones in one write, recorded as one change that can be undone. Hand edits are re-derived from the
+ * transcript (the undo keeps them).
+ */
+export async function startCommittedMemoryRecommit(db: DB, chatId: string, debugMode = false) {
+  return launchCommittedMemoryJob(db, chatId, debugMode, "rebuild", ({ state, messages }) => {
+    const byId = new Map(messages.map((m) => [m.id, m]));
+    return state.batches
+      .filter((batch) => !batch.invalidated)
+      .sort((a, b) => a.turn - b.turn)
+      .map((batch) => batch.sources.map((source) => byId.get(source.id)).filter((m) => m !== undefined))
+      .filter((sources) => sources.length > 0);
+  });
+}
+async function launchCommittedMemoryJob(
+  db: DB,
+  chatId: string,
+  debugMode: boolean,
+  mode: "append" | "rebuild",
+  plan: (input: {
+    state: CommittedMemoryState;
+    messages: MemorySourceMessage[];
+    metadata: Record<string, unknown>;
+  }) => MemorySourceMessage[][],
+) {
   if (jobs.has(chatId)) return committedMemoryStatus(db, chatId);
   const jobId = randomUUID();
   jobs.set(chatId, jobId);
@@ -425,13 +462,7 @@ export async function startCommittedMemory(
     const { chat, messages, state } = await loadCommittedMemory(db, chatId);
     if (chat.mode !== "roleplay") throw new Error("Unified memory requires a Roleplay chat");
     assertCommittedMemoryWritable(memoryExtra(chat.metadata), chatId);
-    const batchSize = resolveCommittedMemoryBatchSize(memoryExtra(chat.metadata), options);
-    const metadata = memoryExtra(chat.metadata);
-    const { batches } = planCommittedMemoryBatches(
-      selectCommitSources(state, messages, metadata, options),
-      batchSize,
-      (options.sourceMode ?? metadata.committedMemorySourceMode ?? "pending") === "pending",
-    );
+    const batches = plan({ state, messages, metadata: memoryExtra(chat.metadata) });
     if (batches.length) {
       const connection = await committedMemoryConnectionStatus(db, chatId);
       if (!connection.ok) throw Object.assign(new Error(connection.error), { statusCode: 422 });
@@ -443,7 +474,13 @@ export async function startCommittedMemory(
           {
             ...reconcileCommittedMemory(readCommittedMemory(m, chatId), messages),
             enabled: true,
-            job: { id: jobId, status: batches.length ? "running" : "complete", completed: 0, total: batches.length },
+            job: {
+              id: jobId,
+              status: batches.length ? "running" : "complete",
+              completed: 0,
+              total: batches.length,
+              ...(mode === "rebuild" ? { kind: "recommit" as const } : {}),
+            },
           },
           m,
           chatId,
@@ -454,7 +491,7 @@ export async function startCommittedMemory(
       jobs.delete(chatId);
       jobControllers.delete(jobId);
     } else
-      void runCommittedMemory(db, chatId, jobId, batches, messages, debugMode, controller.signal).finally(() => {
+      void runCommittedMemory(db, chatId, jobId, batches, messages, debugMode, controller.signal, mode).finally(() => {
         if (jobs.get(chatId) === jobId) jobs.delete(chatId);
         jobControllers.delete(jobId);
       });
@@ -473,8 +510,13 @@ async function runCommittedMemory(
   snapshot: MemorySourceMessage[],
   debugMode: boolean,
   signal: AbortSignal,
+  mode: "append" | "rebuild" = "append",
 ) {
   const storage = createChatsStorage(db);
+  // A rebuild extracts into a working copy (old batches out, entities kept so their IDs and merges carry over)
+  // and writes once at the end.
+  let working: CommittedMemoryState | undefined;
+  const rebuiltEntities = { added: new Set<string>(), modified: new Set<string>() };
   try {
     const chat = await storage.getById(chatId);
     if (!chat) throw new Error("Chat not found");
@@ -502,7 +544,8 @@ OPERATIONS: "op" says what each fact does to the memory: "add" a new record; "up
     for (let index = 0; index < batches.length; index++) {
       signal.throwIfAborted();
       const sources = batches[index]!;
-      const currentState = (await loadCommittedMemory(db, chatId)).state;
+      if (mode === "rebuild") working ??= { ...(await loadCommittedMemory(db, chatId)).state, batches: [] };
+      const currentState = working ?? (await loadCommittedMemory(db, chatId)).state;
       // Show the model every memory this batch may touch instead of only the latest 40: the entities named in
       // it (and their namesakes), active promises, and older facts the batch's words call up. Most relevant
       // first; the context check below trims from the end.
@@ -661,6 +704,58 @@ OPERATIONS: "op" says what each fact does to the memory: "add" a new record; "up
           audience: scopedAudience(scene.audience),
         })),
       };
+      if (working) {
+        const resolved = resolveExtractedEntities(
+          extracted.facts.map((fact, position) => ({ position, entityId: fact.entityId, entity: fact.entity })),
+          working.entities ?? [],
+        );
+        record.facts = record.facts.map((fact, position) => ({
+          ...fact,
+          entityId: resolved.facts[position]?.entityId,
+        }));
+        resolved.added.forEach((id) => rebuiltEntities.added.add(id));
+        resolved.modified.forEach((id) => rebuiltEntities.modified.add(id));
+        working = consolidateCommittedMemory({
+          ...working,
+          entities: resolved.entities,
+          batches: [...working.batches, record],
+        });
+        const done = index + 1 === batches.length;
+        const rebuilt = working;
+        await storage.patchMetadata(chatId, async (fresh) => {
+          const latestMessages = await storage.listMessages(chatId);
+          const latest = reconcileCommittedMemory(readCommittedMemory(fresh, chatId), latestMessages);
+          if (!latest.enabled || latest.job?.id !== jobId)
+            throw new Error("Memory configuration changed during processing");
+          if (!done)
+            return {
+              committedMemory: storedCommittedMemory(
+                { ...latest, job: { ...latest.job, completed: index + 1, total: batches.length } },
+                fresh,
+                chatId,
+              ),
+            };
+          const fingerprints = new Map(latestMessages.map((m) => [m.id, memoryFingerprint(m)]));
+          if (rebuilt.batches.some((b) => b.sources.some((r) => fingerprints.get(r.id) !== r.fingerprint)))
+            throw new Error("A selected response changed. Choose the desired reply and click again.");
+          const next = recordCommittedChange(
+            latest,
+            consolidateCommittedMemory({ ...latest, entities: rebuilt.entities, batches: rebuilt.batches }),
+            "recommit",
+            [...rebuiltEntities.added],
+            [...rebuiltEntities.modified].filter((id) => !rebuiltEntities.added.has(id)),
+          );
+          await pruneCommittedMemoryIndex(chatId, next);
+          return {
+            committedMemory: storedCommittedMemory(
+              { ...next, job: { ...latest.job, completed: batches.length, total: batches.length, status: "complete" } },
+              fresh,
+              chatId,
+            ),
+          };
+        });
+        continue;
+      }
       await storage.patchMetadata(chatId, async (fresh) => {
         const latestMessages = await storage.listMessages(chatId);
         const latest = reconcileCommittedMemory(readCommittedMemory(fresh, chatId), latestMessages);

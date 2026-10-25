@@ -100,7 +100,7 @@ export interface CommittedMemoryEntity {
 export interface CommittedMemoryCommitRecord {
   id: string;
   at: string;
-  kind: "commit" | "organize" | "merge";
+  kind: "commit" | "organize" | "merge" | "recommit";
   /** Batches as they were before the change (removed or modified ones). */
   before: CommittedMemoryBatch[];
   /** Batch IDs this change added. */
@@ -161,6 +161,8 @@ export interface CommittedMemoryState {
     completed: number;
     total: number;
     error?: string;
+    /** "recommit": re-extracting committed batches in the current format ("다시 정리"). */
+    kind?: "recommit";
   };
   entities?: CommittedMemoryEntity[];
   /** Newest last; the last 20 are kept. */

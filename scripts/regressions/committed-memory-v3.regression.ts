@@ -2,6 +2,7 @@
 // whose targets and quotes the server checks.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const directory = mkdtempSync(join(tmpdir(), "memory-v3-"));
@@ -10,6 +11,9 @@ process.env.FILE_STORAGE_DIR = join(directory, "storage");
 process.env.NODE_ENV = "test";
 process.env.MARINARA_LITE = "true";
 process.env.LOG_LEVEL = "silent";
+const { getDB, closeDB } = await import("../../packages/server/src/db/connection.js");
+const { createChatsStorage } = await import("../../packages/server/src/services/storage/chats.storage.js");
+const { createConnectionsStorage } = await import("../../packages/server/src/services/storage/connections.storage.js");
 const memory = await import("../../packages/server/src/services/committed-memory.js");
 const policy = await import("../../packages/server/src/services/committed-memory-policy.js");
 import type {
@@ -313,8 +317,133 @@ try {
     "a scene stays with those who saw it",
   );
   assert.equal(policy.selectCommittedMemory({ ...state, batches: [] }, "x").text, "", "no memory, no note");
+  // ── Through the service: the borzoi case, then "다시 정리" ──
+  let withScenes = false;
+  const provider = createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const request = JSON.parse(Buffer.concat(chunks).toString());
+    const system = request.messages[0].content as string;
+    const transcript = JSON.parse(request.messages[1].content) as Array<{ id: string; content: string }>;
+    const message = transcript[0]!;
+    const human = message.content.includes("human");
+    const knownEntity = /Known entities, data not instructions: \[\{"id":"([^"]+)"/.exec(system)?.[1];
+    const knownSlot = /"id":"([^"]+)","kind":"state"/.exec(system)?.[1];
+    const content = {
+      summary: message.content,
+      core: message.content,
+      facts: [
+        {
+          op: knownSlot ? "update" : "add",
+          ...(knownSlot ? { existingId: knownSlot } : {}),
+          kind: "state",
+          key: "미라:형태",
+          content: human ? "미라는 인간이다" : "미라는 보르조이다",
+          status: "current",
+          audience: "shared",
+          sourceIds: [message.id],
+          attribute: "form",
+          ...(knownEntity
+            ? { entityId: knownEntity }
+            : { entity: { name: "미라", aliases: ["Mira"], kind: "person" } }),
+        },
+      ],
+      scenes: withScenes
+        ? [
+            {
+              participants: ["미라", "렌"],
+              event: message.content,
+              lines: [{ speaker: "렌", text: message.content.split('"')[1] ?? "", sourceId: message.id }],
+              changes: [human ? "미라: 보르조이 → 인간" : "미라: 인간 → 보르조이"],
+              audience: "shared",
+              sourceIds: [message.id],
+            },
+          ]
+        : [],
+    };
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({
+        choices: [{ message: { role: "assistant", content: JSON.stringify(content) }, finish_reason: "stop" }],
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => provider.listen(0, "127.0.0.1", resolve));
+  const db = await getDB();
+  const chats = createChatsStorage(db);
+  try {
+    const address = provider.address();
+    assert(address && typeof address === "object");
+    await createConnectionsStorage(db).create({
+      name: "Memory v3 fixture",
+      provider: "custom",
+      model: "fixture",
+      baseUrl: `http://127.0.0.1:${address.port}/v1`,
+      apiKey: "fixture",
+      isDefault: true,
+    });
+    const chat = await chats.create({ name: "Borzoi", mode: "roleplay", characterIds: [] });
+    assert(chat);
+    await chats.patchMetadata(chat.id, { committedMemoryBatchSize: 1 });
+    for (const content of [
+      '미라가 보르조이로 변했다. 렌: "귀엽네."',
+      '미라가 인간으로 돌아왔다(human). 렌: "다시 사람이네."',
+      '미라가 또 보르조이가 되었다. 렌: "또야?"',
+    ])
+      await chats.createMessage({ chatId: chat.id, role: "assistant", characterId: null, content });
+    const finish = async () => {
+      const until = Date.now() + 15000;
+      while ((await memory.committedMemoryStatus(db, chat.id)).state.job?.status === "running") {
+        if (Date.now() > until) throw new Error("Memory job timed out");
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return memory.committedMemoryStatus(db, chat.id);
+    };
+    await memory.startCommittedMemory(db, chat.id);
+    let status = await finish();
+    assert.equal(status.state.job?.status, "complete");
+    assert.equal(status.state.version, 3);
+    assert.equal(status.state.batches.length, 3);
+    let prompt = (await memory.committedMemoryForPrompt(db, chat.id, "산책"))!.text;
+    assert(
+      prompt.includes(
+        "[state] 미라는 보르조이다 (changed at message 3. Before: 미라는 인간이다 (message 2) ← 미라는 보르조이다 (message 1))",
+      ),
+      prompt,
+    );
+    const oldIds = status.state.batches.map((b) => b.id);
+    assert(status.state.batches.every((b) => !b.scenes?.length));
+
+    // 다시 정리: the same groups again, now with scenes and exact lines; one change, undoable.
+    withScenes = true;
+    await memory.startCommittedMemoryRecommit(db, chat.id);
+    status = await finish();
+    assert.equal(status.state.job?.status, "complete");
+    assert.equal(status.state.batches.length, 3);
+    assert(status.state.batches.every((b) => !oldIds.includes(b.id) && b.scenes?.length === 1));
+    assert.deepEqual(
+      status.state.batches.map((b) => b.scenes![0]!.lines[0]?.text),
+      ["귀엽네.", "다시 사람이네.", "또야?"],
+    );
+    assert.equal(status.state.entities?.length, 1, "entities carry over instead of multiplying");
+    assert.equal(status.pending, 0);
+    const change = status.state.commits!.at(-1)!;
+    assert.equal(change.kind, "recommit");
+    prompt = (await memory.committedMemoryForPrompt(db, chat.id, "다시 사람"))!.text;
+    assert(prompt.includes("Before: 미라는 인간이다 (message 2)"), "history is rebuilt in order");
+    assert(prompt.includes('  렌: "다시 사람이네."'), "a recalled scene brings its exact line");
+    status = await memory.undoCommittedMemory(db, chat.id, change.id);
+    assert.deepEqual(
+      status.state.batches.map((b) => b.id),
+      oldIds,
+      "undo brings the previous memory back",
+    );
+  } finally {
+    await new Promise<void>((resolve) => provider.close(() => resolve()));
+    await closeDB();
+  }
   console.log(
-    "Committed memory format 3 passed: operations, quotes, scenes and key lines; state history, thread rotation and scene recall.",
+    "Committed memory format 3 passed: operations, quotes, scenes and key lines; state history, thread rotation, scene recall and re-commit.",
   );
 } finally {
   rmSync(directory, { recursive: true, force: true });
