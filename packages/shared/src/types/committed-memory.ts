@@ -48,6 +48,28 @@ export interface CommittedMemoryFact {
   op?: CommittedMemoryOperation;
   /** For resolve/reveal: the quoted transcript text the server verified. */
   evidence?: string;
+  /**
+   * Characters who wrongly believe something about this record ("Ren believes Mira was always a dog"). A
+   * belief ends when that character comes to know the record; until then it carries over to updated values.
+   */
+  falseBeliefs?: CommittedMemoryFalseBelief[];
+  /** Threads and promises: the newest development. */
+  latest?: string;
+  latestKo?: string;
+  /** Threads and promises: details planted for the payoff, oldest first (at most 10). */
+  clues?: CommittedMemoryClue[];
+}
+export interface CommittedMemoryFalseBelief {
+  /** Character ID. */
+  who: string;
+  believes: string;
+  believesKo?: string;
+}
+export interface CommittedMemoryClue {
+  text: string;
+  textKo?: string;
+  /** Message position of the batch that recorded it. */
+  turn: number;
 }
 /** How one extracted record changes the memory (format 3). */
 export type CommittedMemoryOperation = "add" | "update" | "resolve" | "reveal" | "archive";

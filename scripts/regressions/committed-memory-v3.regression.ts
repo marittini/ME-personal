@@ -369,7 +369,7 @@ try {
   assert.equal(seenThreads.size, 4, "every dormant thread comes back in rotation");
   prompt = select("The letter on the table.").text;
   assert(
-    prompt.includes("Who sent the unsigned letter? (closes when: the sender is named) (open since message 4)"),
+    prompt.includes("Who sent the unsigned letter? (closes when: the sender is named) (last development at message 4)"),
     "a thread the moment calls comes first",
   );
   // Scenes come back with their exact lines when called, and only for those who saw them.

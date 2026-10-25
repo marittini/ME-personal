@@ -231,4 +231,15 @@ export const committedMemoryKoreanMessages: Record<string, string> = {
   "chat.committedMemory.vault.recommitProgress": "다시 정리 중 {{completed}}/{{total}}",
   "chat.committedMemory.pendingPartialToast":
     "정리 대기 {{waiting}}/{{size}} · {{size}}개 묶음이 다 차면 정리할 수 있어요.",
+  "chat.committedMemory.vault.stalledHelp":
+    "한동안 진전이 없는 복선입니다. 이야기가 다시 다룰 때까지 돌아가며 프롬프트에 들어갑니다.",
+  "chat.committedMemory.vault.latestDevelopment": "최근 진전",
+  "chat.committedMemory.vault.clues": "단서 ({{clues}})",
+  "chat.committedMemory.vault.threadStatus.stalled": "정체된 복선",
+  "chat.committedMemory.vault.progress.stalled": "정체",
+  "chat.committedMemory.vault.clueCount": "단서 {{clues}}",
+  "chat.committedMemory.vault.beliefCount": "오해 {{beliefs}}",
+  "chat.committedMemory.vault.falseBeliefs": "잘못 믿고 있는 것",
+  "chat.committedMemory.vault.falseBeliefsHelp":
+    "이 인물들은 이야기에서 진실을 알게 될 때까지 자기 믿음대로 행동합니다.",
 };
