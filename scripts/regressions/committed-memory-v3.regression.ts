@@ -173,9 +173,10 @@ try {
     ["You were human a moment ago"],
     "paraphrased lines and lines attributed to the wrong message are dropped",
   );
-  assert.throws(
-    () => parse([], [{ event: "x", eventKo: "엑스", audience: "shared", sourceIds: ["elsewhere"] }]),
-    /unsupported source/,
+  assert.deepEqual(
+    parse([], [{ event: "x", eventKo: "엑스", audience: "shared", sourceIds: ["elsewhere"] }]).scenes[0]!.sourceIds,
+    ["m1", "m2", "m3"],
+    "evidence from elsewhere is replaced by this batch",
   );
   // A model that overfills or misshapes the new fields loses only the bad part, never the whole batch.
   parsed = parse(
@@ -208,6 +209,51 @@ try {
   );
   assert.equal(parsed.scenes[1]!.lines.length, 3, "at most three lines are kept");
   assert.equal(parsed.scenes[1]!.when?.length, 120, "overlong text is cut");
+  // Empty optional fields written as null (Gemini does this) mean "not given".
+  const nulls = parse([
+    fact({
+      op: "add",
+      existingId: null,
+      entityId: null,
+      evidence: null,
+      endCondition: null,
+      endConditionKo: null,
+      keywords: null,
+    }),
+  ]);
+  assert.equal(nulls.facts[0]!.op, "add");
+  assert.equal(nulls.facts[0]!.existingId, undefined);
+  // An entity ID the model made up (or a character ID) is dropped; the fact is kept.
+  const stray = parse([fact({ entityId: "made-up", attribute: "mood", content: "calm" })]);
+  assert.equal(stray.facts.length, 1);
+  assert.equal(stray.facts[0]!.entityId, undefined);
+  // A character ID used as an entity ID becomes that character's entity.
+  const character = memory.parseCommittedMemoryOutput(
+    output([fact({ entityId: "ren-card", attribute: "mood", content: "calm", keyKo: "기분", contentKo: "차분" })]),
+    sources,
+    known,
+    new Set(["mira"]),
+    new Map([
+      ["mira-card", { name: "Mira", entityId: "mira" }],
+      ["ren-card", { name: "Ren" }],
+    ]),
+  );
+  assert.deepEqual(character.facts[0]!.entity, { name: "Ren", kind: "person" });
+  const mapped = memory.parseCommittedMemoryOutput(
+    output([fact({ entityId: "mira-card", attribute: "mood", content: "calm", keyKo: "기분", contentKo: "차분" })]),
+    sources,
+    known,
+    new Set(["mira"]),
+    new Map([["mira-card", { name: "Mira", entityId: "mira" }]]),
+  );
+  assert.equal(mapped.facts[0]!.entityId, "mira");
+  // The same slot twice: the first stands.
+  assert.equal(
+    parse([fact({ key: "dup", content: "one" }), fact({ key: "dup", content: "two" })])
+      .facts.map((f) => f.content)
+      .join(),
+    "one",
+  );
   assert.equal(memory.memoryQuoteFound("a", sources), false, "a one-character quote proves nothing");
   // ── Injection ──
   const slot = (id: string, content: string, over: Partial<CommittedMemoryFact> = {}): CommittedMemoryFact => ({
