@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { estimateChatSummaryTokens } from "../../packages/shared/src/utils/chat-summary-entries.js";
 const directory = mkdtempSync(join(tmpdir(), "memory-output-"));
 process.env.DATA_DIR = directory;
 process.env.FILE_STORAGE_DIR = join(directory, "storage");
@@ -12,8 +13,13 @@ process.env.LOG_LEVEL = "silent";
 const { getDB, closeDB } = await import("../../packages/server/src/db/connection.js");
 const { createChatsStorage } = await import("../../packages/server/src/services/storage/chats.storage.js");
 const { createConnectionsStorage } = await import("../../packages/server/src/services/storage/connections.storage.js");
-const { startCommittedMemory, committedMemoryStatus, parseCommittedMemoryOutput, resolveCommittedMemoryBatchSize } =
-  await import("../../packages/server/src/services/committed-memory.js");
+const {
+  startCommittedMemory,
+  committedMemoryStatus,
+  parseCommittedMemoryOutput,
+  resolveCommittedMemoryBatchSize,
+  planCommittedMemoryBatches,
+} = await import("../../packages/server/src/services/committed-memory.js");
 const { registerCommittedMemoryRoutes } = await import("../../packages/server/src/routes/committed-memory.routes.js");
 const Fastify = (await import("../../packages/server/node_modules/fastify/fastify.js")).default;
 const db = await getDB();
@@ -129,6 +135,26 @@ try {
     "malformed output is never silently repaired",
   );
   assert.equal(resolveCommittedMemoryBatchSize({}), 20);
+  const six = Array.from({ length: 6 }, (_, i) => ({ content: `m${i}` }));
+  assert.deepEqual(
+    planCommittedMemoryBatches(six, 5, true).batches.map((b) => b.length),
+    [5],
+    "6 pending at size 5 commits 5",
+  );
+  assert.equal(planCommittedMemoryBatches(six, 5, true).leftover.length, 1);
+  assert.deepEqual(
+    planCommittedMemoryBatches(six, 5, false).batches.map((b) => b.length),
+    [5, 1],
+    "an explicit selection commits everything",
+  );
+  // Two messages of just over 8000 tokens each cannot share a 16000-token batch.
+  let text = "가";
+  while (estimateChatSummaryTokens(text) <= 8100) text += " 가나다라";
+  assert.equal(
+    planCommittedMemoryBatches([{ content: text }, { content: text }, { content: text }], 5, true).batches.length,
+    2,
+    "a batch closed by the input limit counts as full",
+  );
   assert.equal(resolveCommittedMemoryBatchSize({ summaryContextSize: 35 }), 35);
   assert.equal(resolveCommittedMemoryBatchSize({ summaryContextSize: 35, committedMemoryBatchSize: 7 }), 7);
   assert.equal(resolveCommittedMemoryBatchSize({ committedMemoryBatchSize: 7 }, { batchSize: 3 }), 3);
@@ -137,18 +163,23 @@ try {
   await registerCommittedMemoryRoutes(app);
   const grouped = await room(25, { committedMemoryBatchSize: 7 });
   requests.length = 0;
+  // Pending mode commits full batches only: 25 at size 7 commits 21 and leaves 4 pending.
+  let status = await committedMemoryStatus(db, grouped.id);
+  assert.equal(status.ready, 21);
+  assert.equal(status.batchSize, 7);
   assert.equal(
     (await app.inject({ method: "POST", url: `/${grouped.id}/committed-memory/commit`, payload: {} })).statusCode,
     200,
   );
-  let status = await finish(grouped.id);
+  status = await finish(grouped.id);
   assert.deepEqual(
     requests.map((r) => r.length),
-    [7, 7, 7, 4],
+    [7, 7, 7],
   );
-  assert.deepEqual(requests.flat(), grouped.ids);
-  assert.equal(status.state.batches.length, 4);
-  assert.equal(status.pending, 0);
+  assert.deepEqual(requests.flat(), grouped.ids.slice(0, 21));
+  assert.equal(status.state.batches.length, 3);
+  assert.equal(status.pending, 4, "the short tail stays pending");
+  assert.equal(status.ready, 0);
   assert(
     status.state.batches.flatMap((b) => b.facts).every((f) => f.status === "resolved" && f.progress === "completed"),
   );
@@ -176,7 +207,7 @@ try {
   await finish(legacy.id);
   assert.deepEqual(
     requests.map((r) => r.length),
-    [5, 5, 2],
+    [5, 5],
     "existing native size is honored for pending mode",
   );
   const large = await room(25, { committedMemoryBatchSize: 25 });
@@ -217,7 +248,7 @@ try {
   assert.equal(status.pending, 0);
   assert.equal(status.state.batches.length, 1);
   for (const failureMode of ["malformed-always", "schema-always"] as const) {
-    const failed = await room(3);
+    const failed = await room(3, { committedMemoryBatchSize: 3 });
     requests.length = 0;
     mode = failureMode;
     await startCommittedMemory(db, failed.id);

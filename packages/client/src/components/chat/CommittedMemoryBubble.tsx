@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { BookCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useCommittedMemory, useCommitMemory } from "../../hooks/use-committed-memory";
+import { useCommittedMemory, useCommitMemory, memoryCommitReadiness } from "../../hooks/use-committed-memory";
 import { useChat } from "../../hooks/use-chats";
 import { useChatStore } from "../../stores/chat.store";
 import { WindowBubble } from "../ui/WindowBubble";
@@ -36,7 +36,7 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
   const saved = useFloatingWindowStore((s) => (phone ? s.phoneBubbles : s.bubbles)[ID]);
   const [size, setSize] = useState(PHONE_BUBBLE_SIZE_PX);
   const metadata = chat?.metadata as Record<string, unknown> | undefined;
-  const pending = data?.selectedPending ?? data?.pending ?? 0;
+  const { pending, ready, size: batchSize, partial } = memoryCommitReadiness(data);
   const busy = commit.isPending || data?.state.job?.status === "running";
   // The status is no longer polled: a finished reply is what changes the unconfirmed count.
   const queryClient = useQueryClient();
@@ -80,7 +80,11 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
       busy={busy}
       disabled={busy || streaming}
       label={label}
-      ariaLabel={`${label} · ${t("chat.committedMemory.pending", { count: pending })}`}
+      ariaLabel={`${label} · ${
+        partial && batchSize
+          ? t("chat.committedMemory.pendingPartial", { waiting: pending, size: batchSize })
+          : t("chat.committedMemory.pending", { count: pending })
+      }`}
       tooltip={streaming ? t("chat.committedMemory.waitForReply") : label}
       zIndex={phone ? PHONE_BUBBLE_Z_INDEX : FLOATING_WINDOW_Z_BASE}
       attributes={{ "data-memory-commit": true, "data-busy": busy }}
@@ -91,8 +95,12 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
       }}
       onOpen={() => {
         if (busy || streaming) return;
-        if (!pending) {
-          toast.info(t("chat.committedMemory.upToDate"));
+        if (!ready) {
+          toast.info(
+            partial && batchSize
+              ? t("chat.committedMemory.pendingPartialToast", { waiting: pending, size: batchSize })
+              : t("chat.committedMemory.upToDate"),
+          );
           return;
         }
         commit.mutate(undefined, {
@@ -102,11 +110,21 @@ export function CommittedMemoryBubble({ chatId }: { chatId: string }) {
       }}
     >
       {pending > 0 && !busy && (
+        // A full batch is waiting: the badge asks for a commit. Otherwise it shows how full the batch is.
         <span
-          className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-[var(--primary)] px-1 text-[10px] leading-4 text-[var(--primary-foreground)]"
+          className={`pointer-events-none absolute -right-1 -top-1 rounded-full px-1 text-[10px] leading-4 ${
+            ready > 0
+              ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+              : "bg-[var(--secondary)] text-[var(--muted-foreground)]"
+          }`}
+          data-memory-suggest={ready > 0 ? "" : undefined}
           aria-hidden="true"
         >
-          {pending > 99 ? "99+" : pending}
+          {partial && batchSize
+            ? t("chat.committedMemory.batchFill", { waiting: pending, size: batchSize })
+            : pending > 99
+              ? "99+"
+              : pending}
         </span>
       )}
     </WindowBubble>

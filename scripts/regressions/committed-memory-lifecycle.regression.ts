@@ -93,6 +93,7 @@ try {
   });
   const chat = await chats.create({ name: "Lifecycle", mode: "roleplay", characterIds: ["alice", "bob"] });
   assert(chat);
+  await chats.patchMetadata(chat.id, { committedMemoryBatchSize: 1 });
   const first = await chats.createMessage({
     chatId: chat.id,
     role: "assistant",
@@ -151,7 +152,7 @@ try {
   assert(initialPrompt?.text.includes("Alice"));
   assert(!initialPrompt?.text.includes("표시전용"));
   assert(initialPrompt?.selected.some((item) => item.displayKo?.includes("표시전용")));
-  assert(initialPrompt?.text.includes("<current_facts_and_obligations>"));
+  assert(initialPrompt?.text.includes("<open_threads>"));
   assert(initialPrompt?.text.includes("<story_chronology>"));
   progress = "in_progress";
   await chats.createMessage({
@@ -330,6 +331,7 @@ try {
   assert.equal(hides, 0, "legacy hiding must not mutate unified memory source fingerprints");
   const split = await chats.create({ name: "Truncated bilingual output", mode: "roleplay", characterIds: [] });
   assert(split);
+  await chats.patchMetadata(split.id, { committedMemoryBatchSize: 3 });
   for (let i = 0; i < 3; i++)
     await chats.createMessage({
       chatId: split.id,
@@ -347,6 +349,7 @@ try {
   assert.equal(calls - beforeSplitting, 5, "output truncation splits into bounded smaller attempts");
   assert.equal(splitStatus.state.batches.flatMap((batch) => batch.facts).length, 1);
   truncateMulti = false;
+  await chats.patchMetadata(split.id, { committedMemoryBatchSize: 1 });
   for (let index = 0; index < 4; index++) {
     await chats.createMessage({
       chatId: split.id,

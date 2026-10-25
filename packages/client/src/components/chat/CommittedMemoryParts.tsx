@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronRight, Combine, Undo2, UserRoundX } from "lucide-react";
 import type {
+  CommittedMemoryBatch,
   CommittedMemoryEntity,
   CommittedMemoryFact,
+  CommittedMemoryScene,
   CommittedMemorySelection,
   CommittedMemoryStatus,
 } from "@marinara-engine/shared";
@@ -11,7 +13,7 @@ import { useEditMemory, useMemoryHistoryAction, useMemoryPreview } from "../../h
 import { useCharacterSummaries } from "../../hooks/use-characters";
 import { SETTINGS_BUTTON_CLASS } from "../panels/settings/SettingControls";
 
-const TIERS = ["always", "recall", "boundary", "flow"] as const;
+const TIERS = ["always", "state", "recall", "thread", "boundary", "scene", "flow"] as const;
 /** Server default (committed-memory-policy COMMITTED_MEMORY_DEFAULTS). */
 export const MEMORY_TOKEN_BUDGET = 2400;
 
@@ -35,6 +37,72 @@ export function KnowledgeLine({ fact, name }: { fact: CommittedMemoryFact; name:
       {!!fact.unknownTo?.length &&
         ` · ${t("chat.committedMemory.vault.unknownTo", { names: fact.unknownTo.map(name).join(", ") })}`}
     </p>
+  );
+}
+
+/** One recorded scene: when and where, who was there, what happened, its exact lines and what changed. */
+export function MemorySceneDetail({
+  batch,
+  scene,
+  korean,
+  sources,
+}: {
+  batch: CommittedMemoryBatch;
+  scene: CommittedMemoryScene;
+  korean: boolean;
+  sources: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const name = useMemoryNames(scene.audience === "shared" ? [] : scene.audience);
+  const changes = korean && scene.changesKo?.length === scene.changes.length ? scene.changesKo : scene.changes;
+  return (
+    <>
+      <span className="memory-vault__eyebrow">
+        {[t("chat.committedMemory.vault.episode", { turn: batch.turn }), scene.when, scene.where]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+      {!!scene.participants.length && (
+        <p className="memory-vault__hint">
+          {t("chat.committedMemory.vault.scenePresent", { names: scene.participants.join(", ") })}
+        </p>
+      )}
+      <p className="memory-vault__prose">{korean && scene.eventKo?.trim() ? scene.eventKo : scene.event}</p>
+      {!!scene.lines.length && (
+        <section className="space-y-2" data-memory-lines="">
+          <h5>{t("chat.committedMemory.vault.sceneLines")}</h5>
+          {scene.lines.map((line, index) => (
+            <blockquote key={`${line.sourceId}:${index}`} className="memory-vault__quote">
+              <span className="memory-vault__eyebrow">
+                {line.to
+                  ? t("chat.committedMemory.vault.lineTo", { speaker: line.speaker, to: line.to })
+                  : line.speaker}
+              </span>
+              <p>{t("chat.committedMemory.vault.quote", { text: line.text })}</p>
+              {korean && line.textKo?.trim() && <p className="memory-vault__hint">{line.textKo}</p>}
+            </blockquote>
+          ))}
+        </section>
+      )}
+      {!!changes.length && (
+        <section>
+          <h5>{t("chat.committedMemory.vault.sceneChanges")}</h5>
+          <ul className="memory-vault__list-plain">
+            {changes.map((change, index) => (
+              <li key={index}>{change}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <p className="memory-vault__eyebrow" data-memory-knowledge="">
+        {scene.audience === "shared"
+          ? t("chat.committedMemory.vault.knownByAll")
+          : scene.audience.length
+            ? t("chat.committedMemory.vault.knownBy", { names: scene.audience.map(name).join(", ") })
+            : t("chat.committedMemory.vault.knownByNarrator")}
+      </p>
+      {sources}
+    </>
   );
 }
 

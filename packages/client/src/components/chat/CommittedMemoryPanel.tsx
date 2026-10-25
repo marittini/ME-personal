@@ -18,6 +18,7 @@ import {
   type APIConnection,
   type CommittedMemoryBatch,
   type CommittedMemoryFact,
+  type CommittedMemoryScene,
 } from "@marinara-engine/shared";
 import {
   useCommittedMemory,
@@ -30,6 +31,7 @@ import {
   useMemoryMaintenance,
   useConfigureMemory,
   useExportMemory,
+  memoryCommitReadiness,
 } from "../../hooks/use-committed-memory";
 import { useChat, useUpdateChatMetadata } from "../../hooks/use-chats";
 import { useConnections } from "../../hooks/use-connections";
@@ -45,6 +47,7 @@ import {
   MEMORY_TOKEN_BUDGET,
   MemoryEntityList,
   MemoryOverviewDetails,
+  MemorySceneDetail,
   RecallControls,
   useMemoryNames,
 } from "./CommittedMemoryParts";
@@ -75,10 +78,19 @@ function Source({ chatId, id, position }: { chatId: string; id: string; position
     </details>
   );
 }
-type Tab = "overview" | "promise" | "entities" | "story" | "receipt" | "settings";
-type Entry = { batch: CommittedMemoryBatch; fact?: CommittedMemoryFact };
-const TABS: Tab[] = ["overview", "promise", "entities", "story", "receipt", "settings"];
+type Tab = "overview" | "scenes" | "promise" | "entities" | "story" | "receipt" | "settings";
+type Entry = { batch: CommittedMemoryBatch; fact?: CommittedMemoryFact; scene?: CommittedMemoryScene };
+const TABS: Tab[] = ["overview", "scenes", "promise", "entities", "story", "receipt", "settings"];
 const field = "memory-vault__field";
+/** Threads and promises share one tab ("약속" stays on promises). */
+const isThread = (fact: CommittedMemoryFact) => fact.kind === "promise" || fact.kind === "thread";
+/** A thread is open until resolved; a promise has its own progress. */
+const threadProgress = (fact: CommittedMemoryFact) =>
+  fact.kind === "promise"
+    ? (fact.progress ?? (fact.status === "resolved" ? "completed" : "pending"))
+    : fact.status === "resolved"
+      ? "completed"
+      : "pending";
 
 function MemoryDetail({
   chatId,
@@ -267,6 +279,18 @@ function MemoryDetail({
           {edit.error.message}
         </p>
       )}
+      {fact?.endCondition && (
+        <p className="memory-vault__hint" data-memory-end-condition="">
+          {t("chat.committedMemory.vault.endCondition", {
+            text: display(fact.endCondition, fact.endConditionKo),
+          })}
+        </p>
+      )}
+      {fact?.evidence && (
+        <p className="memory-vault__hint" data-memory-evidence="">
+          {t("chat.committedMemory.vault.evidence", { text: fact.evidence })}
+        </p>
+      )}
       {fact && <KnowledgeLine fact={fact} name={name} />}
       {fact && !batch.invalidated && !fact.invalidated && !editing && (
         <RecallControls key={batch.revision ?? batch.createdAt} chatId={chatId} fact={fact} identity={identity} />
@@ -358,12 +382,14 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
   const entries: Entry[] =
     tab === "story"
       ? batches.map((batch) => ({ batch }))
-      : batches.flatMap((batch) =>
-          batch.facts
-            .filter((f) => (tab === "promise" ? f.kind === "promise" : f.kind !== "promise"))
-            .filter((f) => tab !== "entities" || entityFilter === null || (f.entityId ?? "") === entityFilter)
-            .map((fact) => ({ batch, fact })),
-        );
+      : tab === "scenes"
+        ? batches.flatMap((batch) => [...(batch.scenes ?? [])].reverse().map((scene) => ({ batch, scene })))
+        : batches.flatMap((batch) =>
+            batch.facts
+              .filter((f) => (tab === "promise" ? isThread(f) : !isThread(f)))
+              .filter((f) => tab !== "entities" || entityFilter === null || (f.entityId ?? "") === entityFilter)
+              .map((fact) => ({ batch, fact })),
+          );
   const entities = data?.state.entities ?? [];
   const entityNames = new Map(entities.map((entity) => [entity.id, entity.name]));
   const entityFactCount = (entityId: string | null) =>
@@ -374,7 +400,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
           ? 0
           : batch.facts.filter(
               (f) =>
-                f.kind !== "promise" &&
+                !isThread(f) &&
                 !f.excluded &&
                 !f.invalidated &&
                 !f.archived &&
@@ -382,22 +408,26 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             ).length),
       0,
     );
-  const visible = entries.filter(({ batch, fact }) => {
+  const visible = entries.filter(({ batch, fact, scene }) => {
     const state =
       batch.invalidated || fact?.invalidated ? "invalidated" : batch.excluded || fact?.excluded ? "excluded" : "active";
+    const text = scene
+      ? [scene.when, scene.where, ...scene.participants, scene.event, scene.eventKo, ...scene.lines.map((l) => l.text)]
+          .filter(Boolean)
+          .join(" ")
+      : `${fact?.key ?? ""} ${fact?.keyKo ?? ""} ${fact?.contentKo ?? batch.summaryKo ?? ""} ${fact?.content ?? batch.summary} ${fact ? "" : batch.core + " " + (batch.coreKo ?? "")}`;
     return (
       (filter === "all" || state === filter) &&
-      (tab !== "promise" ||
-        progressFilter === "all" ||
-        (fact?.progress ?? (fact?.status === "resolved" ? "completed" : "pending")) === progressFilter) &&
-      `${fact?.key ?? ""} ${fact?.keyKo ?? ""} ${fact?.contentKo ?? batch.summaryKo ?? ""} ${fact?.content ?? batch.summary} ${fact ? "" : batch.core + " " + (batch.coreKo ?? "")}`
-        .normalize("NFKC")
-        .toLocaleLowerCase()
-        .includes(query.normalize("NFKC").toLocaleLowerCase())
+      (tab !== "promise" || progressFilter === "all" || (fact && threadProgress(fact)) === progressFilter) &&
+      text.normalize("NFKC").toLocaleLowerCase().includes(query.normalize("NFKC").toLocaleLowerCase())
     );
   });
-  const current = visible.find((e) => (e.fact?.id ?? e.batch.id) === selected);
+  const entryId = (e: Entry) => e.scene?.id ?? e.fact?.id ?? e.batch.id;
+  const current = visible.find((e) => entryId(e) === selected);
   const valid = batches.filter((b) => !b.invalidated && !b.excluded);
+  /** Batches committed before format 3 have no scenes until "다시 정리". */
+  const legacyBatches = valid.filter((b) => !b.scenes).length;
+  const readiness = memoryCommitReadiness(data);
   const switchTab = (value: Tab) => {
     setTab(value);
     setSelected(null);
@@ -435,13 +465,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
         <button
           className={SETTINGS_PRIMARY_BUTTON_CLASS}
           disabled={
-            busy ||
-            update.isPending ||
-            !validBatchSize ||
-            streaming ||
-            !(data?.selectedPending ?? data?.pending) ||
-            !connection.data?.ok
+            busy || update.isPending || !validBatchSize || streaming || !readiness.ready || !connection.data?.ok
           }
+          data-memory-suggest={readiness.ready > 0 && !busy ? "" : undefined}
           onClick={() => commit.mutate()}
         >
           {busy ? <Loader2 size={15} className="motion-safe:animate-spin" /> : <BookOpen size={15} />}
@@ -449,15 +475,26 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
         </button>
       </header>
       <div className="memory-vault__sync" role="status">
-        <span>{t("chat.committedMemory.pending", { count: data?.selectedPending ?? data?.pending ?? 0 })}</span>
+        <span data-memory-pending="">
+          {readiness.partial && readiness.size
+            ? t("chat.committedMemory.pendingPartial", { waiting: readiness.pending, size: readiness.size })
+            : readiness.ready && readiness.ready < readiness.pending
+              ? t("chat.committedMemory.pendingReady", { waiting: readiness.pending, ready: readiness.ready })
+              : t("chat.committedMemory.pending", { count: readiness.pending })}
+        </span>
         <span>
-          {data?.state.job
-            ? t("chat.committedMemory.vault.progress", {
-                state: t(`chat.committedMemory.job.${data.state.job.status}`),
+          {data?.state.job?.kind === "recommit" && data.state.job.status === "running"
+            ? t("chat.committedMemory.vault.recommitProgress", {
                 completed: data.state.job.completed,
                 total: data.state.job.total,
               })
-            : t("chat.committedMemory.vault.manual")}
+            : data?.state.job
+              ? t("chat.committedMemory.vault.progress", {
+                  state: t(`chat.committedMemory.job.${data.state.job.status}`),
+                  completed: data.state.job.completed,
+                  total: data.state.job.total,
+                })
+              : t("chat.committedMemory.vault.manual")}
         </span>
       </div>
       {data?.state.job?.status === "running" && (
@@ -476,6 +513,11 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
         >
           {t("chat.committedMemory.vault.stopJob")}
         </button>
+      )}
+      {readiness.partial && readiness.size && (
+        <p className="memory-vault__hint" data-memory-partial="">
+          {t("chat.committedMemory.pendingPartialHelp", { size: readiness.size })}
+        </p>
       )}
       {streaming && <p className="memory-vault__notice">{t("chat.committedMemory.waitForReply")}</p>}
       {(error || data?.state.job?.error) && (
@@ -522,17 +564,17 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             onChange={(enabled) => toggle.mutate(enabled)}
           />
           <div className="memory-vault__index">
-            {(["promise", "entities", "story"] as const).map((kind) => (
+            {(["scenes", "promise", "entities", "story"] as const).map((kind) => (
               <button key={kind} onClick={() => switchTab(kind)}>
                 <span>{t(`chat.committedMemory.vault.tabs.${kind}`)}</span>
                 <strong>
                   {kind === "story"
                     ? valid.length
-                    : valid
-                        .flatMap((b) => b.facts)
-                        .filter(
-                          (f) => !f.excluded && (kind === "promise" ? f.kind === "promise" : f.kind !== "promise"),
-                        ).length}
+                    : kind === "scenes"
+                      ? valid.reduce((sum, b) => sum + (b.scenes?.length ?? 0), 0)
+                      : valid
+                          .flatMap((b) => b.facts)
+                          .filter((f) => !f.excluded && (kind === "promise" ? isThread(f) : !isThread(f))).length}
                 </strong>
                 <ChevronRight size={16} />
               </button>
@@ -559,6 +601,21 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
               <p className="memory-vault__empty">{t("chat.committedMemory.empty")}</p>
             )}
           </div>
+          {legacyBatches > 0 && (
+            <div className="memory-vault__notice space-y-2" data-memory-legacy="">
+              <p>{t("chat.committedMemory.vault.legacyFormat", { batches: legacyBatches })}</p>
+              <button
+                className={SETTINGS_BUTTON_CLASS}
+                disabled={busy || streaming || maintenance.isPending || !connection.data?.ok}
+                onClick={() => {
+                  if (window.confirm(t("chat.committedMemory.vault.recommitConfirm", { batches: valid.length })))
+                    maintenance.mutate("recommit");
+                }}
+              >
+                {t("chat.committedMemory.vault.recommit")}
+              </button>
+            </div>
+          )}
           <MemoryOverviewDetails
             chatId={chatId}
             data={data}
@@ -567,7 +624,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
           />
         </div>
       )}
-      {data && ["promise", "entities", "story"].includes(tab) && (
+      {data && ["scenes", "promise", "entities", "story"].includes(tab) && (
         <>
           {tab === "entities" && (
             <MemoryEntityList
@@ -628,8 +685,29 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                   {t(query ? "chat.committedMemory.vault.noResults" : "chat.committedMemory.empty")}
                 </p>
               )}
-              {visible.map(({ batch, fact }) => {
-                const id = fact?.id ?? batch.id;
+              {visible.map((entry) => {
+                const { batch, fact, scene } = entry;
+                const id = entryId(entry);
+                if (scene)
+                  return (
+                    <button
+                      key={id}
+                      className="memory-vault__row"
+                      aria-pressed={selected === id}
+                      data-memory-scene=""
+                      onClick={() => setSelected(id)}
+                    >
+                      <span className="memory-vault__eyebrow">
+                        {[t("chat.committedMemory.vault.episode", { turn: batch.turn }), scene.when, scene.where]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        {!!scene.lines.length &&
+                          ` · ${t("chat.committedMemory.vault.sceneLineCount", { lines: scene.lines.length })}`}
+                      </span>
+                      <strong>{scene.participants.join(", ") || t("chat.committedMemory.vault.tabs.scenes")}</strong>
+                      <span className="line-clamp-2">{display(scene.event, scene.eventKo)}</span>
+                    </button>
+                  );
                 return (
                   <button
                     key={id}
@@ -639,15 +717,18 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                   >
                     <span className="memory-vault__eyebrow">
                       {fact
-                        ? t(
-                            fact.kind === "promise"
-                              ? `chat.committedMemory.vault.progress.${fact.progress ?? (fact.status === "resolved" ? "completed" : "pending")}`
-                              : `chat.committedMemory.factStatus.${fact.status}`,
-                          )
+                        ? fact.kind === "thread"
+                          ? t(`chat.committedMemory.vault.threadStatus.${fact.status}`)
+                          : t(
+                              fact.kind === "promise"
+                                ? `chat.committedMemory.vault.progress.${threadProgress(fact)}`
+                                : `chat.committedMemory.factStatus.${fact.status}`,
+                            )
                         : t("chat.committedMemory.vault.episode", { turn: batch.turn })}
+                      {fact?.kind === "state" && ` · ${t("chat.committedMemory.kind.state")}`}
                       {fact?.entityId && entityNames.has(fact.entityId) && ` · ${entityNames.get(fact.entityId)}`}
                       {fact?.activation === "always" &&
-                        fact.kind !== "promise" &&
+                        !isThread(fact) &&
                         ` · ${t("chat.committedMemory.vault.activation.always")}`}
                       {fact?.archived && ` · ${t("chat.committedMemory.vault.archived")}`}
                       {(batch.excluded || fact?.excluded) && ` · ${t("chat.committedMemory.vault.excluded")}`}
@@ -665,7 +746,31 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                 );
               })}
             </div>
-            {current ? (
+            {current?.scene ? (
+              <article className="memory-vault__detail" key={current.scene.id} data-memory-scene-detail="">
+                <button className={`${SETTINGS_BUTTON_CLASS} memory-vault__back`} onClick={() => setSelected(null)}>
+                  <ArrowLeft size={14} />
+                  {t("chat.committedMemory.vault.back")}
+                </button>
+                <MemorySceneDetail
+                  batch={current.batch}
+                  scene={current.scene}
+                  korean={korean}
+                  sources={
+                    <details className="memory-vault__evidence">
+                      <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.details")}</summary>
+                      <h5>
+                        <FileText size={14} />
+                        {t("chat.committedMemory.sources")}
+                      </h5>
+                      {current.scene.sourceIds.map((id, index) => (
+                        <Source key={id} chatId={chatId} id={id} position={index + 1} />
+                      ))}
+                    </details>
+                  }
+                />
+              </article>
+            ) : current ? (
               <MemoryDetail
                 key={current.fact?.id ?? current.batch.id}
                 chatId={chatId}
@@ -690,7 +795,11 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
             )}
             {data.lastReceipt?.items.map((item) => (
               <article key={item.id} className="memory-vault__receipt">
-                <span className="memory-vault__eyebrow">{t(`chat.committedMemory.reason.${item.reason}`)}</span>
+                <span className="memory-vault__eyebrow">
+                  {item.tier === "state" || item.tier === "thread" || item.tier === "scene"
+                    ? t(`chat.committedMemory.vault.tier.${item.tier}`)
+                    : t(`chat.committedMemory.reason.${item.reason}`)}
+                </span>
                 <p className="memory-vault__prose">{displaySelection(item)}</p>
                 <details>
                   <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.details")}</summary>
@@ -839,6 +948,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
           <details className="space-y-3">
             <summary className="cursor-pointer text-sm">{t("chat.committedMemory.vault.maintenance")}</summary>
             <p className="memory-vault__hint">{t("chat.committedMemory.vault.maintenanceHelp")}</p>
+            <p className="memory-vault__hint">{t("chat.committedMemory.vault.recommitHelp")}</p>
             <div className="flex flex-wrap gap-2">
               <button className={SETTINGS_BUTTON_CLASS} disabled={backup.isPending} onClick={() => backup.mutate()}>
                 {t("chat.committedMemory.vault.export")}
@@ -856,6 +966,17 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                 onClick={() => maintenance.mutate("rebuild")}
               >
                 {t("chat.committedMemory.vault.rebuild")}
+              </button>
+              <button
+                className={SETTINGS_BUTTON_CLASS}
+                data-memory-recommit=""
+                disabled={busy || streaming || maintenance.isPending || !valid.length || !connection.data?.ok}
+                onClick={() => {
+                  if (window.confirm(t("chat.committedMemory.vault.recommitConfirm", { batches: valid.length })))
+                    maintenance.mutate("recommit");
+                }}
+              >
+                {t("chat.committedMemory.vault.recommit")}
               </button>
               <button
                 className={`${SETTINGS_BUTTON_CLASS} text-[var(--destructive)]`}

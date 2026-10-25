@@ -125,6 +125,8 @@ try {
     automaticSummaryEnabled: true,
     enableMemoryRecall: true,
     activeAgentIds: ["long-term-memory", "custom-helper"],
+    // One message per batch: only full batches commit from the pending queue.
+    committedMemoryBatchSize: 1,
   });
   const message = await chats.createMessage({
     chatId: chat.id,
@@ -264,7 +266,7 @@ try {
     connectionId: smallConnection.id,
   });
   assert(smallChat);
-  await chats.patchMetadata(smallChat.id, { summaryMaxTokens: 512 });
+  await chats.patchMetadata(smallChat.id, { summaryMaxTokens: 512, committedMemoryBatchSize: 12 });
   for (let i = 0; i < 12; i++)
     await chats.createMessage({
       chatId: smallChat.id,
@@ -281,6 +283,7 @@ try {
   assert.equal(splitStatus.state.job?.total, splitStatus.state.job?.completed);
   const privateChat = await chats.create({ name: "Scoped episode", mode: "roleplay", characterIds: [] });
   assert(privateChat);
+  await chats.patchMetadata(privateChat.id, { committedMemoryBatchSize: 1 });
   await chats.createMessage({
     chatId: privateChat.id,
     role: "assistant",
@@ -341,6 +344,7 @@ try {
     await connections.update(conn.id, { isDefault: false });
     const unconfigured = await chats.create({ name: "No connection", mode: "roleplay", characterIds: [] });
     assert(unconfigured);
+    await chats.patchMetadata(unconfigured.id, { committedMemoryBatchSize: 1 });
     await chats.createMessage({
       chatId: unconfigured.id,
       role: "assistant",
