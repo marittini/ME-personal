@@ -1,4 +1,4 @@
-import { estimateTextTokens } from "@marinara-engine/shared";
+import { estimateTextTokens, threadLastActivity, threadStalled } from "@marinara-engine/shared";
 import { createHash } from "node:crypto";
 import type {
   CommittedMemoryBatch,
@@ -232,10 +232,13 @@ export function consolidateCommittedMemory(state: CommittedMemoryState): Committ
           0,
           24,
         );
+        // An unchanged thread can still gain clues or a development, and beliefs can change.
+        Object.assign(previous.fact, carriedThreadAndBeliefs(previous.fact, fact));
         batch.facts = batch.facts.filter((f) => f !== fact);
         continue;
       }
       if (previous) {
+        Object.assign(fact, carriedThreadAndBeliefs(previous.fact, fact));
         fact.id = previous.fact.id;
         fact.excluded = previous.fact.excluded || fact.excluded;
         fact.edited = previous.fact.edited || fact.edited;
@@ -281,6 +284,30 @@ export function consolidateCommittedMemory(state: CommittedMemoryState): Committ
   return next;
 }
 export const ENTITY_FACT_CAP = 8;
+const CLUE_LIMIT = 10;
+/**
+ * What a new value of a record takes over from the old one: clues add up (newest kept, at most CLUE_LIMIT, a
+ * repeated text once), the newest development wins, and false beliefs carry over unless the new value lists
+ * them (an empty list clears them). A belief ends when its holder is in the audience: they know the truth now.
+ */
+function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemoryFact) {
+  const clues = [
+    ...new Map(
+      [...(old.clues ?? []), ...(next.clues ?? [])].map((clue) => [normalizedText(clue.text), clue] as const),
+    ).values(),
+  ]
+    .sort((a, b) => a.turn - b.turn)
+    .slice(-CLUE_LIMIT);
+  const beliefs = (next.falseBeliefs ?? old.falseBeliefs ?? []).filter(
+    (belief) => next.audience === "shared" || !next.audience.includes(belief.who),
+  );
+  const latest = next.latest ?? old.latest;
+  return {
+    ...(clues.length ? { clues } : {}),
+    ...(latest ? { latest, latestKo: next.latest ? next.latestKo : old.latestKo } : {}),
+    falseBeliefs: beliefs.length ? beliefs : undefined,
+  };
+}
 function normalizedText(value: string | undefined) {
   return (value ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
 }
@@ -490,6 +517,7 @@ export function selectCommittedMemory(
   const recentFloor = recentTurns.length ? Math.min(...recentTurns) : Infinity;
   const knowers = (audience: CommittedMemoryFact["audience"]) =>
     audience === "shared" ? "" : `; known to: ${audience.length ? audience.map(nameOf).join(", ") : "narrator only"}`;
+  const batchTurns = valid.map((b) => b.turn);
   for (const { fact: f, turn } of current.values()) {
     if (
       f.status !== "current" ||
@@ -504,30 +532,69 @@ export function selectCommittedMemory(
     // Knowledge: shared facts for everyone; a scoped fact for one character only if they know it; with several
     // characters, a scoped fact some of them know is a marked secret; one nobody here knows stays out.
     const access = scope(f.audience, f.unknownTo);
-    if (!access.ok) continue;
-    const { knownBy, notKnownBy } = access;
+    // False beliefs of the characters in this generation (all of them when it is not scoped to anyone).
+    const holders = (f.falseBeliefs ?? []).filter((b) => !audienceIds.length || audienceIds.includes(b.who));
+    // A character who does not know the record, or who is the only one written now, gets their belief instead
+    // of the truth: they act on it until the story shows them learning otherwise.
+    const beliefOnly = holders.length > 0 && (!access.ok || audienceIds.length === 1);
+    if (!access.ok && !beliefOnly) continue;
     const activation = factActivation(f);
     const semantic = Math.max(0, semanticScores.get(f.id) ?? 0);
-    const recall = factRecallScore(f, queryText, query) + (semantic > 0.35 ? semantic : 0);
+    const recall =
+      factRecallScore(f, queryText, query) +
+      (holders.length ? relevance(holders.map((b) => b.believes).join(" "), query) : 0) +
+      (semantic > 0.35 ? semantic : 0);
     const isState = f.kind === "state";
     const isThread = f.kind === "thread" || f.kind === "promise";
+    const tracksHistory = isState || f.kind === "relationship" || /^relationship/i.test(f.attribute ?? "");
     // Earlier values follow the same knowledge rules as current ones.
-    const history = (f.previous ?? []).filter(
-      (version) => !version.invalidated && scope(version.audience, version.unknownTo).ok,
-    );
+    const history = tracksHistory
+      ? (f.previous ?? []).filter((version) => !version.invalidated && scope(version.audience, version.unknownTo).ok)
+      : [];
     const changedRecently = isState && history.length > 0 && turn >= recentFloor;
     const present = isState && !!f.entityId && presentEntities.has(f.entityId);
     const called = activation === "always" ? 1 : recall + (present ? 1 : 0) + (changedRecently ? 1 : 0);
     // Dormant threads stay candidates for the rotation below.
-    if (!called && !(f.kind === "thread")) continue;
+    if (!called && !(f.kind === "thread" && !beliefOnly)) continue;
+    if (beliefOnly) {
+      facts.push({
+        id: f.id,
+        content: holders.map((b) => `[belief] ${nameOf(b.who)} believes: ${b.believes}`).join("\n"),
+        displayKo:
+          holders
+            .map((b) => b.believesKo)
+            .filter(Boolean)
+            .join("\n") || undefined,
+        reason: "current",
+        kind: "belief",
+        tier: audienceIds.length > 1 ? "boundary" : activation,
+        sourceIds: f.sourceIds,
+        score: called,
+        turn,
+        progressRank: 2,
+        activation,
+      });
+      continue;
+    }
+    const { knownBy, notKnownBy } = access as { knownBy?: string[]; notKnownBy?: string[] };
     let label = `[${f.kind}${f.kind === "promise" ? `:${f.progress ?? "pending"}` : ""}] ${f.content}`;
-    if (isState && history.length)
+    if (history.length)
       label += ` (changed at message ${turn}${knowers(f.audience)}. Before: ${[...history]
         .reverse()
         .map((version) => `${version.content} (message ${version.turn}${knowers(version.audience)})`)
         .join(" ← ")})`;
-    if (isThread && f.endCondition) label += ` (closes when: ${f.endCondition})`;
-    if (f.kind === "thread") label += ` (open since message ${turn})`;
+    const lastActivity = isThread ? threadLastActivity(f, turn) : turn;
+    if (isThread) {
+      if (f.latest) label += ` (latest: ${f.latest})`;
+      const clues = (f.clues ?? []).slice(-THREAD_CLUES_SHOWN);
+      if (clues.length) label += ` (clues: ${clues.map((clue) => `${clue.text} [message ${clue.turn}]`).join("; ")})`;
+      if (f.endCondition) label += ` (closes when: ${f.endCondition})`;
+      if (threadStalled(f, turn, batchTurns)) label += ` (stalled since message ${lastActivity})`;
+      else if (f.kind === "thread") label += ` (last development at message ${lastActivity})`;
+    }
+    if (holders.length)
+      label += ` (wrongly believed: ${holders.map((b) => `${nameOf(b.who)} believes ${b.believes}`).join("; ")})`;
+    const marked = !!knownBy || (holders.length > 0 && audienceIds.length > 1);
     facts.push({
       id: f.id,
       content: knownBy
@@ -536,12 +603,12 @@ export function selectCommittedMemory(
       displayKo: f.contentKo,
       reason: "current",
       kind: f.kind,
-      tier: knownBy ? "boundary" : isState ? "state" : f.kind === "thread" ? "thread" : activation,
+      tier: marked ? "boundary" : isState ? "state" : f.kind === "thread" ? "thread" : activation,
       sourceIds: f.sourceIds,
       score: called,
       knownBy,
       notKnownBy,
-      turn,
+      turn: lastActivity,
       progressRank: f.progress === "in_progress" ? 0 : f.kind === "promise" ? 1 : 2,
       activation,
     });
@@ -735,18 +802,20 @@ const SCENE_STATE_LIMIT = 8;
 const THREAD_LIMIT = 5;
 const DORMANT_THREAD_ROTATION = 2;
 const SCENE_RECALL_LIMIT = 3;
+/** Newest clues shown per thread in the prompt (all of them stay in the record). */
+const THREAD_CLUES_SHOWN = 3;
 /** A stable number that changes as the conversation moves, so dormant threads take turns. */
 function rotation(text: string) {
   return createHash("sha256").update(text).digest().readUInt32BE(0);
 }
 export const KNOWLEDGE_BOUNDARY_INSTRUCTION =
-  "Each character speaks and acts only on what they know. A character who does not know something never notices it by guess or coincidence. A secret comes out only when the story actually shows it being revealed.";
+  "Each character speaks and acts only on what they know. A character who does not know something never notices it by guess or coincidence. A character who wrongly believes something acts on that belief. A secret comes out only when the story actually shows it being revealed.";
 export const MEMORY_RECENCY_INSTRUCTION =
   "This memory was saved from earlier messages. Where the recent conversation shows something newer, the conversation wins.";
 export const SCENE_STATE_INSTRUCTION =
   "Current states, with how they changed (newest first). Characters who were there when a state changed noticed it and react to it naturally; characters who were not there do not know it.";
 export const OPEN_THREAD_INSTRUCTION =
-  "Open threads and promises. Pick one up when it fits the moment; never force a payoff. A thread or promise closes only when the story shows it.";
+  "Open threads and promises, with their newest development and planted clues. Pick one up when it fits the moment, building on its clues; a stalled one can return when the moment allows. Never force a payoff. A thread or promise closes only when the story shows it.";
 export const RECALLED_SCENE_INSTRUCTION =
   "Earlier scenes this moment calls back. Quoted lines are the exact words spoken.";
 function renderCommittedMemory(selected: CommittedMemorySelection[]) {
