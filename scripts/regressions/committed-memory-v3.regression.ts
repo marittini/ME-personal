@@ -177,11 +177,37 @@ try {
     () => parse([], [{ event: "x", eventKo: "엑스", audience: "shared", sourceIds: ["elsewhere"] }]),
     /unsupported source/,
   );
-  assert.throws(
-    () => parse([], [{ event: "An English event", audience: "shared", sourceIds: ["m1"] }]),
-    /Korean display/,
-    "a scene in another language needs its Korean display text",
+  // A model that overfills or misshapes the new fields loses only the bad part, never the whole batch.
+  parsed = parse(
+    [
+      fact({ op: "keep", kind: "thread", key: "t", content: "An open question", endCondition: "an answer" }),
+      fact({ key: "k2", keywords: Array.from({ length: 40 }, (_, i) => `w${i}`) }),
+    ],
+    [
+      { event: "An English event", audience: "shared", sourceIds: ["m1"] },
+      { event: "No audience given", sourceIds: ["m1"] },
+      {
+        event: "Too many lines",
+        eventKo: "대사가 많다",
+        audience: "shared",
+        sourceIds: ["m2"],
+        when: "x".repeat(500),
+        lines: [
+          ...Array.from({ length: 5 }, () => ({ speaker: "Ren", text: "You were human a moment ago", sourceId: "m2" })),
+          { text: "no speaker", sourceId: "m2" },
+        ],
+      },
+    ],
   );
+  assert.equal(parsed.facts[0]!.op, "add", "an unknown operation word falls back to add");
+  assert.equal(parsed.facts[1]!.keywords?.length, 24, "extra keywords are cut");
+  assert.deepEqual(
+    parsed.scenes.map((scene) => scene.event),
+    ["An English event", "Too many lines"],
+    "a scene without an audience is dropped; a missing Korean copy falls back to the original",
+  );
+  assert.equal(parsed.scenes[1]!.lines.length, 3, "at most three lines are kept");
+  assert.equal(parsed.scenes[1]!.when?.length, 120, "overlong text is cut");
   assert.equal(memory.memoryQuoteFound("a", sources), false, "a one-character quote proves nothing");
   // ── Injection ──
   const slot = (id: string, content: string, over: Partial<CommittedMemoryFact> = {}): CommittedMemoryFact => ({
