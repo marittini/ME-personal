@@ -29,6 +29,23 @@ export function committedMemoryDocuments(state: CommittedMemoryState) {
           scope: f.audience,
         });
       }
+      for (const scene of b.scenes ?? [])
+        documents.push({
+          id: scene.id,
+          text: [
+            scene.where,
+            scene.participants.join(", "),
+            scene.event,
+            scene.eventKo,
+            ...scene.lines.map((line) => line.text),
+            ...scene.changes,
+            ...(scene.keywords ?? []),
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          evidence: b.sources.filter((source) => scene.sourceIds.includes(source.id)),
+          scope: scene.audience,
+        });
       return documents.map((d) => ({ ...d, hash: createHash("sha256").update(JSON.stringify(d)).digest("hex") }));
     });
 }

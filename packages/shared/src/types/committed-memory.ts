@@ -4,7 +4,12 @@ export interface CommittedMemorySource {
 }
 export interface CommittedMemoryFact {
   id: string;
-  kind: "fact" | "promise" | "event" | "relationship" | "belief";
+  /**
+   * Format 3 adds "state" (a visible, changeable condition such as form, clothes, injury, hunger or location; its
+   * change history is injected with witnesses) and "thread" (foreshadowing, an open question or a goal). A
+   * promise is a thread whose end condition is a promise; it keeps its own kind so format-2 data reads as-is.
+   */
+  kind: "fact" | "promise" | "event" | "relationship" | "belief" | "state" | "thread";
   key: string;
   content: string;
   keyKo?: string;
@@ -36,6 +41,45 @@ export interface CommittedMemoryFact {
   unknownTo?: string[];
   /** Over the per-entity cap of current facts: kept as history, never injected. */
   archived?: boolean;
+  /** Threads and promises: what closes them ("when Alice returns the book"). */
+  endCondition?: string;
+  endConditionKo?: string;
+  /** The last update operation that produced this value (format 3). */
+  op?: CommittedMemoryOperation;
+  /** For resolve/reveal: the quoted transcript text the server verified. */
+  evidence?: string;
+}
+/** How one extracted record changes the memory (format 3). */
+export type CommittedMemoryOperation = "add" | "update" | "resolve" | "reveal" | "archive";
+
+/** One verbatim line kept with a scene (checked against its source message). */
+export interface CommittedMemoryLine {
+  speaker: string;
+  to?: string;
+  text: string;
+  /** Korean display only, for a line in another language. */
+  textKo?: string;
+  sourceId: string;
+}
+/** Format 3: one scene inside a committed batch. */
+export interface CommittedMemoryScene {
+  id: string;
+  /** Story time, as the transcript states it ("that night", "three days later"). */
+  when?: string;
+  where?: string;
+  /** Names of who was present. */
+  participants: string[];
+  event: string;
+  eventKo?: string;
+  /** Up to three verbatim key lines. */
+  lines: CommittedMemoryLine[];
+  /** What changed in this scene (states, relationships, attitudes), short. */
+  changes: string[];
+  changesKo?: string[];
+  /** Character IDs who know this scene; "shared" when everyone present saw it. */
+  audience: "shared" | string[];
+  sourceIds: string[];
+  keywords?: string[];
 }
 
 /** Format 2: who or what memories are about. Aliases identify; keywords on facts call them up. */
@@ -88,10 +132,15 @@ export interface CommittedMemoryBatch {
   revision?: string;
   /** Identities mentioned by this historical episode, including facts subsequently updated elsewhere. */
   factKeys?: string[];
+  /** Format 3 scene records; batches committed before format 3 have none until they are re-committed. */
+  scenes?: CommittedMemoryScene[];
 }
 export interface CommittedMemoryState {
-  /** 2 adds entities, activation tiers and the commit log; format 1 is read as-is and upgraded on the next write. */
-  version: 1 | 2;
+  /**
+   * 2 adds entities, activation tiers and the commit log; 3 adds scenes, state/thread kinds and update
+   * operations. Older formats are read as-is and upgraded on the next write.
+   */
+  version: 1 | 2 | 3;
   ownerChatId: string;
   enabled: boolean;
   batches: CommittedMemoryBatch[];

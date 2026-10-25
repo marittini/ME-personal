@@ -66,7 +66,7 @@ const readable = policy.readCommittedMemory(
 assert.equal(readable.batches.length, 1);
 assert.deepEqual(readable.quarantine, [broken]);
 const stored = policy.storedCommittedMemory(readable, { committedMemory: { ...base([]), version: 1 } }, "room");
-assert.equal(stored.version, 2);
+assert.equal(stored.version, 3);
 assert.deepEqual(stored.quarantine, [broken], "set-aside batches are written back as they were");
 assert.deepEqual(
   (stored.legacyBackup as { version: number }).version,
@@ -325,7 +325,7 @@ try {
   await memory.startCommittedMemory(db, chat.id);
   let status = await finish(chat.id);
   assert.equal(status.state.job?.status, "complete");
-  assert.equal(status.state.version, 2);
+  assert.equal(status.state.version, 3);
   assert.equal(status.state.entities?.length, 1);
   assert.equal(status.counts?.currentFacts, 1);
   const firstCommit = status.state.commits?.at(-1);

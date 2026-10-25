@@ -6,6 +6,7 @@ import type {
   CommittedMemorySelection,
   CommittedMemoryFact,
   CommittedMemoryEntity,
+  CommittedMemoryScene,
 } from "@marinara-engine/shared";
 export interface MemorySourceMessage {
   id: string;
@@ -46,7 +47,7 @@ export function memoryFingerprint(m: MemorySourceMessage): string {
 export function emptyCommittedMemory(chatId: string): CommittedMemoryState {
   return { version: 1, ownerChatId: chatId, enabled: false, batches: [] };
 }
-const MEMORY_VERSIONS = new Set([1, 2]);
+const MEMORY_VERSIONS = new Set([1, 2, 3]);
 function validFact(f: unknown) {
   const fact = f as CommittedMemoryFact | null;
   return (
@@ -73,6 +74,18 @@ function validBatch(b: unknown) {
     batch.facts.every(validFact)
   );
 }
+function validScene(s: unknown) {
+  const scene = s as CommittedMemoryScene | null;
+  return (
+    !!scene &&
+    typeof scene.id === "string" &&
+    typeof scene.event === "string" &&
+    Array.isArray(scene.sourceIds) &&
+    (scene.audience === "shared" || Array.isArray(scene.audience))
+  );
+}
+const stringList = (value: unknown, limit: number) =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string").slice(0, limit) : [];
 function validEntity(e: unknown) {
   const entity = e as CommittedMemoryEntity | null;
   return (
@@ -131,6 +144,20 @@ export function readCommittedMemory(metadata: Record<string, unknown>, chatId: s
       gist: typeof b.gist === "string" ? b.gist : undefined,
       gistKo: typeof b.gistKo === "string" ? b.gistKo : undefined,
       keywords: keywords(b.keywords),
+      // Scenes are optional detail: a malformed one is skipped without setting the batch aside.
+      ...(Array.isArray(b.scenes)
+        ? {
+            scenes: b.scenes.filter(validScene).map((scene) => ({
+              ...scene,
+              participants: stringList(scene.participants, 30),
+              changes: stringList(scene.changes, 12),
+              keywords: keywords(scene.keywords),
+              lines: (Array.isArray(scene.lines) ? scene.lines : [])
+                .filter((line) => line && typeof line.text === "string" && typeof line.sourceId === "string")
+                .slice(0, 3),
+            })),
+          }
+        : {}),
       facts: b.facts.map((f) => ({
         ...f,
         keywords: keywords(f.keywords),
@@ -148,7 +175,7 @@ export function assertCommittedMemoryWritable(metadata: Record<string, unknown>,
     });
 }
 /**
- * Every write stores format 2. The first time a format-1 memory is written, its original is kept once in
+ * Every write stores format 3. The first time a format-1 memory is written, its original is kept once in
  * `legacyBackup`; set-aside batches are always written back unchanged.
  */
 export function storedCommittedMemory(
@@ -166,7 +193,7 @@ export function storedCommittedMemory(
   const quarantine = next.quarantine ?? raw?.quarantine;
   return {
     ...next,
-    version: 2,
+    version: 3,
     ...(legacyBackup !== undefined ? { legacyBackup } : {}),
     ...(quarantine?.length ? { quarantine } : {}),
   };
