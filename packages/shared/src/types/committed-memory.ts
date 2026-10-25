@@ -145,6 +145,9 @@ export interface CommittedMemoryStatus {
   };
   pending: number;
   selectedPending?: number;
+  /** Of the selected messages, how many the next commit takes: in "pending" mode only full batches. */
+  ready?: number;
+  batchSize?: number;
   totalMessages?: number;
   selectionError?: string;
   lastReceipt: { messageId: string; items: CommittedMemorySelection[] } | null;

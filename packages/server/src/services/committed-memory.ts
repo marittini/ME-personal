@@ -240,12 +240,51 @@ function selectCommitSources(
   const pending = new Set(pendingMemoryMessages(state, messages).map((m) => m.id));
   return selected.filter((m) => pending.has(m.id));
 }
+/**
+ * Splits the selected messages into batches of `batchSize` (a batch also closes early at the 16000-token input
+ * limit, which counts as full). With `fullOnly` (the "pending" source mode) a trailing batch that is still short
+ * is left out, so 6 pending messages at size 5 commit 5 and leave 1 pending. An explicit last/range selection
+ * commits everything selected.
+ */
+export function planCommittedMemoryBatches<T extends { content: string }>(
+  sources: readonly T[],
+  batchSize: number,
+  fullOnly: boolean,
+) {
+  const batches: T[][] = [];
+  let batch: T[] = [];
+  let size = 0;
+  for (const m of sources) {
+    const length = estimateChatSummaryTokens(m.content);
+    if (length > 16000) throw new Error("A message exceeds the memory input limit. Shorten it before committing.");
+    if (batch.length && (batch.length >= batchSize || size + length > 16000)) {
+      batches.push(batch);
+      batch = [];
+      size = 0;
+    }
+    batch.push(m);
+    size += length;
+  }
+  const leftover = fullOnly && batch.length < batchSize ? batch : [];
+  if (batch.length && !leftover.length) batches.push(batch);
+  return { batches, leftover };
+}
 export async function committedMemoryStatus(db: DB, chatId: string) {
   const { state, messages, chat } = await loadCommittedMemory(db, chatId);
   let selectedPending = 0;
+  let ready = 0;
   let selectionError: string | undefined;
+  const metadata = memoryExtra(chat.metadata);
+  let batchSize: number | undefined;
   try {
-    selectedPending = selectCommitSources(state, messages, memoryExtra(chat.metadata)).length;
+    batchSize = resolveCommittedMemoryBatchSize(metadata);
+    const selected = selectCommitSources(state, messages, metadata);
+    selectedPending = selected.length;
+    ready = planCommittedMemoryBatches(
+      selected,
+      batchSize,
+      (metadata.committedMemorySourceMode ?? "pending") === "pending",
+    ).batches.flat().length;
   } catch (error) {
     selectionError = error instanceof Error ? error.message : "Invalid range";
   }
@@ -266,6 +305,8 @@ export async function committedMemoryStatus(db: DB, chatId: string) {
     ...(readability === "unreadable" ? { unreadable: true } : {}),
     pending: pendingMemoryMessages(state, messages).length,
     selectedPending,
+    ready,
+    ...(batchSize ? { batchSize } : {}),
     totalMessages: messages.length,
     ...(selectionError ? { selectionError } : {}),
     lastReceipt: last
@@ -297,21 +338,12 @@ export async function startCommittedMemory(
     if (chat.mode !== "roleplay") throw new Error("Unified memory requires a Roleplay chat");
     assertCommittedMemoryWritable(memoryExtra(chat.metadata), chatId);
     const batchSize = resolveCommittedMemoryBatchSize(memoryExtra(chat.metadata), options);
-    const batches: MemorySourceMessage[][] = [];
-    let batch: MemorySourceMessage[] = [];
-    let size = 0;
-    for (const m of selectCommitSources(state, messages, memoryExtra(chat.metadata), options)) {
-      const length = estimateChatSummaryTokens(m.content);
-      if (length > 16000) throw new Error("A message exceeds the memory input limit. Shorten it before committing.");
-      if (batch.length && (batch.length >= batchSize || size + length > 16000)) {
-        batches.push(batch);
-        batch = [];
-        size = 0;
-      }
-      batch.push(m);
-      size += length;
-    }
-    if (batch.length) batches.push(batch);
+    const metadata = memoryExtra(chat.metadata);
+    const { batches } = planCommittedMemoryBatches(
+      selectCommitSources(state, messages, metadata, options),
+      batchSize,
+      (options.sourceMode ?? metadata.committedMemorySourceMode ?? "pending") === "pending",
+    );
     if (batches.length) {
       const connection = await committedMemoryConnectionStatus(db, chatId);
       if (!connection.ok) throw Object.assign(new Error(connection.error), { statusCode: 422 });

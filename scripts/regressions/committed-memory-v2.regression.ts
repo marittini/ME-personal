@@ -313,6 +313,7 @@ try {
   });
   const chat = await chats.create({ name: "Memory v2", mode: "roleplay", characterIds: [] });
   assert(chat);
+  await chats.patchMetadata(chat.id, { committedMemoryBatchSize: 1 });
   await chats.createMessage({
     chatId: chat.id,
     role: "assistant",

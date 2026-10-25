@@ -102,6 +102,7 @@ try {
   });
   const chat = await chats.create({ name: "Recall", mode: "roleplay", characterIds: ["alice", "bob"] });
   assert(chat);
+  await chats.patchMetadata(chat.id, { committedMemoryBatchSize: 1 });
   const first = await chats.createMessage({
     chatId: chat.id,
     role: "assistant",
