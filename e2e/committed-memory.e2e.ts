@@ -487,3 +487,111 @@ test("format 3: scenes with exact lines, threads, state history, waiting batch a
     await request.delete(`/api/chats/${id}?force=true`);
   }
 });
+
+test("wrong beliefs, thread clues and a stalled thread are shown in the vault", async ({ page, request }, testInfo) => {
+  const { memoryFingerprint } = await import("../packages/server/src/services/committed-memory-policy.js");
+  const created = await request.post("/api/chats", { data: { name: "Beliefs and clues", mode: "roleplay" } });
+  expect(created.ok()).toBeTruthy();
+  const { id } = await created.json();
+  try {
+    const messages: Array<{ id: string; content: string; role: string }> = [];
+    for (let i = 1; i <= 7; i++) {
+      const response = await request.post(`/api/chats/${id}/messages`, {
+        data: { role: "assistant", content: `Scene ${i}.` },
+      });
+      expect(response.ok()).toBeTruthy();
+      messages.push(await response.json());
+    }
+    const createdAt = new Date().toISOString();
+    const batch = (index: number, facts: unknown[]) => ({
+      id: `batch-${index}`,
+      turn: index + 1,
+      createdAt,
+      sources: [{ id: messages[index]!.id, fingerprint: memoryFingerprint(messages[index]!) }],
+      summary: `장면 ${index + 1}`,
+      core: `장면 ${index + 1}`,
+      facts,
+      scenes: [],
+    });
+    const memory = {
+      version: 3,
+      ownerChatId: id,
+      enabled: true,
+      batches: [
+        batch(0, [
+          {
+            id: "letter",
+            kind: "thread",
+            key: "unsigned letter",
+            keyKo: "보낸 이 없는 편지",
+            content: "Who sent the unsigned letter?",
+            contentKo: "누가 서명 없는 편지를 보냈나?",
+            latest: "Ren sniffs the letter.",
+            latestKo: "렌이 편지 냄새를 맡는다.",
+            clues: [
+              { text: "violet wax seal", textKo: "보라색 봉랍", turn: 1 },
+              { text: "smells of cedar", textKo: "삼나무 향", turn: 1 },
+            ],
+            status: "current",
+            audience: "shared",
+            sourceIds: [messages[0]!.id],
+          },
+          {
+            id: "mira-form",
+            kind: "state",
+            key: "Mira form",
+            keyKo: "미라 형태",
+            content: "Mira is a cursed human.",
+            contentKo: "미라는 저주받은 인간이다.",
+            status: "current",
+            audience: [],
+            falseBeliefs: [
+              { who: "ren-card", believes: "Mira is an ordinary dog.", believesKo: "미라는 평범한 개다." },
+            ],
+            sourceIds: [messages[0]!.id],
+          },
+        ]),
+        ...[1, 2, 3, 4, 5].map((index) => batch(index, [])),
+      ],
+    };
+    expect((await request.patch(`/api/chats/${id}/metadata`, { data: { committedMemory: memory } })).ok()).toBeTruthy();
+    await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
+    await seedUIState(page, {
+      hasCompletedOnboarding: true,
+      sidebarOpen: false,
+      rightPanelOpen: false,
+      chatHelpSeenModes: ["conversation", "roleplay", "game"],
+    });
+    await page.addInitScript(
+      ({ id, version }) => {
+        localStorage.setItem("marinara-active-chat-id", id);
+        localStorage.setItem("marinara:whats-new:seen-version", version);
+      },
+      { id, version },
+    );
+    await page.goto("/");
+    const drawer = await openChatSettingsTool(page, "chat-summary");
+    const vault = drawer.locator("[data-committed-memory]");
+    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Stalled", exact: true }).click();
+    const thread = vault.locator(".memory-vault__row").filter({ hasText: "보낸 이 없는 편지" });
+    await expect(thread).toContainText("Stalled thread");
+    await expect(thread).toContainText("Clues 2");
+    await thread.click();
+    await expect(vault.locator("[data-memory-stalled]")).toBeVisible();
+    await expect(vault.locator("[data-memory-latest]")).toContainText("렌이 편지 냄새를 맡는다.");
+    await expect(vault.locator("[data-memory-clues] li")).toHaveCount(2);
+    await expect(vault.locator("[data-memory-clues] li").first()).toContainText("보라색 봉랍");
+    await testInfo.attach("memory-thread-clues", { body: await vault.screenshot(), contentType: "image/png" });
+
+    await vault.getByRole("button", { name: "Entities", exact: true }).click();
+    const state = vault.locator(".memory-vault__row").filter({ hasText: "미라 형태" });
+    await expect(state).toContainText("Wrong beliefs 1");
+    await state.click();
+    const beliefs = vault.locator("[data-memory-beliefs]");
+    await expect(beliefs).toContainText("ren-card");
+    await expect(beliefs).toContainText("미라는 평범한 개다.");
+  } finally {
+    await request.delete(`/api/chats/${id}?force=true`);
+  }
+});

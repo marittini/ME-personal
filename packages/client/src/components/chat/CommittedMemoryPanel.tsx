@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   isChatProvider,
+  threadStalled,
   CHAT_SUMMARY_OUTPUT_TOKENS,
   type APIConnection,
   type CommittedMemoryBatch,
@@ -43,6 +44,7 @@ import {
 } from "../panels/settings/SettingControls";
 import { NEUTRAL_SURFACE_VARIABLES } from "../ui/neutral-surface-styles";
 import {
+  FalseBeliefList,
   KnowledgeLine,
   MEMORY_TOKEN_BUDGET,
   MemoryEntityList,
@@ -98,12 +100,15 @@ function MemoryDetail({
   onBack,
   korean,
   entityName,
+  stalled = false,
 }: {
   chatId: string;
   entry: Entry;
   onBack: () => void;
   korean: boolean;
   entityName?: string;
+  /** An open thread or promise with no development for several batches. */
+  stalled?: boolean;
 }) {
   const { t } = useTranslation();
   const { batch, fact } = entry;
@@ -122,7 +127,13 @@ function MemoryDetail({
   const excluded = batch.excluded || fact?.excluded;
   const display = (original: string, ko?: string) => (korean && ko?.trim() ? ko : original);
   const name = useMemoryNames(
-    fact ? [...(fact.audience === "shared" ? [] : fact.audience), ...(fact.unknownTo ?? [])] : [],
+    fact
+      ? [
+          ...(fact.audience === "shared" ? [] : fact.audience),
+          ...(fact.unknownTo ?? []),
+          ...(fact.falseBeliefs ?? []).map((belief) => belief.who),
+        ]
+      : [],
   );
   return (
     <article className="memory-vault__detail">
@@ -203,6 +214,45 @@ function MemoryDetail({
           )}
         </>
       )}
+      {/* What the record says comes first: thread state, its development and clues, then the actions. */}
+      {stalled && (
+        <p className="memory-vault__notice" data-memory-stalled="">
+          {t("chat.committedMemory.vault.stalledHelp")}
+        </p>
+      )}
+      {fact?.latest && (
+        <section data-memory-latest="">
+          <h5>{t("chat.committedMemory.vault.latestDevelopment")}</h5>
+          <p className="memory-vault__prose">{display(fact.latest, fact.latestKo)}</p>
+        </section>
+      )}
+      {!!fact?.clues?.length && (
+        <section data-memory-clues="">
+          <h5>{t("chat.committedMemory.vault.clues", { clues: fact.clues.length })}</h5>
+          <ol className="memory-vault__clues">
+            {fact.clues.map((clue, index) => (
+              <li key={`${clue.turn}:${index}`}>
+                <span>{display(clue.text, clue.textKo)}</span>
+                <span className="memory-vault__eyebrow">
+                  {t("chat.committedMemory.vault.episode", { turn: clue.turn })}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      {fact?.endCondition && (
+        <p className="memory-vault__hint" data-memory-end-condition="">
+          {t("chat.committedMemory.vault.endCondition", {
+            text: display(fact.endCondition, fact.endConditionKo),
+          })}
+        </p>
+      )}
+      {fact?.evidence && (
+        <p className="memory-vault__hint" data-memory-evidence="">
+          {t("chat.committedMemory.vault.evidence", { text: fact.evidence })}
+        </p>
+      )}
       {!batch.invalidated && !fact?.invalidated && !editing && (
         <div className="flex flex-wrap gap-2">
           <button
@@ -279,19 +329,8 @@ function MemoryDetail({
           {edit.error.message}
         </p>
       )}
-      {fact?.endCondition && (
-        <p className="memory-vault__hint" data-memory-end-condition="">
-          {t("chat.committedMemory.vault.endCondition", {
-            text: display(fact.endCondition, fact.endConditionKo),
-          })}
-        </p>
-      )}
-      {fact?.evidence && (
-        <p className="memory-vault__hint" data-memory-evidence="">
-          {t("chat.committedMemory.vault.evidence", { text: fact.evidence })}
-        </p>
-      )}
       {fact && <KnowledgeLine fact={fact} name={name} />}
+      {fact && <FalseBeliefList fact={fact} name={name} korean={korean} />}
       {fact && !batch.invalidated && !fact.invalidated && !editing && (
         <RecallControls key={batch.revision ?? batch.createdAt} chatId={chatId} fact={fact} identity={identity} />
       )}
@@ -379,6 +418,8 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
     configure.error ||
     backup.error;
   const batches = [...(data?.state.batches ?? [])].reverse();
+  /** Positions of committed batches: a thread is stalled after several of them pass without a development. */
+  const batchTurns = (data?.state.batches ?? []).filter((b) => !b.invalidated).map((b) => b.turn);
   const entries: Entry[] =
     tab === "story"
       ? batches.map((batch) => ({ batch }))
@@ -418,11 +459,16 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
       : `${fact?.key ?? ""} ${fact?.keyKo ?? ""} ${fact?.contentKo ?? batch.summaryKo ?? ""} ${fact?.content ?? batch.summary} ${fact ? "" : batch.core + " " + (batch.coreKo ?? "")}`;
     return (
       (filter === "all" || state === filter) &&
-      (tab !== "promise" || progressFilter === "all" || (fact && threadProgress(fact)) === progressFilter) &&
+      (tab !== "promise" ||
+        progressFilter === "all" ||
+        (progressFilter === "stalled"
+          ? !!fact && threadStalled(fact, batch.turn, batchTurns)
+          : (fact && threadProgress(fact)) === progressFilter)) &&
       text.normalize("NFKC").toLocaleLowerCase().includes(query.normalize("NFKC").toLocaleLowerCase())
     );
   });
   const entryId = (e: Entry) => e.scene?.id ?? e.fact?.id ?? e.batch.id;
+  const stalledOf = (e: Entry) => !!e.fact && threadStalled(e.fact, e.batch.turn, batchTurns);
   const current = visible.find((e) => entryId(e) === selected);
   const valid = batches.filter((b) => !b.invalidated && !b.excluded);
   /** Batches committed before format 3 have no scenes until "다시 정리". */
@@ -641,7 +687,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
           )}
           {tab === "promise" && (
             <nav className="memory-vault__tabs" aria-label={t("chat.committedMemory.vault.progressLabel")}>
-              {["all", "pending", "in_progress", "completed", "cancelled"].map((value) => (
+              {["all", "pending", "in_progress", "stalled", "completed", "cancelled"].map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -718,13 +764,20 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                     <span className="memory-vault__eyebrow">
                       {fact
                         ? fact.kind === "thread"
-                          ? t(`chat.committedMemory.vault.threadStatus.${fact.status}`)
+                          ? t(`chat.committedMemory.vault.threadStatus.${stalledOf(entry) ? "stalled" : fact.status}`)
                           : t(
                               fact.kind === "promise"
                                 ? `chat.committedMemory.vault.progress.${threadProgress(fact)}`
                                 : `chat.committedMemory.factStatus.${fact.status}`,
                             )
                         : t("chat.committedMemory.vault.episode", { turn: batch.turn })}
+                      {fact?.kind === "promise" &&
+                        stalledOf(entry) &&
+                        ` · ${t("chat.committedMemory.vault.progress.stalled")}`}
+                      {!!fact?.clues?.length &&
+                        ` · ${t("chat.committedMemory.vault.clueCount", { clues: fact.clues.length })}`}
+                      {!!fact?.falseBeliefs?.length &&
+                        ` · ${t("chat.committedMemory.vault.beliefCount", { beliefs: fact.falseBeliefs.length })}`}
                       {fact?.kind === "state" && ` · ${t("chat.committedMemory.kind.state")}`}
                       {fact?.entityId && entityNames.has(fact.entityId) && ` · ${entityNames.get(fact.entityId)}`}
                       {fact?.activation === "always" &&
@@ -777,6 +830,7 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                 korean={korean}
                 entry={current}
                 entityName={current.fact?.entityId ? entityNames.get(current.fact.entityId) : undefined}
+                stalled={stalledOf(current)}
                 onBack={() => setSelected(null)}
               />
             ) : (

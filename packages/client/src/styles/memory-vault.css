@@ -301,6 +301,20 @@
 .memory-vault__bar > [data-tier="scene"] {
   background: color-mix(in srgb, var(--muted-foreground) 55%, var(--background));
 }
+.memory-vault__clues {
+  display: grid;
+  gap: 0.5rem;
+  list-style: decimal;
+  padding-inline-start: 1.25rem;
+  line-height: 1.7;
+}
+.memory-vault__clues li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
 .memory-vault__quote {
   display: grid;
   gap: 0.25rem;

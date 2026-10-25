@@ -40,6 +40,32 @@ export function KnowledgeLine({ fact, name }: { fact: CommittedMemoryFact; name:
   );
 }
 
+/** Who wrongly believes what about a record: they act on it until the story shows them the truth. */
+export function FalseBeliefList({
+  fact,
+  name,
+  korean,
+}: {
+  fact: CommittedMemoryFact;
+  name: (id: string) => string;
+  korean: boolean;
+}) {
+  const { t } = useTranslation();
+  if (!fact.falseBeliefs?.length) return null;
+  return (
+    <section className="space-y-2" data-memory-beliefs="">
+      <h5>{t("chat.committedMemory.vault.falseBeliefs")}</h5>
+      <p className="memory-vault__hint">{t("chat.committedMemory.vault.falseBeliefsHelp")}</p>
+      {fact.falseBeliefs.map((belief) => (
+        <blockquote key={belief.who} className="memory-vault__quote">
+          <span className="memory-vault__eyebrow">{name(belief.who)}</span>
+          <p>{korean && belief.believesKo?.trim() ? belief.believesKo : belief.believes}</p>
+        </blockquote>
+      ))}
+    </section>
+  );
+}
+
 /** One recorded scene: when and where, who was there, what happened, its exact lines and what changed. */
 export function MemorySceneDetail({
   batch,
