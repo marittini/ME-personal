@@ -11,7 +11,12 @@ process.env.NODE_ENV = "test";
 process.env.MARINARA_LITE = "true";
 process.env.LOG_LEVEL = "silent";
 const memory = await import("../../packages/server/src/services/committed-memory.js");
-import type { CommittedMemoryFact } from "../../packages/shared/src/types/committed-memory.js";
+const policy = await import("../../packages/server/src/services/committed-memory-policy.js");
+import type {
+  CommittedMemoryBatch,
+  CommittedMemoryFact,
+  CommittedMemoryScene,
+} from "../../packages/shared/src/types/committed-memory.js";
 
 const sources = [
   { id: "m1", role: "assistant", content: "Mira's body twists, and she becomes a borzoi again." },
@@ -174,7 +179,143 @@ try {
     "a scene in another language needs its Korean display text",
   );
   assert.equal(memory.memoryQuoteFound("a", sources), false, "a one-character quote proves nothing");
-  console.log("Committed memory format 3 extraction passed: operations, quotes, scenes and key lines.");
+  // ── Injection ──
+  const slot = (id: string, content: string, over: Partial<CommittedMemoryFact> = {}): CommittedMemoryFact => ({
+    id,
+    kind: "state",
+    key: "mira:form",
+    content,
+    status: "current",
+    audience: "shared",
+    sourceIds: [`m${id}`],
+    entityId: "mira",
+    attribute: "form",
+    ...over,
+  });
+  const at = (
+    turn: number,
+    facts: CommittedMemoryFact[],
+    scenes: CommittedMemoryScene[] = [],
+  ): CommittedMemoryBatch => ({
+    id: `b${turn}`,
+    turn,
+    createdAt: "2026-10-25T00:00:00.000Z",
+    sources: [{ id: `src${turn}`, fingerprint: `fp${turn}` }],
+    summary: `Episode ${turn}`,
+    core: `Episode ${turn}`,
+    facts,
+    scenes,
+  });
+  const thread = (id: string, content: string, over: Partial<CommittedMemoryFact> = {}): CommittedMemoryFact => ({
+    id,
+    kind: "thread",
+    key: id,
+    content,
+    status: "current",
+    audience: "shared",
+    sourceIds: [id],
+    entityId: id,
+    attribute: "open",
+    keywords: [id],
+    ...over,
+  });
+  const scene: CommittedMemoryScene = {
+    id: "well-scene",
+    when: "dawn",
+    where: "the old well",
+    participants: ["Ren", "Ari"],
+    event: "Ren shows Ari where the key is hidden.",
+    lines: [{ speaker: "Ren", to: "Ari", text: "The key is under the well.", sourceId: "src5" }],
+    changes: ["Ari now knows where the key is"],
+    audience: "shared",
+    sourceIds: ["src5"],
+    keywords: ["well", "key"],
+  };
+  const state = policy.consolidateCommittedMemory({
+    version: 3,
+    ownerChatId: "room",
+    enabled: true,
+    entities: [{ id: "mira", name: "Mira", aliases: ["미라"], kind: "person", createdAt: "2026-10-25" }],
+    batches: [
+      at(1, [slot("1", "Mira is human")]),
+      at(2, [slot("2", "Mira is a borzoi")]),
+      at(3, [slot("3", "Mira is human", { audience: ["ren"] })]),
+      at(4, [
+        slot("4", "Mira is a borzoi"),
+        thread("letter", "Who sent the unsigned letter?", { endCondition: "the sender is named" }),
+        thread("howl", "Something howls at night"),
+        thread("scar", "Ren hides a scar"),
+        thread("bell", "The bell rang by itself"),
+        {
+          ...thread("book", "Alice will return the book"),
+          kind: "promise",
+          progress: "pending",
+          endCondition: "the book is back",
+        },
+      ]),
+      at(5, [], [scene]),
+    ],
+  });
+  const names = new Map([
+    ["mira", "Mira"],
+    ["ren", "Ren"],
+    ["ari", "Ari"],
+  ]);
+  const select = (query: string, audience: string[] = []) =>
+    policy.selectCommittedMemory(state, query, [], Number.POSITIVE_INFINITY, audience, new Map(), names);
+  // The borzoi case: the current form comes with its change history and who knew, even when nobody named her.
+  let prompt = select("They walk on.", ["mira", "ren"]).text;
+  assert(prompt.startsWith(policy.MEMORY_RECENCY_INSTRUCTION), "recent conversation wins over memory");
+  assert(prompt.includes(`<scene_state>\n${policy.SCENE_STATE_INSTRUCTION}`));
+  assert(
+    prompt.includes(
+      "[state] Mira is a borzoi (changed at message 4. Before: Mira is human (message 3; known to: Ren) ← Mira is a borzoi (message 2) ← Mira is human (message 1))",
+    ),
+    prompt,
+  );
+  assert(
+    select("They walk on.", ["ari"]).text.includes(
+      "[state] Mira is a borzoi (changed at message 4. Before: Mira is a borzoi (message 2) ← Mira is human (message 1))",
+    ),
+    "an earlier value only Ren knew stays out of Ari's memory",
+  );
+  // Threads: the promise is always there; dormant threads take turns, two at a time.
+  assert(prompt.includes(`<open_threads>\n${policy.OPEN_THREAD_INSTRUCTION}`));
+  assert(prompt.includes("[promise:pending] Alice will return the book (closes when: the book is back)"));
+  const dormant = ["unsigned letter", "howls at night", "hides a scar", "rang by itself"];
+  const seenThreads = new Set<string>();
+  for (let turn = 0; turn < 40; turn++) {
+    const text = select(`They walk on. ${turn}`).text;
+    const shown = dormant.filter((d) => text.includes(d));
+    assert.equal(shown.length, 2, "two dormant threads per turn");
+    shown.forEach((d) => seenThreads.add(d));
+  }
+  assert.equal(seenThreads.size, 4, "every dormant thread comes back in rotation");
+  prompt = select("The letter on the table.").text;
+  assert(
+    prompt.includes("Who sent the unsigned letter? (closes when: the sender is named) (open since message 4)"),
+    "a thread the moment calls comes first",
+  );
+  // Scenes come back with their exact lines when called, and only for those who saw them.
+  assert(!select("They walk on.").text.includes("<recalled_scenes>"));
+  prompt = select("Ari looks at the well.").text;
+  assert(prompt.includes(`<recalled_scenes>\n${policy.RECALLED_SCENE_INSTRUCTION}`));
+  assert(
+    prompt.includes("[Scene, message 5; dawn; the old well; present: Ren, Ari] Ren shows Ari where the key is hidden."),
+  );
+  assert(prompt.includes('  Ren → Ari: "The key is under the well."'));
+  const privateState = structuredClone(state);
+  privateState.batches.at(-1)!.scenes![0]!.audience = ["ren"];
+  assert(
+    !policy
+      .selectCommittedMemory(privateState, "the well", [], Number.POSITIVE_INFINITY, ["ari"], new Map(), names)
+      .text.includes("<recalled_scenes>"),
+    "a scene stays with those who saw it",
+  );
+  assert.equal(policy.selectCommittedMemory({ ...state, batches: [] }, "x").text, "", "no memory, no note");
+  console.log(
+    "Committed memory format 3 passed: operations, quotes, scenes and key lines; state history, thread rotation and scene recall.",
+  );
 } finally {
   rmSync(directory, { recursive: true, force: true });
 }

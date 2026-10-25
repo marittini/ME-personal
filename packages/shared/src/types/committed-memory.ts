@@ -178,8 +178,13 @@ export interface CommittedMemorySelection {
   stage?: "short" | "long" | "core";
   reason: "recent" | "relevant" | "current";
   sourceIds: string[];
-  /** always / recall (facts) or flow (episodes); missing on receipts saved before format 2. */
-  tier?: "always" | "recall" | "flow" | "boundary";
+  /**
+   * always / recall (facts), state (the scene now), thread (open threads), scene (recalled scenes) or flow
+   * (episodes); missing on receipts saved before format 2.
+   */
+  tier?: "always" | "recall" | "flow" | "boundary" | "state" | "thread" | "scene";
+  /** The fact kind, for facts (format 3). */
+  kind?: CommittedMemoryFact["kind"];
   tokens?: number;
 }
 /** What the status response carries of a change: enough to list it and undo it by ID. */

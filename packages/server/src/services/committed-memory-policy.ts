@@ -458,6 +458,38 @@ export function selectCommittedMemory(
     }
 
   const nameOf = (id: string) => names.get(id) ?? id;
+  /** Shared records reach everyone; scoped ones per the knowledge rules above. */
+  const scope = (audience: CommittedMemoryFact["audience"], unknownTo: readonly string[] = []) => {
+    if (audience === "shared") return { ok: true as const };
+    if (!audienceIds.length || !audience.length) return { ok: false as const };
+    const knowing = audienceIds.filter((id) => audience.includes(id));
+    if (!knowing.length) return { ok: false as const };
+    if (knowing.length === audienceIds.length) return { ok: true as const };
+    if (audienceIds.length === 1) return { ok: false as const };
+    return {
+      ok: true as const,
+      knownBy: knowing,
+      notKnownBy: [...new Set([...audienceIds.filter((id) => !audience.includes(id)), ...unknownTo])],
+    };
+  };
+  // Who is in the scene now: roster characters, and entities the recent conversation names.
+  const sceneLower = queryText.normalize("NFKC").toLowerCase();
+  const rosterNames = new Set([...names.values()].map((name) => name.normalize("NFKC").trim().toLowerCase()));
+  const presentEntities = new Set(
+    (state.entities ?? [])
+      .filter((entity) =>
+        [entity.name, ...entity.aliases].some((name) => {
+          const needle = name.normalize("NFKC").trim().toLowerCase();
+          return needle && (rosterNames.has(needle) || sceneLower.includes(needle));
+        }),
+      )
+      .map((entity) => entity.id),
+  );
+  // A state changed in one of the three newest batches is a recent change.
+  const recentTurns = [...new Set(valid.map((b) => b.turn))].sort((a, b) => b - a).slice(0, 3);
+  const recentFloor = recentTurns.length ? Math.min(...recentTurns) : Infinity;
+  const knowers = (audience: CommittedMemoryFact["audience"]) =>
+    audience === "shared" ? "" : `; known to: ${audience.length ? audience.map(nameOf).join(", ") : "narrator only"}`;
   for (const { fact: f, turn } of current.values()) {
     if (
       f.status !== "current" ||
@@ -471,24 +503,31 @@ export function selectCommittedMemory(
       continue;
     // Knowledge: shared facts for everyone; a scoped fact for one character only if they know it; with several
     // characters, a scoped fact some of them know is a marked secret; one nobody here knows stays out.
-    let knownBy: string[] | undefined;
-    let notKnownBy: string[] | undefined;
-    if (f.audience !== "shared") {
-      if (!audienceIds.length || !f.audience.length) continue;
-      const knowing = audienceIds.filter((id) => f.audience.includes(id));
-      if (!knowing.length) continue;
-      if (knowing.length < audienceIds.length) {
-        if (audienceIds.length === 1) continue;
-        knownBy = knowing;
-        notKnownBy = [...new Set([...audienceIds.filter((id) => !f.audience.includes(id)), ...(f.unknownTo ?? [])])];
-      }
-    }
+    const access = scope(f.audience, f.unknownTo);
+    if (!access.ok) continue;
+    const { knownBy, notKnownBy } = access;
     const activation = factActivation(f);
     const semantic = Math.max(0, semanticScores.get(f.id) ?? 0);
-    const called =
-      activation === "always" ? 1 : factRecallScore(f, queryText, query) + (semantic > 0.35 ? semantic : 0);
-    if (!called) continue;
-    const label = `[${f.kind}${f.kind === "promise" ? `:${f.progress ?? "pending"}` : ""}] ${f.content}`;
+    const recall = factRecallScore(f, queryText, query) + (semantic > 0.35 ? semantic : 0);
+    const isState = f.kind === "state";
+    const isThread = f.kind === "thread" || f.kind === "promise";
+    // Earlier values follow the same knowledge rules as current ones.
+    const history = (f.previous ?? []).filter(
+      (version) => !version.invalidated && scope(version.audience, version.unknownTo).ok,
+    );
+    const changedRecently = isState && history.length > 0 && turn >= recentFloor;
+    const present = isState && !!f.entityId && presentEntities.has(f.entityId);
+    const called = activation === "always" ? 1 : recall + (present ? 1 : 0) + (changedRecently ? 1 : 0);
+    // Dormant threads stay candidates for the rotation below.
+    if (!called && !(f.kind === "thread")) continue;
+    let label = `[${f.kind}${f.kind === "promise" ? `:${f.progress ?? "pending"}` : ""}] ${f.content}`;
+    if (isState && history.length)
+      label += ` (changed at message ${turn}${knowers(f.audience)}. Before: ${[...history]
+        .reverse()
+        .map((version) => `${version.content} (message ${version.turn}${knowers(version.audience)})`)
+        .join(" ← ")})`;
+    if (isThread && f.endCondition) label += ` (closes when: ${f.endCondition})`;
+    if (f.kind === "thread") label += ` (open since message ${turn})`;
     facts.push({
       id: f.id,
       content: knownBy
@@ -496,7 +535,8 @@ export function selectCommittedMemory(
         : label,
       displayKo: f.contentKo,
       reason: "current",
-      tier: knownBy ? "boundary" : activation,
+      kind: f.kind,
+      tier: knownBy ? "boundary" : isState ? "state" : f.kind === "thread" ? "thread" : activation,
       sourceIds: f.sourceIds,
       score: called,
       knownBy,
@@ -513,10 +553,50 @@ export function selectCommittedMemory(
       .map(memoryFactIdentity),
   );
   const episodes: Candidate[] = [];
+  const scenes: Candidate[] = [];
   for (const b of valid) {
     // A corrected/withheld fact may still be repeated by the original narrative.
     if (b.excluded || [...(b.factKeys ?? []), ...b.facts.map(memoryFactIdentity)].some((key) => correctedKeys.has(key)))
       continue;
+    // Scenes come back when this moment calls them: a name, place, object or line they share, or their meaning.
+    for (const scene of b.scenes ?? []) {
+      const access = scope(scene.audience);
+      if (!access.ok || access.knownBy) continue;
+      const score =
+        factRecallScore(
+          {
+            key: [scene.where, ...scene.participants].filter(Boolean).join(" "),
+            content: [scene.event, ...scene.lines.map((line) => line.text), ...scene.changes].join(" "),
+            keywords: scene.keywords,
+          },
+          queryText,
+          query,
+        ) + Math.max(0, (semanticScores.get(scene.id) ?? 0) > 0.35 ? semanticScores.get(scene.id)! : 0);
+      if (!score) continue;
+      const heading = [
+        `message ${b.turn}`,
+        scene.when,
+        scene.where,
+        scene.participants.length ? `present: ${scene.participants.join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("; ");
+      scenes.push({
+        id: scene.id,
+        content: [
+          `[Scene, ${heading}] ${scene.event}`,
+          ...scene.lines.map((line) => `  ${line.speaker}${line.to ? ` → ${line.to}` : ""}: "${line.text}"`),
+          ...(scene.changes.length ? [`  Changed: ${scene.changes.join("; ")}`] : []),
+        ].join("\n"),
+        displayKo: scene.eventKo,
+        reason: "relevant",
+        tier: "scene",
+        sourceIds: scene.sourceIds,
+        score,
+        turn: b.turn,
+        progressRank: 0,
+      });
+    }
     const age = newest - b.turn;
     const recent = age < recentWindow;
     const stage = recent ? "short" : age < longWindow ? "long" : "core";
@@ -566,6 +646,7 @@ export function selectCommittedMemory(
     selected.push({ ...selection, tokens: estimateTextTokens(selection.content) });
     return true;
   };
+  const taken = (item: Candidate) => selected.some((s) => s.id === item.id) || waiting.includes(item.id);
   // 1. always, by priority: promises in progress, other promises, then the newest.
   let alwaysUsed = 0;
   for (const item of facts
@@ -578,15 +659,40 @@ export function selectCommittedMemory(
     }
     alwaysUsed += cost;
   }
-  // 2. recall, strongest first, up to the count limit.
+  // 2. the scene now: states of who is here and states that just changed, with their history.
+  let states = 0;
+  for (const item of facts
+    .filter((f) => f.kind === "state" && !taken(f))
+    .sort((a, b) => b.score - a.score || b.turn - a.turn)) {
+    if (states >= SCENE_STATE_LIMIT) break;
+    if (take(item)) states++;
+  }
+  // 3. recall, strongest first, up to the count limit.
   let recalled = 0;
   for (const item of facts
-    .filter((f) => !selected.some((s) => s.id === f.id) && !waiting.includes(f.id))
+    .filter((f) => f.kind !== "state" && f.kind !== "thread" && !taken(f))
     .sort((a, b) => b.score - a.score || b.turn - a.turn)) {
     if (recalled >= recallLimit) break;
     if (take(item)) recalled++;
   }
-  // 3. flow: episodes with what is left.
+  // 4. open threads: the ones this moment calls, then dormant ones in rotation so old foreshadowing is not lost.
+  const threads = facts.filter((f) => f.kind === "thread" && !taken(f));
+  const called = threads.filter((f) => f.score > 0).sort((a, b) => b.score - a.score || b.turn - a.turn);
+  const dormant = threads.filter((f) => f.score === 0).sort((a, b) => a.turn - b.turn);
+  const start = dormant.length ? rotation(queryText) % dormant.length : 0;
+  const rotated = [...dormant.slice(start), ...dormant.slice(0, start)].slice(0, DORMANT_THREAD_ROTATION);
+  let threadCount = 0;
+  for (const item of [...called, ...rotated]) {
+    if (threadCount >= THREAD_LIMIT) break;
+    if (take(item)) threadCount++;
+  }
+  // 5. scenes this moment calls back, with their exact lines.
+  let sceneCount = 0;
+  for (const item of scenes.sort((a, b) => b.score - a.score || b.turn - a.turn)) {
+    if (sceneCount >= SCENE_RECALL_LIMIT) break;
+    if (take(item)) sceneCount++;
+  }
+  // 6. flow: episodes with what is left.
   let flowCount = 0;
   for (const item of episodes.sort((a, b) => b.score - a.score)) {
     if (flowCount >= (config.topK ?? 20)) break;
@@ -594,9 +700,12 @@ export function selectCommittedMemory(
   }
   // Retrieval priority decides inclusion; episode chronology decides presentation.
   const order = new Map(valid.map((b) => [b.id, b.turn]));
+  const sceneTurns = new Map(scenes.map((s) => [s.id, s.turn]));
   const ordered = [
     ...selected.filter((i) => i.reason === "current"),
-    ...selected.filter((i) => i.reason !== "current").sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)),
+    ...selected
+      .filter((i) => i.reason !== "current")
+      .sort((a, b) => (order.get(a.id) ?? sceneTurns.get(a.id) ?? 0) - (order.get(b.id) ?? sceneTurns.get(b.id) ?? 0)),
   ];
   const text = renderCommittedMemory(ordered);
   const tokensOf = (tier: CommittedMemorySelection["tier"]) =>
@@ -612,27 +721,60 @@ export function selectCommittedMemory(
       always: tokensOf("always"),
       recall: tokensOf("recall"),
       boundary: tokensOf("boundary"),
+      state: tokensOf("state"),
+      thread: tokensOf("thread"),
+      scene: tokensOf("scene"),
       flow: tokensOf("flow"),
     },
     waiting,
     tokenCountMethod: "unicode-estimate" as const,
   };
 }
+/** Caps for the format-3 blocks, inside the one token budget. */
+const SCENE_STATE_LIMIT = 8;
+const THREAD_LIMIT = 5;
+const DORMANT_THREAD_ROTATION = 2;
+const SCENE_RECALL_LIMIT = 3;
+/** A stable number that changes as the conversation moves, so dormant threads take turns. */
+function rotation(text: string) {
+  return createHash("sha256").update(text).digest().readUInt32BE(0);
+}
 export const KNOWLEDGE_BOUNDARY_INSTRUCTION =
   "Each character speaks and acts only on what they know. A character who does not know something never notices it by guess or coincidence. A secret comes out only when the story actually shows it being revealed.";
+export const MEMORY_RECENCY_INSTRUCTION =
+  "This memory was saved from earlier messages. Where the recent conversation shows something newer, the conversation wins.";
+export const SCENE_STATE_INSTRUCTION =
+  "Current states, with how they changed (newest first). Characters who were there when a state changed noticed it and react to it naturally; characters who were not there do not know it.";
+export const OPEN_THREAD_INSTRUCTION =
+  "Open threads and promises. Pick one up when it fits the moment; never force a payoff. A thread or promise closes only when the story shows it.";
+export const RECALLED_SCENE_INSTRUCTION =
+  "Earlier scenes this moment calls back. Quoted lines are the exact words spoken.";
 function renderCommittedMemory(selected: CommittedMemorySelection[]) {
-  const facts = selected.filter((i) => i.reason === "current" && i.tier !== "boundary");
+  const isThread = (i: CommittedMemorySelection) => i.kind === "thread" || i.kind === "promise";
+  const current = selected.filter((i) => i.reason === "current" && i.tier !== "boundary");
+  const facts = current.filter((i) => i.kind !== "state" && !isThread(i));
+  const states = current.filter((i) => i.kind === "state");
+  const threads = current.filter(isThread);
   const secrets = selected.filter((i) => i.tier === "boundary");
-  const episodes = selected.filter((i) => i.reason !== "current");
-  return [
+  const scenes = selected.filter((i) => i.tier === "scene");
+  const episodes = selected.filter((i) => i.reason !== "current" && i.tier !== "scene");
+  const blocks = [
+    states.length
+      ? `<scene_state>\n${SCENE_STATE_INSTRUCTION}\n${states.map((i) => i.content).join("\n")}\n</scene_state>`
+      : "",
     facts.length
       ? `<current_facts_and_obligations>\n${facts.map((i) => i.content).join("\n")}\n</current_facts_and_obligations>`
+      : "",
+    threads.length
+      ? `<open_threads>\n${OPEN_THREAD_INSTRUCTION}\n${threads.map((i) => i.content).join("\n")}\n</open_threads>`
       : "",
     secrets.length
       ? `<knowledge_boundaries>\n${KNOWLEDGE_BOUNDARY_INSTRUCTION}\n${secrets.map((i) => `- ${i.content}`).join("\n")}\n</knowledge_boundaries>`
       : "",
+    scenes.length
+      ? `<recalled_scenes>\n${RECALLED_SCENE_INSTRUCTION}\n${scenes.map((i) => i.content).join("\n\n")}\n</recalled_scenes>`
+      : "",
     episodes.length ? `<story_chronology>\n${episodes.map((i) => i.content).join("\n\n")}\n</story_chronology>` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  ].filter(Boolean);
+  return blocks.length ? [MEMORY_RECENCY_INSTRUCTION, ...blocks].join("\n\n") : "";
 }

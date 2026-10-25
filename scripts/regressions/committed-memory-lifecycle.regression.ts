@@ -152,7 +152,7 @@ try {
   assert(initialPrompt?.text.includes("Alice"));
   assert(!initialPrompt?.text.includes("표시전용"));
   assert(initialPrompt?.selected.some((item) => item.displayKo?.includes("표시전용")));
-  assert(initialPrompt?.text.includes("<current_facts_and_obligations>"));
+  assert(initialPrompt?.text.includes("<open_threads>"));
   assert(initialPrompt?.text.includes("<story_chronology>"));
   progress = "in_progress";
   await chats.createMessage({
