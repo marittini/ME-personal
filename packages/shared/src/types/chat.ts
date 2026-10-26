@@ -350,6 +350,10 @@ export interface ChatMetadata {
   branchMessageId?: string | null;
   /** Structured rolling summary entries. Missing means legacy summary-only metadata. */
   summaryEntries?: ChatSummaryEntry[];
+  /**
+   * Stored whole; chat responses carry only { version, ownerChatId, enabled, epoch } (the vault reads the rest
+   * through /committed-memory). Never send this key back in a metadata patch.
+   */
   committedMemory?: CommittedMemoryState;
   committedMemoryFloatingButton?: boolean;
   committedMemorySourceMode?: "pending" | "last" | "range";

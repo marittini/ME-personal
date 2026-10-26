@@ -497,6 +497,19 @@ try {
     "a dormant feeling comes back with what it needs",
   );
 
+  // Chat responses carry only a stub of the memory; storage keeps it whole.
+  const { normalizeChatForResponse } = await import("../../packages/server/src/routes/chats.routes.js");
+  const response = normalizeChatForResponse({
+    id: "room",
+    characterIds: "[]",
+    metadata: JSON.stringify({
+      background: "forest",
+      committedMemory: { version: 3, ownerChatId: "room", enabled: true, epoch: "e1", batches: [{ id: "b" }] },
+    }),
+  });
+  assert.deepEqual(response.metadata.committedMemory, { version: 3, ownerChatId: "room", enabled: true, epoch: "e1" });
+  assert.equal(response.metadata.background, "forest");
+
   console.log("Committed memory ledger ideas passed.");
 } finally {
   rmSync(directory, { recursive: true, force: true });

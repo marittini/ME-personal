@@ -45,6 +45,18 @@ export function memoryFingerprint(m: MemorySourceMessage): string {
     )
     .digest("hex");
 }
+/**
+ * Chat responses (the chat list, a chat, a metadata save) carry only this much of the unified memory: whether
+ * it is on, its owner and epoch. The memory itself can be megabytes in a long room and the client reads it
+ * through /committed-memory, so it is not sent with every chat. Storage keeps it whole; clients patch metadata
+ * by key and never send this key back.
+ */
+export function committedMemoryResponseStub(metadata: Record<string, unknown>) {
+  const memory = metadata.committedMemory;
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) return metadata;
+  const { version, ownerChatId, enabled, epoch } = memory as Record<string, unknown>;
+  return { ...metadata, committedMemory: { version, ownerChatId, enabled, epoch } };
+}
 export function emptyCommittedMemory(chatId: string): CommittedMemoryState {
   return { version: 1, ownerChatId: chatId, enabled: false, batches: [] };
 }
