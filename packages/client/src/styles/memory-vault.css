@@ -298,8 +298,25 @@
 .memory-vault__bar > [data-tier="thread"] {
   background: color-mix(in srgb, var(--primary) 40%, var(--background));
 }
+.memory-vault__bar > [data-tier="life"] {
+  background: color-mix(in srgb, var(--primary) 25%, var(--muted-foreground));
+}
 .memory-vault__bar > [data-tier="scene"] {
   background: color-mix(in srgb, var(--muted-foreground) 55%, var(--background));
+}
+.memory-vault__routine {
+  display: grid;
+  gap: 0.75rem;
+}
+.memory-vault__routine > li {
+  display: grid;
+  gap: 0.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.memory-vault__routine > li[data-excluded] > div > span:first-child {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
 }
 .memory-vault__clues {
   display: grid;
