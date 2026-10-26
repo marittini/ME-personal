@@ -621,6 +621,28 @@ export function selectCommittedMemory(
   );
   const episodes: Candidate[] = [];
   const scenes: Candidate[] = [];
+  // Words the recent conversation shares with only a few saved records (a name or thing said once long ago)
+  // call those records up strongly; words every record has count for nothing.
+  const sceneText = (scene: CommittedMemoryScene) =>
+    [
+      scene.where,
+      ...scene.participants,
+      scene.event,
+      scene.eventKo,
+      ...scene.lines.map((line) => line.text),
+      ...scene.changes,
+      ...(scene.keywords ?? []),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  const rare = rareWordScorer(
+    valid.flatMap((b) => [
+      [b.summary, b.core, b.summaryKo, b.coreKo].filter(Boolean).join(" "),
+      ...(b.scenes ?? []).map(sceneText),
+    ]),
+    queryText,
+  );
+  const sceneRare = new Map<string, number>();
   for (const b of valid) {
     // A corrected/withheld fact may still be repeated by the original narrative.
     if (b.excluded || [...(b.factKeys ?? []), ...b.facts.map(memoryFactIdentity)].some((key) => correctedKeys.has(key)))
@@ -629,6 +651,7 @@ export function selectCommittedMemory(
     for (const scene of b.scenes ?? []) {
       const access = scope(scene.audience);
       if (!access.ok || access.knownBy) continue;
+      const rareScore = rare(sceneText(scene));
       const score =
         factRecallScore(
           {
@@ -638,8 +661,11 @@ export function selectCommittedMemory(
           },
           queryText,
           query,
-        ) + Math.max(0, (semanticScores.get(scene.id) ?? 0) > 0.35 ? semanticScores.get(scene.id)! : 0);
+        ) +
+        rareScore +
+        Math.max(0, (semanticScores.get(scene.id) ?? 0) > 0.35 ? semanticScores.get(scene.id)! : 0);
       if (!score) continue;
+      sceneRare.set(scene.id, rareScore);
       const heading = [
         `message ${b.turn}`,
         scene.when,
@@ -673,6 +699,7 @@ export function selectCommittedMemory(
     if (!content) continue;
     const score =
       relevance([content, displayKo, ...(b.keywords ?? [])].filter(Boolean).join(" "), query) +
+      rare([b.summary, b.core, b.summaryKo, b.coreKo].filter(Boolean).join(" ")) +
       Math.max(0, semanticScores.get(b.id) ?? 0);
     if (recent || score > 0)
       episodes.push({
@@ -689,6 +716,15 @@ export function selectCommittedMemory(
       });
   }
 
+  // "You said back then…": the conversation points at something said before, so the first scene where it came
+  // up goes ahead of later scenes that only mention it again.
+  if (BACK_REFERENCE.test(queryText)) {
+    const top = Math.max(0, ...sceneRare.values());
+    const first = scenes
+      .filter((scene) => top > 0 && (sceneRare.get(scene.id) ?? 0) >= top / 2)
+      .sort((a, b) => a.turn - b.turn)[0];
+    if (first) first.score += 1;
+  }
   const selected: CommittedMemorySelection[] = [];
   const waiting: string[] = [];
   const seen = new Set<string>();
@@ -795,6 +831,53 @@ export function selectCommittedMemory(
     },
     waiting,
     tokenCountMethod: "unicode-estimate" as const,
+  };
+}
+const BACK_REFERENCE =
+  /(그때|그날|예전에|전에\s*(말|했)|말했잖|했잖아|약속했잖|기억\s*(나|안\s*나|하지|해\?)|처음\s*만났|remember\s+when|you\s+said|back\s+then|that\s+time|last\s+time|you\s+promised)/iu;
+/**
+ * Words for rarity: whole words of two or more letters, plus two-letter pieces of Korean, Japanese and Chinese
+ * words (so "미라가" and "미라는" share "미라"). Latin two-letter pieces ("he" in "the") would make noise.
+ */
+function rareTerms(text: string) {
+  const words =
+    text
+      .normalize("NFKC")
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu) ?? [];
+  return new Set(
+    words.flatMap((word) => {
+      const chars = Array.from(word);
+      if (chars.length < 2) return [];
+      const cjk = /[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word);
+      return cjk ? [word, ...chars.slice(1).map((c, i) => chars[i] + c)] : [word];
+    }),
+  );
+}
+/**
+ * How rare the conversation's words are among the saved records, for one record's text: the summed inverse
+ * document frequency of shared words found in at most about a fifth of the records, squashed to 0..1. Too few
+ * records make every word look rare, so it stays 0 below five.
+ */
+function rareWordScorer(documents: readonly string[], queryText: string) {
+  const query = rareTerms(queryText);
+  if (documents.length < 5 || !query.size) return () => 0;
+  const df = new Map<string, number>();
+  for (const document of documents) {
+    const terms = rareTerms(document);
+    for (const term of query) if (terms.has(term)) df.set(term, (df.get(term) ?? 0) + 1);
+  }
+  const weights = new Map(
+    [...df].flatMap(([term, count]) => {
+      const idf = Math.log((documents.length + 1) / count);
+      return idf >= 1.5 ? [[term, idf] as const] : [];
+    }),
+  );
+  if (!weights.size) return () => 0;
+  return (text: string) => {
+    const terms = rareTerms(text);
+    const sum = [...weights].reduce((total, [term, idf]) => total + (terms.has(term) ? idf : 0), 0);
+    return sum / (sum + 3);
   };
 }
 /** Caps for the format-3 blocks, inside the one token budget. */

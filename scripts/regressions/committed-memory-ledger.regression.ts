@@ -12,6 +12,29 @@ process.env.MARINARA_LITE = "true";
 process.env.LOG_LEVEL = "silent";
 const memory = await import("../../packages/server/src/services/committed-memory.js");
 const sentences = await import("../../packages/server/src/services/committed-memory-sentences.js");
+const policy = await import("../../packages/server/src/services/committed-memory-policy.js");
+import type { CommittedMemoryBatch, CommittedMemoryScene } from "../../packages/shared/src/types/committed-memory.js";
+const scene = (id: string, event: string, over: Partial<CommittedMemoryScene> = {}): CommittedMemoryScene => ({
+  id,
+  participants: ["Mira", "Ren"],
+  event,
+  lines: [],
+  changes: [],
+  audience: "shared",
+  sourceIds: [`src-${id}`],
+  ...over,
+});
+const batch = (turn: number, scenes: CommittedMemoryScene[], over: Partial<CommittedMemoryBatch> = {}) => ({
+  id: `b${turn}`,
+  turn,
+  createdAt: "2026-10-26T00:00:00.000Z",
+  sources: [{ id: `src${turn}`, fingerprint: `fp${turn}` }],
+  summary: `Episode ${turn}`,
+  core: `Episode ${turn}`,
+  facts: [],
+  scenes,
+  ...over,
+});
 
 try {
   // ── Numbered sentences ──
@@ -116,6 +139,43 @@ try {
     ],
   });
   assert.equal(parsed.facts.length, 0, "evidence pointing at no sentence drops the operation");
+
+  // ── Recall: rare words and back-references ──
+  const walk = (turn: number, extra = "") =>
+    batch(turn, [scene(`s${turn}`, `Mira and Ren walk the road ${extra}`.trim())]);
+  const recallState = {
+    version: 3 as const,
+    ownerChatId: "room",
+    enabled: true,
+    // Old enough that their summaries are no longer "recent" and must be called up.
+    recall: { recentMessages: 1 },
+    batches: [
+      walk(2, "to the lighthouse"),
+      walk(3),
+      walk(4, "; a violet umbrella is left behind"),
+      walk(5, "past the lighthouse in a storm"),
+      walk(6),
+      walk(7, "back to the lighthouse in the storm"),
+      walk(8),
+      walk(9, "and the lighthouse storm again"),
+      walk(10),
+      walk(11),
+      batch(12, [scene("s12", "미라가 등대 앞에 보라색 우산을 두고 갔다")]),
+    ],
+  };
+  const recalled = (query: string) =>
+    policy
+      .selectCommittedMemory(recallState, query, [], Number.POSITIVE_INFINITY)
+      .selected.filter((item) => item.tier === "scene")
+      .map((item) => item.id);
+  assert(recalled("Where is the violet umbrella?").includes("s4"), "a word said once calls its scene up");
+  assert(!recalled("Where is the umbrella of Mira and Ren?").includes("s3"), "words every scene has call nothing");
+  assert(recalled("보라색 우산은 어디 있어?").includes("s12"), "Korean words match across endings");
+  assert.deepEqual(recalled("the lighthouse storm").sort(), ["s5", "s7", "s9"]);
+  assert(
+    recalled("그때 말했잖아, the lighthouse storm").includes("s2"),
+    "pointing back brings the first scene where it came up",
+  );
 
   console.log("Committed memory ledger ideas passed.");
 } finally {
