@@ -36,15 +36,22 @@ export function ttsTaggedDialogueEnabled(ttsTaggedDialogue: unknown): boolean {
 /** A room's extras (people without a card) as speech participants: wrapped like characters, each with its voice. */
 export function ttsExtraParticipants(
   extras: unknown,
-): Array<{ kind: "character"; id: string; name: string; voice: string }> {
+): Array<{ kind: "character"; id: string; name: string; voice: string; phonetic: string }> {
   if (!Array.isArray(extras)) return [];
   return extras.flatMap((entry) => {
     if (!entry || typeof entry !== "object") return [];
-    const { id, name, voice } = entry as Record<string, unknown>;
+    const { id, name, voice, phonetic } = entry as Record<string, unknown>;
     if (typeof id !== "string" || !/^extra-[A-Za-z0-9_-]{1,64}$/.test(id)) return [];
     if (typeof name !== "string" || !name.trim()) return [];
     return [
-      { kind: "character" as const, id, name: name.trim(), voice: typeof voice === "string" ? voice.trim() : "" },
+      {
+        kind: "character" as const,
+        id,
+        name: name.trim(),
+        voice: typeof voice === "string" ? voice.trim() : "",
+        // How read-aloud says the name ("IV" → "フォー"); empty reads the name as written.
+        phonetic: typeof phonetic === "string" ? phonetic.trim() : "",
+      },
     ];
   });
 }

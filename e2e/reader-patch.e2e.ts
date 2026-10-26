@@ -804,12 +804,14 @@ test("extras without a card get a room voice in reading settings, and their tagg
       }),
     );
     const voices: string[] = [];
+    const texts: string[] = [];
     await page.route("**/api/tts/speak", async (route) => {
       voices.push(route.request().postDataJSON().voice);
+      texts.push(route.request().postDataJSON().text);
       await route.fulfill({ body: Buffer.alloc(64), contentType: "audio/wav" });
     });
     await page.goto("/");
-    // Give the extra a voice in this room's reading settings.
+    // Give the extra a voice and a phonetic name in this room's reading settings.
     await page.getByRole("button", { name: "읽기 설정", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "읽기 설정", exact: true });
     await dialog.locator('[data-reader-settings-group="voice"] > summary').click();
@@ -817,15 +819,18 @@ test("extras without a card get a room voice in reading settings, and their tagg
     await extras.getByRole("button", { name: "엑스트라 추가", exact: true }).click();
     await extras.getByLabel("엑스트라 1 이름").fill("엑스트라A");
     await extras.getByLabel("엑스트라 1 음성").fill("extra-voice");
+    await extras.getByLabel("엑스트라 1 발음 표기").fill("엑스트라에이");
     await extras.getByRole("button", { name: "저장", exact: true }).click();
     let id = "";
     await expect
       .poll(async () => {
         const saved = (await (await request.get(`/api/chats/${chat.id}`)).json()).metadata.ttsExtraVoices ?? [];
         id = saved[0]?.id ?? "";
-        return saved.map((row: { name: string; voice: string }) => `${row.name}:${row.voice}`);
+        return saved.map(
+          (row: { name: string; voice: string; phonetic?: string }) => `${row.name}:${row.voice}:${row.phonetic}`,
+        );
       })
-      .toEqual(["엑스트라A:extra-voice"]);
+      .toEqual(["엑스트라A:extra-voice:엑스트라에이"]);
     expect(id).toMatch(/^extra-/u);
     await page.keyboard.press("Escape");
 
@@ -837,7 +842,7 @@ test("extras without a card get a room voice in reading settings, and their tagg
           characterId: card.id,
           content: [
             `<audio_character id="${card.id}">"누구냐."</audio_character>`,
-            `골목 끝에서 누군가 대답했다. <audio_character id="${id}">"그냥 지나가던 사람이오."</audio_character>`,
+            `골목 끝에서 누군가 대답했다. <audio_character id="${id}">"엑스트라A라고 하오. 그냥 지나가던 사람이오."</audio_character>`,
           ].join("\n\n"),
         },
       })
@@ -851,6 +856,9 @@ test("extras without a card get a room voice in reading settings, and their tagg
     await speech.locator("[data-tts-dialogue-tappable]").nth(1).click();
     await speech.getByRole("button", { name: "2번 대사 음성 생성", exact: true }).click();
     await expect.poll(() => voices).toEqual(["extra-voice"]);
+    // The extra's phonetic name is what read-aloud sends; the page shows the name as written.
+    expect(texts[0]).toContain("엑스트라에이라고 하오.");
+    await expect(speech).toContainText("엑스트라A라고 하오.");
   } finally {
     await request.delete(`/api/chats/${chat.id}?force=true`);
     await request.delete(`/api/characters/${card.id}`);
