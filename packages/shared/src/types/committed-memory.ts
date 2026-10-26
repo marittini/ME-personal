@@ -8,8 +8,9 @@ export interface CommittedMemoryFact {
    * Format 3 adds "state" (a visible, changeable condition such as form, clothes, injury, hunger or location; its
    * change history is injected with witnesses) and "thread" (foreshadowing, an open question or a goal). A
    * promise is a thread whose end condition is a promise; it keeps its own kind so format-2 data reads as-is.
+   * "emotion" is a feeling that needs something to resolve it: its cause, and its endCondition is that need.
    */
-  kind: "fact" | "promise" | "event" | "relationship" | "belief" | "state" | "thread";
+  kind: "fact" | "promise" | "event" | "relationship" | "belief" | "state" | "thread" | "emotion";
   key: string;
   content: string;
   keyKo?: string;
@@ -41,9 +42,12 @@ export interface CommittedMemoryFact {
   unknownTo?: string[];
   /** Over the per-entity cap of current facts: kept as history, never injected. */
   archived?: boolean;
-  /** Threads and promises: what closes them ("when Alice returns the book"). */
+  /** Threads and promises: what closes them ("when Alice returns the book"); for an emotion, what it needs. */
   endCondition?: string;
   endConditionKo?: string;
+  /** Emotions: what caused the feeling. */
+  cause?: string;
+  causeKo?: string;
   /** The last update operation that produced this value (format 3). */
   op?: CommittedMemoryOperation;
   /** For resolve/reveal: the quoted transcript text the server verified. */
@@ -53,6 +57,10 @@ export interface CommittedMemoryFact {
    * belief ends when that character comes to know the record; until then it carries over to updated values.
    */
   falseBeliefs?: CommittedMemoryFalseBelief[];
+  /** Characters who only guess it, without knowing for sure (not in the audience). */
+  suspectedBy?: string[];
+  /** Why a character in unknownTo does not know it ("asleep", "was not there"), by character ID. */
+  unknownReasons?: Record<string, string>;
   /** Threads and promises: the newest development. */
   latest?: string;
   latestKo?: string;
@@ -102,6 +110,15 @@ export interface CommittedMemoryScene {
   audience: "shared" | string[];
   sourceIds: string[];
   keywords?: string[];
+  /** Characters who were there but remember it only vaguely or not at all (drunk, feverish, asleep). */
+  memory?: CommittedMemorySceneRecall[];
+}
+export interface CommittedMemorySceneRecall {
+  /** Character ID. */
+  who: string;
+  remembers: "partial" | "none";
+  why?: string;
+  whyKo?: string;
 }
 
 /** Format 2: who or what memories are about. Aliases identify; keywords on facts call them up. */
@@ -156,6 +173,26 @@ export interface CommittedMemoryBatch {
   factKeys?: string[];
   /** Format 3 scene records; batches committed before format 3 have none until they are re-committed. */
   scenes?: CommittedMemoryScene[];
+  /** Daily life in this batch: who ate, washed, slept, woke or took medicine, and when. */
+  routine?: CommittedMemoryRoutine[];
+}
+export type CommittedMemoryRoutineKind = "meal" | "wash" | "sleep" | "wake" | "medicine";
+/** One daily-life event. Counts and durations are computed from these, never written by the model. */
+export interface CommittedMemoryRoutine {
+  id: string;
+  /** The person's name as the story writes it (the user's character too). */
+  who: string;
+  what: CommittedMemoryRoutineKind;
+  text?: string;
+  textKo?: string;
+  /** Story time as the transcript gives it ("24-10-18 07:30", "that morning"). */
+  at?: string;
+  /** A meal made do with a drink or a snack. */
+  substitute?: boolean;
+  /** Only said, not shown: it may not be true. */
+  claimed?: boolean;
+  sourceId: string;
+  excluded?: boolean;
 }
 export interface CommittedMemoryState {
   /**
@@ -206,7 +243,7 @@ export interface CommittedMemorySelection {
    * always / recall (facts), state (the scene now), thread (open threads), scene (recalled scenes) or flow
    * (episodes); missing on receipts saved before format 2.
    */
-  tier?: "always" | "recall" | "flow" | "boundary" | "state" | "thread" | "scene";
+  tier?: "always" | "recall" | "flow" | "boundary" | "state" | "thread" | "scene" | "life";
   /** The fact kind, for facts (format 3). */
   kind?: CommittedMemoryFact["kind"];
   tokens?: number;
@@ -249,6 +286,8 @@ export interface CommittedMemoryStatus {
 export interface CommittedMemoryEdit {
   batchId: string;
   factId?: string;
+  /** A daily-life record: `content` replaces its text, `excluded` leaves it out. */
+  routineId?: string;
   expectedRevision: string;
   content?: string;
   summary?: string;

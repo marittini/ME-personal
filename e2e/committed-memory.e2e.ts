@@ -151,7 +151,7 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     await page.goto("/");
     const drawer = await openChatSettingsTool(page, "chat-summary");
     const vault = drawer.locator("[data-committed-memory]");
-    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Threads, promises & feelings", exact: true }).click();
     await vault.getByRole("button", { name: "In progress", exact: true }).click();
     await expect(vault.locator(".memory-vault__row")).toHaveCount(1);
     await expect(vault.locator(".memory-vault__row")).toContainText("진행 중 여행 약속");
@@ -175,7 +175,7 @@ test("vault shows first-response Korean text and filters promise lifecycle witho
     expect(updated.progress).toBe("completed");
     await vault.getByRole("button", { name: "Settings", exact: true }).click();
     await setSwitch(vault.getByRole("checkbox", { name: "Show Korean memory text" }), false);
-    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Threads, promises & feelings", exact: true }).click();
     await expect(vault.locator(".memory-vault__row").filter({ hasText: "active trip" })).toBeVisible();
   } finally {
     await request.delete(`/api/chats/${id}?force=true`);
@@ -467,7 +467,7 @@ test("format 3: scenes with exact lines, threads, state history, waiting batch a
     await expect(detail).toContainText("미라: 인간 → 보르조이");
     await testInfo.attach("memory-scene", { body: await vault.screenshot(), contentType: "image/png" });
 
-    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Threads, promises & feelings", exact: true }).click();
     const thread = vault.locator(".memory-vault__row").filter({ hasText: "밤의 울음" });
     await expect(thread).toContainText("Open thread");
     await thread.click();
@@ -548,11 +548,54 @@ test("wrong beliefs, thread clues and a stalled thread are shown in the vault", 
             falseBeliefs: [
               { who: "ren-card", believes: "Mira is an ordinary dog.", believesKo: "미라는 평범한 개다." },
             ],
+            suspectedBy: ["ari-card"],
+            unknownTo: ["ren-card"],
+            unknownReasons: { "ren-card": "자고 있었음" },
+            sourceIds: [messages[0]!.id],
+          },
+          {
+            id: "hurt",
+            kind: "emotion",
+            key: "Ren hurt",
+            keyKo: "렌의 서운함",
+            content: "Ren is hurt by Mira.",
+            contentKo: "렌은 미라에게 서운하다.",
+            cause: "Mira forgot the promise.",
+            causeKo: "미라가 약속을 잊었다.",
+            endCondition: "An apology from Mira.",
+            endConditionKo: "미라의 사과",
+            status: "current",
+            audience: "shared",
             sourceIds: [messages[0]!.id],
           },
         ]),
         ...[1, 2, 3, 4, 5].map((index) => batch(index, [])),
-      ],
+      ].map((entry, index) =>
+        index === 1
+          ? {
+              ...entry,
+              routine: [
+                {
+                  id: "r-meal",
+                  who: "미라",
+                  what: "meal",
+                  text: "죽",
+                  at: "24-10-18 08:10",
+                  sourceId: messages[1]!.id,
+                },
+                {
+                  id: "r-coffee",
+                  who: "렌",
+                  what: "meal",
+                  text: "커피",
+                  substitute: true,
+                  claimed: true,
+                  sourceId: messages[1]!.id,
+                },
+              ],
+            }
+          : entry,
+      ),
     };
     expect((await request.patch(`/api/chats/${id}/metadata`, { data: { committedMemory: memory } })).ok()).toBeTruthy();
     await page.route("**/api/app-settings/ui", (route) => route.fulfill({ json: { value: "" } }));
@@ -572,7 +615,7 @@ test("wrong beliefs, thread clues and a stalled thread are shown in the vault", 
     await page.goto("/");
     const drawer = await openChatSettingsTool(page, "chat-summary");
     const vault = drawer.locator("[data-committed-memory]");
-    await vault.getByRole("button", { name: "Threads & promises", exact: true }).click();
+    await vault.getByRole("button", { name: "Threads, promises & feelings", exact: true }).click();
     await vault.getByRole("button", { name: "Stalled", exact: true }).click();
     const thread = vault.locator(".memory-vault__row").filter({ hasText: "보낸 이 없는 편지" });
     await expect(thread).toContainText("Stalled thread");
@@ -591,6 +634,43 @@ test("wrong beliefs, thread clues and a stalled thread are shown in the vault", 
     const beliefs = vault.locator("[data-memory-beliefs]");
     await expect(beliefs).toContainText("ren-card");
     await expect(beliefs).toContainText("미라는 평범한 개다.");
+    const knowledge = vault.locator("[data-memory-knowledge]");
+    await expect(knowledge).toContainText("ren-card (자고 있었음)");
+    await expect(knowledge).toContainText("Only suspected by ari-card");
+
+    // A feeling shows its cause and what it needs.
+    await vault.getByRole("button", { name: "Threads, promises & feelings", exact: true }).click();
+    const hurt = vault.locator(".memory-vault__row").filter({ hasText: "렌의 서운함" });
+    await expect(hurt).toContainText("Lingering feeling");
+    await hurt.click();
+    await expect(vault.locator("[data-memory-cause]")).toHaveText("Cause: 미라가 약속을 잊었다.");
+    await expect(vault.locator("[data-memory-end-condition]")).toHaveText("Needs: 미라의 사과");
+
+    // Daily life: records per person, corrected and left out.
+    await vault.getByRole("button", { name: "Daily life", exact: true }).click();
+    const routine = vault.locator("[data-memory-routine]");
+    await expect(routine.locator("[data-memory-routine-entry]")).toHaveCount(2);
+    const coffee = routine.locator("li").filter({ hasText: "커피" });
+    await expect(coffee).toContainText("Made do");
+    await expect(coffee).toContainText("Only said");
+    await routine.getByRole("button", { name: "미라", exact: true }).click();
+    await expect(routine.locator("[data-memory-routine-entry]")).toHaveCount(1);
+    const porridge = routine.locator("li").filter({ hasText: "죽" });
+    await porridge.getByRole("button", { name: "Edit", exact: true }).click();
+    await routine.getByRole("textbox", { name: "Record text" }).fill("전복죽");
+    await routine.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(routine.locator("li").filter({ hasText: "전복죽" })).toBeVisible();
+    await routine
+      .locator("li")
+      .filter({ hasText: "전복죽" })
+      .getByRole("button", { name: "Exclude from recall" })
+      .click();
+    await expect(routine.locator("li[data-excluded]")).toHaveCount(1);
+    const saved = await (await request.get(`/api/chats/${id}/committed-memory`)).json();
+    const meal = saved.state.batches
+      .flatMap((b: { routine?: Array<{ id: string; text: string; excluded?: boolean }> }) => b.routine ?? [])
+      .find((r: { id: string }) => r.id === "r-meal");
+    expect(meal).toMatchObject({ text: "전복죽", excluded: true });
   } finally {
     await request.delete(`/api/chats/${id}?force=true`);
   }

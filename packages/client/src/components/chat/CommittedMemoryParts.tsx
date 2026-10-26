@@ -13,7 +13,7 @@ import { useEditMemory, useMemoryHistoryAction, useMemoryPreview } from "../../h
 import { useCharacterSummaries } from "../../hooks/use-characters";
 import { SETTINGS_BUTTON_CLASS } from "../panels/settings/SettingControls";
 
-const TIERS = ["always", "state", "recall", "thread", "boundary", "scene", "flow"] as const;
+const TIERS = ["always", "state", "life", "recall", "thread", "boundary", "scene", "flow"] as const;
 /** Server default (committed-memory-policy COMMITTED_MEMORY_DEFAULTS). */
 export const MEMORY_TOKEN_BUDGET = 2400;
 
@@ -35,7 +35,17 @@ export function KnowledgeLine({ fact, name }: { fact: CommittedMemoryFact; name:
           ? t("chat.committedMemory.vault.knownBy", { names: fact.audience.map(name).join(", ") })
           : t("chat.committedMemory.vault.knownByNarrator")}
       {!!fact.unknownTo?.length &&
-        ` · ${t("chat.committedMemory.vault.unknownTo", { names: fact.unknownTo.map(name).join(", ") })}`}
+        ` · ${t("chat.committedMemory.vault.unknownTo", {
+          names: fact.unknownTo
+            .map((id) =>
+              fact.unknownReasons?.[id]
+                ? t("chat.committedMemory.vault.nameWithReason", { name: name(id), reason: fact.unknownReasons[id] })
+                : name(id),
+            )
+            .join(", "),
+        })}`}
+      {!!fact.suspectedBy?.length &&
+        ` · ${t("chat.committedMemory.vault.suspectedBy", { names: fact.suspectedBy.map(name).join(", ") })}`}
     </p>
   );
 }
@@ -79,7 +89,10 @@ export function MemorySceneDetail({
   sources: ReactNode;
 }) {
   const { t } = useTranslation();
-  const name = useMemoryNames(scene.audience === "shared" ? [] : scene.audience);
+  const name = useMemoryNames([
+    ...(scene.audience === "shared" ? [] : scene.audience),
+    ...(scene.memory ?? []).map((entry) => entry.who),
+  ]);
   const changes = korean && scene.changesKo?.length === scene.changes.length ? scene.changesKo : scene.changes;
   return (
     <>
@@ -120,6 +133,25 @@ export function MemorySceneDetail({
           </ul>
         </section>
       )}
+      {!!scene.memory?.length && (
+        <section data-memory-scene-recall="">
+          <h5>{t("chat.committedMemory.vault.sceneMemory")}</h5>
+          <ul className="memory-vault__list-plain">
+            {scene.memory.map((entry) => (
+              <li key={entry.who}>
+                {t(
+                  entry.remembers === "none"
+                    ? "chat.committedMemory.vault.sceneForgot"
+                    : "chat.committedMemory.vault.sceneVague",
+                  { name: name(entry.who) },
+                )}
+                {(entry.why || entry.whyKo) &&
+                  ` · ${korean && entry.whyKo?.trim() ? entry.whyKo : (entry.why ?? entry.whyKo)}`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <p className="memory-vault__eyebrow" data-memory-knowledge="">
         {scene.audience === "shared"
           ? t("chat.committedMemory.vault.knownByAll")
@@ -129,6 +161,139 @@ export function MemorySceneDetail({
       </p>
       {sources}
     </>
+  );
+}
+
+/**
+ * Daily-life records, newest first, filterable by person. The prompt gets each person's last meal, sleep,
+ * washing and medicine with counts computed from these; a wrong record can be corrected or left out.
+ */
+export function MemoryRoutineList({
+  chatId,
+  batches,
+  korean,
+  busy,
+}: {
+  chatId: string;
+  batches: readonly CommittedMemoryBatch[];
+  korean: boolean;
+  busy: boolean;
+}) {
+  const { t } = useTranslation();
+  const edit = useEditMemory(chatId);
+  const [person, setPerson] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const entries = batches
+    .filter((batch) => !batch.invalidated)
+    .flatMap((batch) => (batch.routine ?? []).map((entry) => ({ batch, entry })))
+    .sort((a, b) => b.batch.turn - a.batch.turn);
+  const people = [...new Set(entries.flatMap(({ entry }) => entry.who.split(/[·,、&]/u).map((who) => who.trim())))]
+    .filter(Boolean)
+    .sort();
+  const visible = entries.filter(
+    ({ entry }) => person === null || entry.who.split(/[·,、&]/u).some((who) => who.trim() === person),
+  );
+  const identity = (batch: CommittedMemoryBatch, id: string) => ({
+    batchId: batch.id,
+    routineId: id,
+    expectedRevision: batch.revision ?? batch.createdAt,
+  });
+  return (
+    <section className="memory-vault__body space-y-4" data-memory-routine="">
+      <p className="memory-vault__hint">{t("chat.committedMemory.vault.routine.help")}</p>
+      {people.length > 1 && (
+        <nav className="memory-vault__tabs" aria-label={t("chat.committedMemory.vault.routine.people")}>
+          {[null, ...people].map((who) => (
+            <button
+              key={who ?? ""}
+              type="button"
+              aria-current={person === who ? "page" : undefined}
+              onClick={() => setPerson(who)}
+            >
+              {who ?? t("chat.committedMemory.vault.routine.everyone")}
+            </button>
+          ))}
+        </nav>
+      )}
+      {!visible.length && <p className="memory-vault__empty">{t("chat.committedMemory.vault.routine.empty")}</p>}
+      <ul className="memory-vault__routine">
+        {visible.map(({ batch, entry }) => (
+          <li key={entry.id} data-memory-routine-entry={entry.what} data-excluded={entry.excluded ? "" : undefined}>
+            <span className="memory-vault__eyebrow">
+              {[
+                t(`chat.committedMemory.vault.routine.${entry.what}`),
+                entry.who,
+                t("chat.committedMemory.vault.episode", { turn: batch.turn }),
+                entry.at,
+                entry.substitute ? t("chat.committedMemory.vault.routine.substitute") : "",
+                entry.claimed ? t("chat.committedMemory.vault.routine.claimed") : "",
+                entry.excluded ? t("chat.committedMemory.vault.excluded") : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            {editing?.id === entry.id ? (
+              <form
+                className="flex flex-wrap gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  edit.mutate(
+                    { ...identity(batch, entry.id), content: editing.text },
+                    { onSuccess: () => setEditing(null) },
+                  );
+                }}
+              >
+                <input
+                  className="memory-vault__field min-w-0 flex-1"
+                  aria-label={t("chat.committedMemory.vault.routine.text")}
+                  value={editing.text}
+                  maxLength={200}
+                  required
+                  onChange={(event) => setEditing({ id: entry.id, text: event.target.value })}
+                />
+                <button className={SETTINGS_BUTTON_CLASS} disabled={edit.isPending}>
+                  <Check size={14} />
+                  {t("chat.committedMemory.vault.save")}
+                </button>
+                <button type="button" className={SETTINGS_BUTTON_CLASS} onClick={() => setEditing(null)}>
+                  {t("chat.committedMemory.vault.cancel")}
+                </button>
+              </form>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {(korean && entry.textKo?.trim() ? entry.textKo : entry.text) ||
+                    t(`chat.committedMemory.vault.routine.${entry.what}`)}
+                </span>
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    className={SETTINGS_BUTTON_CLASS}
+                    disabled={busy || edit.isPending}
+                    onClick={() => setEditing({ id: entry.id, text: entry.text ?? "" })}
+                  >
+                    {t("chat.committedMemory.vault.edit")}
+                  </button>
+                  <button
+                    type="button"
+                    className={SETTINGS_BUTTON_CLASS}
+                    disabled={busy || edit.isPending}
+                    onClick={() => edit.mutate({ ...identity(batch, entry.id), excluded: !entry.excluded })}
+                  >
+                    {t(entry.excluded ? "chat.committedMemory.vault.restore" : "chat.committedMemory.vault.exclude")}
+                  </button>
+                </span>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+      {edit.error && (
+        <p role="alert" className="text-[var(--destructive)]">
+          {edit.error.message}
+        </p>
+      )}
+    </section>
   );
 }
 

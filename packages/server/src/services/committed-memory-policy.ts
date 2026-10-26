@@ -7,6 +7,7 @@ import type {
   CommittedMemoryFact,
   CommittedMemoryEntity,
   CommittedMemoryScene,
+  CommittedMemoryRoutine,
 } from "@marinara-engine/shared";
 export interface MemorySourceMessage {
   id: string;
@@ -287,8 +288,9 @@ export const ENTITY_FACT_CAP = 8;
 const CLUE_LIMIT = 10;
 /**
  * What a new value of a record takes over from the old one: clues add up (newest kept, at most CLUE_LIMIT, a
- * repeated text once), the newest development wins, and false beliefs carry over unless the new value lists
- * them (an empty list clears them). A belief ends when its holder is in the audience: they know the truth now.
+ * repeated text once), the newest development wins, and false beliefs and suspicions carry over unless the new
+ * value lists them (an empty list clears them). A belief or suspicion ends when its holder is in the audience:
+ * they know the truth now. Reasons for not knowing are kept for those who still do not know.
  */
 function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemoryFact) {
   const clues = [
@@ -302,10 +304,18 @@ function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemory
     (belief) => next.audience === "shared" || !next.audience.includes(belief.who),
   );
   const latest = next.latest ?? old.latest;
+  const unaware = (id: string) => next.audience !== "shared" && !next.audience.includes(id);
+  // Suspicion and the reasons someone does not know follow the same rule: kept until they know.
+  const suspectedBy = (next.suspectedBy ?? old.suspectedBy ?? []).filter(unaware);
+  const reasons = Object.fromEntries(
+    Object.entries({ ...old.unknownReasons, ...next.unknownReasons }).filter(([id]) => unaware(id)),
+  );
   return {
     ...(clues.length ? { clues } : {}),
     ...(latest ? { latest, latestKo: next.latest ? next.latestKo : old.latestKo } : {}),
     falseBeliefs: beliefs.length ? beliefs : undefined,
+    suspectedBy: suspectedBy.length ? suspectedBy : undefined,
+    unknownReasons: Object.keys(reasons).length ? reasons : undefined,
   };
 }
 function normalizedText(value: string | undefined) {
@@ -534,9 +544,11 @@ export function selectCommittedMemory(
     const access = scope(f.audience, f.unknownTo);
     // False beliefs of the characters in this generation (all of them when it is not scoped to anyone).
     const holders = (f.falseBeliefs ?? []).filter((b) => !audienceIds.length || audienceIds.includes(b.who));
-    // A character who does not know the record, or who is the only one written now, gets their belief instead
-    // of the truth: they act on it until the story shows them learning otherwise.
-    const beliefOnly = holders.length > 0 && (!access.ok || audienceIds.length === 1);
+    // Characters in this generation who only suspect it.
+    const guessers = (f.suspectedBy ?? []).filter((id) => !audienceIds.length || audienceIds.includes(id));
+    // A character who does not know the record, or who is the only one written now, gets their belief or their
+    // suspicion instead of the plain truth: they act on it until the story shows them learning otherwise.
+    const beliefOnly = holders.length + guessers.length > 0 && (!access.ok || audienceIds.length === 1);
     if (!access.ok && !beliefOnly) continue;
     const activation = factActivation(f);
     const semantic = Math.max(0, semanticScores.get(f.id) ?? 0);
@@ -545,7 +557,9 @@ export function selectCommittedMemory(
       (holders.length ? relevance(holders.map((b) => b.believes).join(" "), query) : 0) +
       (semantic > 0.35 ? semantic : 0);
     const isState = f.kind === "state";
-    const isThread = f.kind === "thread" || f.kind === "promise";
+    const isThread = f.kind === "thread" || f.kind === "promise" || f.kind === "emotion";
+    // Threads and unresolved emotions are open storylines: called up when relevant, otherwise rotated in.
+    const openLine = f.kind === "thread" || f.kind === "emotion";
     const tracksHistory = isState || f.kind === "relationship" || /^relationship/i.test(f.attribute ?? "");
     // Earlier values follow the same knowledge rules as current ones.
     const history = tracksHistory
@@ -555,11 +569,14 @@ export function selectCommittedMemory(
     const present = isState && !!f.entityId && presentEntities.has(f.entityId);
     const called = activation === "always" ? 1 : recall + (present ? 1 : 0) + (changedRecently ? 1 : 0);
     // Dormant threads stay candidates for the rotation below.
-    if (!called && !(f.kind === "thread" && !beliefOnly)) continue;
+    if (!called && !(openLine && !beliefOnly)) continue;
     if (beliefOnly) {
       facts.push({
         id: f.id,
-        content: holders.map((b) => `[belief] ${nameOf(b.who)} believes: ${b.believes}`).join("\n"),
+        content: [
+          ...holders.map((b) => `[belief] ${nameOf(b.who)} believes: ${b.believes}`),
+          ...guessers.map((id) => `[suspicion] ${nameOf(id)} suspects, without being sure: ${f.content}`),
+        ].join("\n"),
         displayKo:
           holders
             .map((b) => b.believesKo)
@@ -588,22 +605,26 @@ export function selectCommittedMemory(
       if (f.latest) label += ` (latest: ${f.latest})`;
       const clues = (f.clues ?? []).slice(-THREAD_CLUES_SHOWN);
       if (clues.length) label += ` (clues: ${clues.map((clue) => `${clue.text} [message ${clue.turn}]`).join("; ")})`;
-      if (f.endCondition) label += ` (closes when: ${f.endCondition})`;
+      if (f.cause) label += ` (cause: ${f.cause})`;
+      if (f.endCondition)
+        label += f.kind === "emotion" ? ` (needs: ${f.endCondition})` : ` (closes when: ${f.endCondition})`;
       if (threadStalled(f, turn, batchTurns)) label += ` (stalled since message ${lastActivity})`;
-      else if (f.kind === "thread") label += ` (last development at message ${lastActivity})`;
+      else if (openLine) label += ` (last development at message ${lastActivity})`;
     }
     if (holders.length)
       label += ` (wrongly believed: ${holders.map((b) => `${nameOf(b.who)} believes ${b.believes}`).join("; ")})`;
-    const marked = !!knownBy || (holders.length > 0 && audienceIds.length > 1);
+    if (guessers.length) label += ` (only suspected by: ${guessers.map(nameOf).join(", ")})`;
+    const marked = !!knownBy || ((holders.length > 0 || guessers.length > 0) && audienceIds.length > 1);
+    const why = (id: string) => (f.unknownReasons?.[id] ? `${nameOf(id)} (${f.unknownReasons[id]})` : nameOf(id));
     facts.push({
       id: f.id,
       content: knownBy
-        ? `${label} (known by: ${knownBy.map(nameOf).join(", ")}; not known by: ${notKnownBy!.map(nameOf).join(", ")})`
+        ? `${label} (known by: ${knownBy.map(nameOf).join(", ")}; not known by: ${notKnownBy!.map(why).join(", ")})`
         : label,
       displayKo: f.contentKo,
       reason: "current",
       kind: f.kind,
-      tier: marked ? "boundary" : isState ? "state" : f.kind === "thread" ? "thread" : activation,
+      tier: marked ? "boundary" : isState ? "state" : openLine ? "thread" : activation,
       sourceIds: f.sourceIds,
       score: called,
       knownBy,
@@ -621,6 +642,28 @@ export function selectCommittedMemory(
   );
   const episodes: Candidate[] = [];
   const scenes: Candidate[] = [];
+  // Words the recent conversation shares with only a few saved records (a name or thing said once long ago)
+  // call those records up strongly; words every record has count for nothing.
+  const sceneText = (scene: CommittedMemoryScene) =>
+    [
+      scene.where,
+      ...scene.participants,
+      scene.event,
+      scene.eventKo,
+      ...scene.lines.map((line) => line.text),
+      ...scene.changes,
+      ...(scene.keywords ?? []),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  const rare = rareWordScorer(
+    valid.flatMap((b) => [
+      [b.summary, b.core, b.summaryKo, b.coreKo].filter(Boolean).join(" "),
+      ...(b.scenes ?? []).map(sceneText),
+    ]),
+    queryText,
+  );
+  const sceneRare = new Map<string, number>();
   for (const b of valid) {
     // A corrected/withheld fact may still be repeated by the original narrative.
     if (b.excluded || [...(b.factKeys ?? []), ...b.facts.map(memoryFactIdentity)].some((key) => correctedKeys.has(key)))
@@ -629,6 +672,10 @@ export function selectCommittedMemory(
     for (const scene of b.scenes ?? []) {
       const access = scope(scene.audience);
       if (!access.ok || access.knownBy) continue;
+      // Who was there but remembers it vaguely or not at all; one who forgot it, written alone, does not recall it.
+      const blurred = (scene.memory ?? []).filter((m) => !audienceIds.length || audienceIds.includes(m.who));
+      if (audienceIds.length === 1 && blurred[0]?.remembers === "none") continue;
+      const rareScore = rare(sceneText(scene));
       const score =
         factRecallScore(
           {
@@ -638,8 +685,11 @@ export function selectCommittedMemory(
           },
           queryText,
           query,
-        ) + Math.max(0, (semanticScores.get(scene.id) ?? 0) > 0.35 ? semanticScores.get(scene.id)! : 0);
+        ) +
+        rareScore +
+        Math.max(0, (semanticScores.get(scene.id) ?? 0) > 0.35 ? semanticScores.get(scene.id)! : 0);
       if (!score) continue;
+      sceneRare.set(scene.id, rareScore);
       const heading = [
         `message ${b.turn}`,
         scene.when,
@@ -654,6 +704,16 @@ export function selectCommittedMemory(
           `[Scene, ${heading}] ${scene.event}`,
           ...scene.lines.map((line) => `  ${line.speaker}${line.to ? ` → ${line.to}` : ""}: "${line.text}"`),
           ...(scene.changes.length ? [`  Changed: ${scene.changes.join("; ")}`] : []),
+          ...(blurred.length
+            ? [
+                `  Memory: ${blurred
+                  .map(
+                    (m) =>
+                      `${nameOf(m.who)} ${m.remembers === "none" ? "does not remember it" : "remembers it only vaguely"}${m.why ? ` (${m.why})` : ""}`,
+                  )
+                  .join("; ")}`,
+              ]
+            : []),
         ].join("\n"),
         displayKo: scene.eventKo,
         reason: "relevant",
@@ -673,6 +733,7 @@ export function selectCommittedMemory(
     if (!content) continue;
     const score =
       relevance([content, displayKo, ...(b.keywords ?? [])].filter(Boolean).join(" "), query) +
+      rare([b.summary, b.core, b.summaryKo, b.coreKo].filter(Boolean).join(" ")) +
       Math.max(0, semanticScores.get(b.id) ?? 0);
     if (recent || score > 0)
       episodes.push({
@@ -689,6 +750,15 @@ export function selectCommittedMemory(
       });
   }
 
+  // "You said back then…": the conversation points at something said before, so the first scene where it came
+  // up goes ahead of later scenes that only mention it again.
+  if (BACK_REFERENCE.test(queryText)) {
+    const top = Math.max(0, ...sceneRare.values());
+    const first = scenes
+      .filter((scene) => top > 0 && (sceneRare.get(scene.id) ?? 0) >= top / 2)
+      .sort((a, b) => a.turn - b.turn)[0];
+    if (first) first.score += 1;
+  }
   const selected: CommittedMemorySelection[] = [];
   const waiting: string[] = [];
   const seen = new Set<string>();
@@ -734,16 +804,29 @@ export function selectCommittedMemory(
     if (states >= SCENE_STATE_LIMIT) break;
     if (take(item)) states++;
   }
+  // 2b. daily life of the people in the scene: one small block, computed from the routine records.
+  const life = dailyLife(valid, queryText, names);
+  if (life)
+    take({
+      id: "daily-life",
+      content: life.content,
+      reason: "current",
+      tier: "life",
+      sourceIds: life.sourceIds,
+      score: 1,
+      turn: newest,
+      progressRank: 2,
+    });
   // 3. recall, strongest first, up to the count limit.
   let recalled = 0;
   for (const item of facts
-    .filter((f) => f.kind !== "state" && f.kind !== "thread" && !taken(f))
+    .filter((f) => f.kind !== "state" && f.kind !== "thread" && f.kind !== "emotion" && !taken(f))
     .sort((a, b) => b.score - a.score || b.turn - a.turn)) {
     if (recalled >= recallLimit) break;
     if (take(item)) recalled++;
   }
   // 4. open threads: the ones this moment calls, then dormant ones in rotation so old foreshadowing is not lost.
-  const threads = facts.filter((f) => f.kind === "thread" && !taken(f));
+  const threads = facts.filter((f) => (f.kind === "thread" || f.kind === "emotion") && !taken(f));
   const called = threads.filter((f) => f.score > 0).sort((a, b) => b.score - a.score || b.turn - a.turn);
   const dormant = threads.filter((f) => f.score === 0).sort((a, b) => a.turn - b.turn);
   const start = dormant.length ? rotation(queryText) % dormant.length : 0;
@@ -789,12 +872,157 @@ export function selectCommittedMemory(
       recall: tokensOf("recall"),
       boundary: tokensOf("boundary"),
       state: tokensOf("state"),
+      life: tokensOf("life"),
       thread: tokensOf("thread"),
       scene: tokensOf("scene"),
       flow: tokensOf("flow"),
     },
     waiting,
     tokenCountMethod: "unicode-estimate" as const,
+  };
+}
+/** A story time's date ("24-10-18", "2024.10.18", "10월 18일" is not dated) and minutes into the day. */
+function storyTime(at: string | undefined) {
+  if (!at) return {};
+  const date = /(\d{2,4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/u.exec(at);
+  const clock = /(\d{1,2})\s*(?::|시)\s*(\d{1,2})?/u.exec(at.replace(date?.[0] ?? "", ""));
+  let minutes: number | undefined;
+  if (clock) {
+    let hour = Number(clock[1]);
+    if (/오후|저녁|밤|pm/iu.test(at) && hour < 12) hour += 12;
+    if (hour <= 24) minutes = hour * 60 + Number(clock[2] ?? 0);
+  }
+  const year = date ? (date[1]!.length === 2 ? 2000 + Number(date[1]) : Number(date[1])) : undefined;
+  return {
+    day: date ? `${year}-${date[2]!.padStart(2, "0")}-${date[3]!.padStart(2, "0")}` : undefined,
+    minutes,
+  };
+}
+/**
+ * The daily-life block for the people in the scene (characters of the room and anyone the conversation names;
+ * otherwise the three most recently active): their last meal and how many meals that day, sleep and waking with
+ * the hours slept, washing and medicine. All counting is done here, from the routine records.
+ */
+function dailyLife(batches: readonly CommittedMemoryBatch[], queryText: string, names: ReadonlyMap<string, string>) {
+  const people = new Map<string, Array<{ entry: CommittedMemoryRoutine; turn: number }>>();
+  for (const batch of [...batches].sort((a, b) => a.turn - b.turn))
+    for (const entry of batch.routine ?? []) {
+      if (entry.excluded) continue;
+      for (const who of entry.who
+        .split(/[·,、&]|\s+and\s+/u)
+        .map((name) => name.trim())
+        .filter(Boolean)) {
+        const key = who.normalize("NFKC").toLowerCase();
+        people.set(key, [...(people.get(key) ?? []), { entry: { ...entry, who }, turn: batch.turn }]);
+      }
+    }
+  if (!people.size) return undefined;
+  const scene = queryText.normalize("NFKC").toLowerCase();
+  const room = new Set([...names.values()].map((name) => name.normalize("NFKC").toLowerCase()));
+  const lastTurn = (key: string) => Math.max(...people.get(key)!.map((item) => item.turn));
+  const present = [...people.keys()].filter((key) => room.has(key) || scene.includes(key));
+  const chosen = (present.length ? present : [...people.keys()].sort((a, b) => lastTurn(b) - lastTurn(a)).slice(0, 3))
+    .sort((a, b) => lastTurn(b) - lastTurn(a))
+    .slice(0, 6);
+  const when = (item: { entry: CommittedMemoryRoutine; turn: number }) =>
+    `message ${item.turn}${item.entry.at ? `, ${item.entry.at}` : ""}`;
+  const said = (entry: CommittedMemoryRoutine) => (entry.claimed ? ", said" : "");
+  const sourceIds = new Set<string>();
+  const lines = chosen.map((key) => {
+    const items = people.get(key)!;
+    const last = (what: CommittedMemoryRoutine["what"]) => items.filter((item) => item.entry.what === what).at(-1);
+    const parts: string[] = [];
+    const meal = last("meal");
+    if (meal) {
+      const day = storyTime(meal.entry.at).day;
+      const count = day
+        ? items.filter(
+            (item) => item.entry.what === "meal" && !item.entry.substitute && storyTime(item.entry.at).day === day,
+          ).length
+        : 0;
+      parts.push(
+        `last meal: ${meal.entry.text ?? "a meal"}${meal.entry.substitute ? " (made do)" : ""} (${when(meal)}${said(meal.entry)}${count ? `; meal ${count} that day` : ""})`,
+      );
+    }
+    const sleep = last("sleep");
+    const wake = last("wake");
+    if (sleep && (!wake || wake.turn < sleep.turn)) parts.push(`asleep since ${when(sleep)}`);
+    else if (wake) {
+      const from = storyTime(sleep?.entry.at);
+      const to = storyTime(wake.entry.at);
+      let hours: number | undefined;
+      if (sleep && from.minutes !== undefined && to.minutes !== undefined) {
+        const days = from.day && to.day ? (Date.parse(to.day) - Date.parse(from.day)) / 86400000 : undefined;
+        const span =
+          days !== undefined
+            ? days * 1440 + to.minutes - from.minutes
+            : to.minutes - from.minutes + (to.minutes < from.minutes ? 1440 : 0);
+        if (span > 0 && span < 2880) hours = Math.round(span / 6) / 10;
+      }
+      parts.push(
+        sleep
+          ? `slept ${when(sleep)} → woke ${when(wake)}${hours !== undefined ? ` (${hours} h)` : ""}`
+          : `woke ${when(wake)}`,
+      );
+    }
+    for (const [what, label] of [
+      ["wash", "washed"],
+      ["medicine", "medicine"],
+    ] as const) {
+      const item = last(what);
+      if (item) parts.push(`${label}: ${item.entry.text ?? what} (${when(item)}${said(item.entry)})`);
+    }
+    for (const item of [meal, sleep, wake, last("wash"), last("medicine")])
+      if (item) sourceIds.add(item.entry.sourceId);
+    return `- ${items[0]!.entry.who}: ${parts.join(" · ")}`;
+  });
+  return { content: lines.join("\n"), sourceIds: [...sourceIds] };
+}
+const BACK_REFERENCE =
+  /(그때|그날|예전에|전에\s*(말|했)|말했잖|했잖아|약속했잖|기억\s*(나|안\s*나|하지|해\?)|처음\s*만났|remember\s+when|you\s+said|back\s+then|that\s+time|last\s+time|you\s+promised)/iu;
+/**
+ * Words for rarity: whole words of two or more letters, plus two-letter pieces of Korean, Japanese and Chinese
+ * words (so "미라가" and "미라는" share "미라"). Latin two-letter pieces ("he" in "the") would make noise.
+ */
+function rareTerms(text: string) {
+  const words =
+    text
+      .normalize("NFKC")
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu) ?? [];
+  return new Set(
+    words.flatMap((word) => {
+      const chars = Array.from(word);
+      if (chars.length < 2) return [];
+      const cjk = /[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word);
+      return cjk ? [word, ...chars.slice(1).map((c, i) => chars[i] + c)] : [word];
+    }),
+  );
+}
+/**
+ * How rare the conversation's words are among the saved records, for one record's text: the summed inverse
+ * document frequency of shared words found in at most about a fifth of the records, squashed to 0..1. Too few
+ * records make every word look rare, so it stays 0 below five.
+ */
+function rareWordScorer(documents: readonly string[], queryText: string) {
+  const query = rareTerms(queryText);
+  if (documents.length < 5 || !query.size) return () => 0;
+  const df = new Map<string, number>();
+  for (const document of documents) {
+    const terms = rareTerms(document);
+    for (const term of query) if (terms.has(term)) df.set(term, (df.get(term) ?? 0) + 1);
+  }
+  const weights = new Map(
+    [...df].flatMap(([term, count]) => {
+      const idf = Math.log((documents.length + 1) / count);
+      return idf >= 1.5 ? [[term, idf] as const] : [];
+    }),
+  );
+  if (!weights.size) return () => 0;
+  return (text: string) => {
+    const terms = rareTerms(text);
+    const sum = [...weights].reduce((total, [term, idf]) => total + (terms.has(term) ? idf : 0), 0);
+    return sum / (sum + 3);
   };
 }
 /** Caps for the format-3 blocks, inside the one token budget. */
@@ -815,13 +1043,16 @@ export const MEMORY_RECENCY_INSTRUCTION =
 export const SCENE_STATE_INSTRUCTION =
   "Current states, with how they changed (newest first). Characters who were there when a state changed noticed it and react to it naturally; characters who were not there do not know it.";
 export const OPEN_THREAD_INSTRUCTION =
-  "Open threads and promises, with their newest development and planted clues. Pick one up when it fits the moment, building on its clues; a stalled one can return when the moment allows. Never force a payoff. A thread or promise closes only when the story shows it.";
+  "Open threads, promises and unresolved feelings, with their newest development and planted clues. Pick one up when it fits the moment, building on its clues; a stalled one can return when the moment allows. Never force a payoff. A thread or promise closes only when the story shows it; a feeling lasts, and colours how that character speaks and acts, until what it needs happens.";
+export const DAILY_LIFE_INSTRUCTION =
+  'When each person last ate, washed, slept, woke and took medicine (message number and story time; counts and hours are computed). Keep hunger, tiredness and care consistent with it. "said" means only claimed, not seen.';
 export const RECALLED_SCENE_INSTRUCTION =
   "Earlier scenes this moment calls back. Quoted lines are the exact words spoken.";
 function renderCommittedMemory(selected: CommittedMemorySelection[]) {
-  const isThread = (i: CommittedMemorySelection) => i.kind === "thread" || i.kind === "promise";
+  const isThread = (i: CommittedMemorySelection) => i.kind === "thread" || i.kind === "promise" || i.kind === "emotion";
   const current = selected.filter((i) => i.reason === "current" && i.tier !== "boundary");
-  const facts = current.filter((i) => i.kind !== "state" && !isThread(i));
+  const facts = current.filter((i) => i.kind !== "state" && !isThread(i) && i.tier !== "life");
+  const life = current.filter((i) => i.tier === "life");
   const states = current.filter((i) => i.kind === "state");
   const threads = current.filter(isThread);
   const secrets = selected.filter((i) => i.tier === "boundary");
@@ -830,6 +1061,9 @@ function renderCommittedMemory(selected: CommittedMemorySelection[]) {
   const blocks = [
     states.length
       ? `<scene_state>\n${SCENE_STATE_INSTRUCTION}\n${states.map((i) => i.content).join("\n")}\n</scene_state>`
+      : "",
+    life.length
+      ? `<daily_life>\n${DAILY_LIFE_INSTRUCTION}\n${life.map((i) => i.content).join("\n")}\n</daily_life>`
       : "",
     facts.length
       ? `<current_facts_and_obligations>\n${facts.map((i) => i.content).join("\n")}\n</current_facts_and_obligations>`

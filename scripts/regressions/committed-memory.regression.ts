@@ -256,7 +256,8 @@ try {
     model: "fixture",
     apiKey: "fixture",
     baseUrl: `http://127.0.0.1:${addr.port}/v1`,
-    maxContext: 4096,
+    // A small model: the memory contract alone is about 3,000 tokens, so 6,144 leaves room for a few messages.
+    maxContext: 6144,
   });
   assert(smallConnection);
   const smallChat = await chats.create({

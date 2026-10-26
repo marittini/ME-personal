@@ -50,6 +50,7 @@ import {
   MemoryEntityList,
   MemoryOverviewDetails,
   MemorySceneDetail,
+  MemoryRoutineList,
   RecallControls,
   useMemoryNames,
 } from "./CommittedMemoryParts";
@@ -80,12 +81,13 @@ function Source({ chatId, id, position }: { chatId: string; id: string; position
     </details>
   );
 }
-type Tab = "overview" | "scenes" | "promise" | "entities" | "story" | "receipt" | "settings";
+type Tab = "overview" | "scenes" | "promise" | "life" | "entities" | "story" | "receipt" | "settings";
 type Entry = { batch: CommittedMemoryBatch; fact?: CommittedMemoryFact; scene?: CommittedMemoryScene };
-const TABS: Tab[] = ["overview", "scenes", "promise", "entities", "story", "receipt", "settings"];
+const TABS: Tab[] = ["overview", "scenes", "promise", "life", "entities", "story", "receipt", "settings"];
 const field = "memory-vault__field";
 /** Threads and promises share one tab ("약속" stays on promises). */
-const isThread = (fact: CommittedMemoryFact) => fact.kind === "promise" || fact.kind === "thread";
+const isThread = (fact: CommittedMemoryFact) =>
+  fact.kind === "promise" || fact.kind === "thread" || fact.kind === "emotion";
 /** A thread is open until resolved; a promise has its own progress. */
 const threadProgress = (fact: CommittedMemoryFact) =>
   fact.kind === "promise"
@@ -132,6 +134,7 @@ function MemoryDetail({
           ...(fact.audience === "shared" ? [] : fact.audience),
           ...(fact.unknownTo ?? []),
           ...(fact.falseBeliefs ?? []).map((belief) => belief.who),
+          ...(fact.suspectedBy ?? []),
         ]
       : [],
   );
@@ -241,9 +244,14 @@ function MemoryDetail({
           </ol>
         </section>
       )}
+      {fact?.cause && (
+        <p className="memory-vault__hint" data-memory-cause="">
+          {t("chat.committedMemory.vault.cause", { text: display(fact.cause, fact.causeKo) })}
+        </p>
+      )}
       {fact?.endCondition && (
         <p className="memory-vault__hint" data-memory-end-condition="">
-          {t("chat.committedMemory.vault.endCondition", {
+          {t(fact.kind === "emotion" ? "chat.committedMemory.vault.needs" : "chat.committedMemory.vault.endCondition", {
             text: display(fact.endCondition, fact.endConditionKo),
           })}
         </p>
@@ -670,6 +678,9 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
           />
         </div>
       )}
+      {data && tab === "life" && (
+        <MemoryRoutineList chatId={chatId} batches={data.state.batches} korean={korean} busy={busy || streaming} />
+      )}
       {data && ["scenes", "promise", "entities", "story"].includes(tab) && (
         <>
           {tab === "entities" && (
@@ -763,8 +774,10 @@ export function CommittedMemoryPanel({ chatId }: { chatId: string }) {
                   >
                     <span className="memory-vault__eyebrow">
                       {fact
-                        ? fact.kind === "thread"
-                          ? t(`chat.committedMemory.vault.threadStatus.${stalledOf(entry) ? "stalled" : fact.status}`)
+                        ? fact.kind === "thread" || fact.kind === "emotion"
+                          ? t(
+                              `chat.committedMemory.vault.${fact.kind === "emotion" ? "emotionStatus" : "threadStatus"}.${stalledOf(entry) ? "stalled" : fact.status}`,
+                            )
                           : t(
                               fact.kind === "promise"
                                 ? `chat.committedMemory.vault.progress.${threadProgress(fact)}`
