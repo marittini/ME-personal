@@ -223,8 +223,12 @@ export function memoryFactIdentity(
   ]);
 }
 /** Legacy batches are upgraded without discarding episode summaries or source coverage. */
-export function consolidateCommittedMemory(state: CommittedMemoryState): CommittedMemoryState {
-  const next = structuredClone(state);
+export function consolidateCommittedMemory(
+  state: CommittedMemoryState,
+  /** The caller hands over a state of its own (fresh batch and fact objects) that may be changed in place. */
+  owned = false,
+): CommittedMemoryState {
+  const next = owned ? state : structuredClone(state);
   const current = new Map<string, { batch: CommittedMemoryBatch; fact: CommittedMemoryFact }>();
   for (const batch of [...next.batches].sort((a, b) => a.turn - b.turn)) {
     if (batch.invalidated) continue;
@@ -329,8 +333,24 @@ function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemory
     unknownReasons: Object.keys(reasons).length ? reasons : undefined,
   };
 }
+/**
+ * Small bounded cache for pure text work that every load and every turn repeats on the same saved texts
+ * (word sets, normalized text). Results are shared, so callers never change them.
+ */
+function memoized<T>(compute: (text: string) => T, limit = 5000) {
+  const cache = new Map<string, T>();
+  return (text: string) => {
+    const hit = cache.get(text);
+    if (hit !== undefined) return hit;
+    const value = compute(text);
+    if (cache.size >= limit) cache.delete(cache.keys().next().value!);
+    cache.set(text, value);
+    return value;
+  };
+}
+const normalizedTextOf = memoized((value) => value.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase());
 function normalizedText(value: string | undefined) {
-  return (value ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  return normalizedTextOf(value ?? "");
 }
 function sameAudience(a: CommittedMemoryFact["audience"], b: CommittedMemoryFact["audience"]) {
   if (a === "shared" || b === "shared") return a === b;
@@ -383,7 +403,8 @@ export function reconcileCommittedMemory(
       };
     }),
   };
-  return consolidateCommittedMemory(checked);
+  // `checked` is built here from new batch and fact objects, so consolidation needs no deep copy of it.
+  return consolidateCommittedMemory(checked, true);
 }
 export function pendingMemoryMessages(state: CommittedMemoryState, messages: readonly MemorySourceMessage[]) {
   const covered = new Set(
@@ -399,7 +420,8 @@ export function pendingMemoryMessages(state: CommittedMemoryState, messages: rea
       memoryExtra(m.extra).hiddenFromAI !== true,
   );
 }
-export function memoryTerms(text: string) {
+export const memoryTerms: (text: string) => ReadonlySet<string> = memoized((text) => memoryTermsUncached(text));
+function memoryTermsUncached(text: string) {
   return new Set(
     (
       text
@@ -412,7 +434,7 @@ export function memoryTerms(text: string) {
     }),
   );
 }
-function relevance(text: string, query: Set<string>) {
+function relevance(text: string, query: ReadonlySet<string>) {
   const tokens = memoryTerms(text);
   return [...query].filter((t) => tokens.has(t)).length / Math.max(1, Math.sqrt(tokens.size * query.size));
 }
@@ -432,7 +454,7 @@ function hasWord(haystack: string, word: string) {
 export function factRecallScore(
   f: Pick<CommittedMemoryFact, "keywords" | "combos" | "key" | "content" | "keyKo" | "contentKo">,
   sceneText: string,
-  sceneTerms: Set<string>,
+  sceneTerms: ReadonlySet<string>,
 ) {
   const scene = sceneText.normalize("NFKC").toLowerCase();
   const keywordHits = (f.keywords ?? []).filter((k) => hasWord(scene, k)).length;
@@ -995,7 +1017,8 @@ const BACK_REFERENCE =
  * Words for rarity: whole words of two or more letters, plus two-letter pieces of Korean, Japanese and Chinese
  * words (so "미라가" and "미라는" share "미라"). Latin two-letter pieces ("he" in "the") would make noise.
  */
-function rareTerms(text: string) {
+const rareTerms: (text: string) => ReadonlySet<string> = memoized((text) => rareTermsUncached(text));
+function rareTermsUncached(text: string) {
   const words =
     text
       .normalize("NFKC")

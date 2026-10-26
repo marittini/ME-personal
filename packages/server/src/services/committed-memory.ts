@@ -1335,9 +1335,11 @@ export async function committedMemoryForPrompt(
   const fresh = providerIo ? await loadCommittedMemory(db, chatId) : loaded;
   if (!fresh.state.enabled) return null;
   const names = await rosterNames(db, chatRoster(fresh.chat));
+  // Without provider I/O the memory was read once and cannot have changed, so its documents are not hashed twice.
   const changed =
+    providerIo &&
     JSON.stringify(committedMemoryDocuments(fresh.state).map((d) => d.hash)) !==
-    JSON.stringify(committedMemoryDocuments(state).map((d) => d.hash));
+      JSON.stringify(committedMemoryDocuments(state).map((d) => d.hash));
   const freshTarget = fresh.messages.findIndex((m) => excludedIds.includes(m.id));
   const freshExcluded = freshTarget >= 0 ? fresh.messages.slice(freshTarget).map((m) => m.id) : excludedIds;
   // One token budget (state.recall.tokenBudget, default 2400); no separate byte limit.
