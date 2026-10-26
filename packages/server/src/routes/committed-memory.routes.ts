@@ -127,6 +127,7 @@ export async function registerCommittedMemoryRoutes(app: FastifyInstance) {
       .object({
         batchId: z.string().min(1),
         factId: z.string().min(1).optional(),
+        routineId: z.string().min(1).optional(),
         expectedRevision: z.string().min(1),
         content: z.string().trim().min(1).max(1500).optional(),
         summary: z.string().trim().max(12000).optional(),

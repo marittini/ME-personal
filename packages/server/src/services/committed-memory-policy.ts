@@ -7,6 +7,7 @@ import type {
   CommittedMemoryFact,
   CommittedMemoryEntity,
   CommittedMemoryScene,
+  CommittedMemoryRoutine,
 } from "@marinara-engine/shared";
 export interface MemorySourceMessage {
   id: string;
@@ -556,7 +557,9 @@ export function selectCommittedMemory(
       (holders.length ? relevance(holders.map((b) => b.believes).join(" "), query) : 0) +
       (semantic > 0.35 ? semantic : 0);
     const isState = f.kind === "state";
-    const isThread = f.kind === "thread" || f.kind === "promise";
+    const isThread = f.kind === "thread" || f.kind === "promise" || f.kind === "emotion";
+    // Threads and unresolved emotions are open storylines: called up when relevant, otherwise rotated in.
+    const openLine = f.kind === "thread" || f.kind === "emotion";
     const tracksHistory = isState || f.kind === "relationship" || /^relationship/i.test(f.attribute ?? "");
     // Earlier values follow the same knowledge rules as current ones.
     const history = tracksHistory
@@ -566,7 +569,7 @@ export function selectCommittedMemory(
     const present = isState && !!f.entityId && presentEntities.has(f.entityId);
     const called = activation === "always" ? 1 : recall + (present ? 1 : 0) + (changedRecently ? 1 : 0);
     // Dormant threads stay candidates for the rotation below.
-    if (!called && !(f.kind === "thread" && !beliefOnly)) continue;
+    if (!called && !(openLine && !beliefOnly)) continue;
     if (beliefOnly) {
       facts.push({
         id: f.id,
@@ -602,9 +605,11 @@ export function selectCommittedMemory(
       if (f.latest) label += ` (latest: ${f.latest})`;
       const clues = (f.clues ?? []).slice(-THREAD_CLUES_SHOWN);
       if (clues.length) label += ` (clues: ${clues.map((clue) => `${clue.text} [message ${clue.turn}]`).join("; ")})`;
-      if (f.endCondition) label += ` (closes when: ${f.endCondition})`;
+      if (f.cause) label += ` (cause: ${f.cause})`;
+      if (f.endCondition)
+        label += f.kind === "emotion" ? ` (needs: ${f.endCondition})` : ` (closes when: ${f.endCondition})`;
       if (threadStalled(f, turn, batchTurns)) label += ` (stalled since message ${lastActivity})`;
-      else if (f.kind === "thread") label += ` (last development at message ${lastActivity})`;
+      else if (openLine) label += ` (last development at message ${lastActivity})`;
     }
     if (holders.length)
       label += ` (wrongly believed: ${holders.map((b) => `${nameOf(b.who)} believes ${b.believes}`).join("; ")})`;
@@ -619,7 +624,7 @@ export function selectCommittedMemory(
       displayKo: f.contentKo,
       reason: "current",
       kind: f.kind,
-      tier: marked ? "boundary" : isState ? "state" : f.kind === "thread" ? "thread" : activation,
+      tier: marked ? "boundary" : isState ? "state" : openLine ? "thread" : activation,
       sourceIds: f.sourceIds,
       score: called,
       knownBy,
@@ -799,16 +804,29 @@ export function selectCommittedMemory(
     if (states >= SCENE_STATE_LIMIT) break;
     if (take(item)) states++;
   }
+  // 2b. daily life of the people in the scene: one small block, computed from the routine records.
+  const life = dailyLife(valid, queryText, names);
+  if (life)
+    take({
+      id: "daily-life",
+      content: life.content,
+      reason: "current",
+      tier: "life",
+      sourceIds: life.sourceIds,
+      score: 1,
+      turn: newest,
+      progressRank: 2,
+    });
   // 3. recall, strongest first, up to the count limit.
   let recalled = 0;
   for (const item of facts
-    .filter((f) => f.kind !== "state" && f.kind !== "thread" && !taken(f))
+    .filter((f) => f.kind !== "state" && f.kind !== "thread" && f.kind !== "emotion" && !taken(f))
     .sort((a, b) => b.score - a.score || b.turn - a.turn)) {
     if (recalled >= recallLimit) break;
     if (take(item)) recalled++;
   }
   // 4. open threads: the ones this moment calls, then dormant ones in rotation so old foreshadowing is not lost.
-  const threads = facts.filter((f) => f.kind === "thread" && !taken(f));
+  const threads = facts.filter((f) => (f.kind === "thread" || f.kind === "emotion") && !taken(f));
   const called = threads.filter((f) => f.score > 0).sort((a, b) => b.score - a.score || b.turn - a.turn);
   const dormant = threads.filter((f) => f.score === 0).sort((a, b) => a.turn - b.turn);
   const start = dormant.length ? rotation(queryText) % dormant.length : 0;
@@ -854,6 +872,7 @@ export function selectCommittedMemory(
       recall: tokensOf("recall"),
       boundary: tokensOf("boundary"),
       state: tokensOf("state"),
+      life: tokensOf("life"),
       thread: tokensOf("thread"),
       scene: tokensOf("scene"),
       flow: tokensOf("flow"),
@@ -861,6 +880,103 @@ export function selectCommittedMemory(
     waiting,
     tokenCountMethod: "unicode-estimate" as const,
   };
+}
+/** A story time's date ("24-10-18", "2024.10.18", "10월 18일" is not dated) and minutes into the day. */
+function storyTime(at: string | undefined) {
+  if (!at) return {};
+  const date = /(\d{2,4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/u.exec(at);
+  const clock = /(\d{1,2})\s*(?::|시)\s*(\d{1,2})?/u.exec(at.replace(date?.[0] ?? "", ""));
+  let minutes: number | undefined;
+  if (clock) {
+    let hour = Number(clock[1]);
+    if (/오후|저녁|밤|pm/iu.test(at) && hour < 12) hour += 12;
+    if (hour <= 24) minutes = hour * 60 + Number(clock[2] ?? 0);
+  }
+  const year = date ? (date[1]!.length === 2 ? 2000 + Number(date[1]) : Number(date[1])) : undefined;
+  return {
+    day: date ? `${year}-${date[2]!.padStart(2, "0")}-${date[3]!.padStart(2, "0")}` : undefined,
+    minutes,
+  };
+}
+/**
+ * The daily-life block for the people in the scene (characters of the room and anyone the conversation names;
+ * otherwise the three most recently active): their last meal and how many meals that day, sleep and waking with
+ * the hours slept, washing and medicine. All counting is done here, from the routine records.
+ */
+function dailyLife(batches: readonly CommittedMemoryBatch[], queryText: string, names: ReadonlyMap<string, string>) {
+  const people = new Map<string, Array<{ entry: CommittedMemoryRoutine; turn: number }>>();
+  for (const batch of [...batches].sort((a, b) => a.turn - b.turn))
+    for (const entry of batch.routine ?? []) {
+      if (entry.excluded) continue;
+      for (const who of entry.who
+        .split(/[·,、&]|\s+and\s+/u)
+        .map((name) => name.trim())
+        .filter(Boolean)) {
+        const key = who.normalize("NFKC").toLowerCase();
+        people.set(key, [...(people.get(key) ?? []), { entry: { ...entry, who }, turn: batch.turn }]);
+      }
+    }
+  if (!people.size) return undefined;
+  const scene = queryText.normalize("NFKC").toLowerCase();
+  const room = new Set([...names.values()].map((name) => name.normalize("NFKC").toLowerCase()));
+  const lastTurn = (key: string) => Math.max(...people.get(key)!.map((item) => item.turn));
+  const present = [...people.keys()].filter((key) => room.has(key) || scene.includes(key));
+  const chosen = (present.length ? present : [...people.keys()].sort((a, b) => lastTurn(b) - lastTurn(a)).slice(0, 3))
+    .sort((a, b) => lastTurn(b) - lastTurn(a))
+    .slice(0, 6);
+  const when = (item: { entry: CommittedMemoryRoutine; turn: number }) =>
+    `message ${item.turn}${item.entry.at ? `, ${item.entry.at}` : ""}`;
+  const said = (entry: CommittedMemoryRoutine) => (entry.claimed ? ", said" : "");
+  const sourceIds = new Set<string>();
+  const lines = chosen.map((key) => {
+    const items = people.get(key)!;
+    const last = (what: CommittedMemoryRoutine["what"]) => items.filter((item) => item.entry.what === what).at(-1);
+    const parts: string[] = [];
+    const meal = last("meal");
+    if (meal) {
+      const day = storyTime(meal.entry.at).day;
+      const count = day
+        ? items.filter(
+            (item) => item.entry.what === "meal" && !item.entry.substitute && storyTime(item.entry.at).day === day,
+          ).length
+        : 0;
+      parts.push(
+        `last meal: ${meal.entry.text ?? "a meal"}${meal.entry.substitute ? " (made do)" : ""} (${when(meal)}${said(meal.entry)}${count ? `; meal ${count} that day` : ""})`,
+      );
+    }
+    const sleep = last("sleep");
+    const wake = last("wake");
+    if (sleep && (!wake || wake.turn < sleep.turn)) parts.push(`asleep since ${when(sleep)}`);
+    else if (wake) {
+      const from = storyTime(sleep?.entry.at);
+      const to = storyTime(wake.entry.at);
+      let hours: number | undefined;
+      if (sleep && from.minutes !== undefined && to.minutes !== undefined) {
+        const days = from.day && to.day ? (Date.parse(to.day) - Date.parse(from.day)) / 86400000 : undefined;
+        const span =
+          days !== undefined
+            ? days * 1440 + to.minutes - from.minutes
+            : to.minutes - from.minutes + (to.minutes < from.minutes ? 1440 : 0);
+        if (span > 0 && span < 2880) hours = Math.round(span / 6) / 10;
+      }
+      parts.push(
+        sleep
+          ? `slept ${when(sleep)} → woke ${when(wake)}${hours !== undefined ? ` (${hours} h)` : ""}`
+          : `woke ${when(wake)}`,
+      );
+    }
+    for (const [what, label] of [
+      ["wash", "washed"],
+      ["medicine", "medicine"],
+    ] as const) {
+      const item = last(what);
+      if (item) parts.push(`${label}: ${item.entry.text ?? what} (${when(item)}${said(item.entry)})`);
+    }
+    for (const item of [meal, sleep, wake, last("wash"), last("medicine")])
+      if (item) sourceIds.add(item.entry.sourceId);
+    return `- ${items[0]!.entry.who}: ${parts.join(" · ")}`;
+  });
+  return { content: lines.join("\n"), sourceIds: [...sourceIds] };
 }
 const BACK_REFERENCE =
   /(그때|그날|예전에|전에\s*(말|했)|말했잖|했잖아|약속했잖|기억\s*(나|안\s*나|하지|해\?)|처음\s*만났|remember\s+when|you\s+said|back\s+then|that\s+time|last\s+time|you\s+promised)/iu;
@@ -927,13 +1043,16 @@ export const MEMORY_RECENCY_INSTRUCTION =
 export const SCENE_STATE_INSTRUCTION =
   "Current states, with how they changed (newest first). Characters who were there when a state changed noticed it and react to it naturally; characters who were not there do not know it.";
 export const OPEN_THREAD_INSTRUCTION =
-  "Open threads and promises, with their newest development and planted clues. Pick one up when it fits the moment, building on its clues; a stalled one can return when the moment allows. Never force a payoff. A thread or promise closes only when the story shows it.";
+  "Open threads, promises and unresolved feelings, with their newest development and planted clues. Pick one up when it fits the moment, building on its clues; a stalled one can return when the moment allows. Never force a payoff. A thread or promise closes only when the story shows it; a feeling lasts, and colours how that character speaks and acts, until what it needs happens.";
+export const DAILY_LIFE_INSTRUCTION =
+  'When each person last ate, washed, slept, woke and took medicine (message number and story time; counts and hours are computed). Keep hunger, tiredness and care consistent with it. "said" means only claimed, not seen.';
 export const RECALLED_SCENE_INSTRUCTION =
   "Earlier scenes this moment calls back. Quoted lines are the exact words spoken.";
 function renderCommittedMemory(selected: CommittedMemorySelection[]) {
-  const isThread = (i: CommittedMemorySelection) => i.kind === "thread" || i.kind === "promise";
+  const isThread = (i: CommittedMemorySelection) => i.kind === "thread" || i.kind === "promise" || i.kind === "emotion";
   const current = selected.filter((i) => i.reason === "current" && i.tier !== "boundary");
-  const facts = current.filter((i) => i.kind !== "state" && !isThread(i));
+  const facts = current.filter((i) => i.kind !== "state" && !isThread(i) && i.tier !== "life");
+  const life = current.filter((i) => i.tier === "life");
   const states = current.filter((i) => i.kind === "state");
   const threads = current.filter(isThread);
   const secrets = selected.filter((i) => i.tier === "boundary");
@@ -942,6 +1061,9 @@ function renderCommittedMemory(selected: CommittedMemorySelection[]) {
   const blocks = [
     states.length
       ? `<scene_state>\n${SCENE_STATE_INSTRUCTION}\n${states.map((i) => i.content).join("\n")}\n</scene_state>`
+      : "",
+    life.length
+      ? `<daily_life>\n${DAILY_LIFE_INSTRUCTION}\n${life.map((i) => i.content).join("\n")}\n</daily_life>`
       : "",
     facts.length
       ? `<current_facts_and_obligations>\n${facts.map((i) => i.content).join("\n")}\n</current_facts_and_obligations>`

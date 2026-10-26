@@ -295,6 +295,129 @@ try {
     "reasons stay for those who still do not know",
   );
 
+  // ── Daily life ──
+  const life = (turn: number, routine: Array<Record<string, unknown>>) =>
+    batch(turn, [], {
+      routine: routine.map((entry, index) => ({ id: `r${turn}-${index}`, sourceId: `src${turn}`, ...entry })),
+    } as Partial<CommittedMemoryBatch>);
+  const lifeState = {
+    version: 3 as const,
+    ownerChatId: "room",
+    enabled: true,
+    batches: [
+      life(1, [
+        { who: "Mira", what: "meal", text: "porridge", at: "24-10-18 08:10" },
+        { who: "Mira", what: "wash", text: "a bath", at: "24-10-18 09:00" },
+      ]),
+      life(2, [
+        { who: "Mira·Ren", what: "meal", text: "stew", at: "24-10-18 19:00" },
+        { who: "Mira", what: "sleep", at: "24-10-18 23:30" },
+      ]),
+      life(3, [
+        { who: "Mira", what: "wake", at: "24-10-19 07:15" },
+        { who: "Ren", what: "meal", text: "coffee", substitute: true, at: "24-10-19 07:30", claimed: true },
+        { who: "Ren", what: "medicine", text: "painkiller", at: "24-10-19 08:00" },
+      ]),
+    ],
+  };
+  const lifeText = policy.selectCommittedMemory(lifeState, "Mira and Ren talk", [], Number.POSITIVE_INFINITY).text;
+  assert(lifeText.includes(`<daily_life>\n${policy.DAILY_LIFE_INSTRUCTION}`), lifeText);
+  assert(
+    lifeText.includes(
+      "- Mira: last meal: stew (message 2, 24-10-18 19:00; meal 2 that day) · slept message 2, 24-10-18 23:30 → woke message 3, 24-10-19 07:15 (7.8 h) · washed: a bath (message 1, 24-10-18 09:00)",
+    ),
+    lifeText,
+  );
+  assert(
+    lifeText.includes(
+      "- Ren: last meal: coffee (made do) (message 3, 24-10-19 07:30, said) · medicine: painkiller (message 3, 24-10-19 08:00)",
+    ),
+    lifeText,
+  );
+  // A corrected entry leaves the counts.
+  lifeState.batches[1]!.routine![0]!.excluded = true;
+  assert(
+    policy
+      .selectCommittedMemory(lifeState, "Mira", [], Number.POSITIVE_INFINITY)
+      .text.includes("- Mira: last meal: porridge (message 1, 24-10-18 08:10; meal 1 that day)"),
+  );
+  // Extraction: drinks are not meals unless they replace one; references become message IDs.
+  const lifeParse = parse({
+    routine: [
+      { who: "Ren", what: "meal", text: "coffee", ref: "2.1" },
+      { who: "Ren", what: "meal", text: "coffee", how: "substitute", ref: "2.1" },
+      { who: "Mira", what: "sleep", ref: "1.1", at: "밤 11:30" },
+      { who: "Mira", what: "dance" },
+    ],
+  });
+  assert.deepEqual(
+    lifeParse.routine.map((r) => [r.who, r.what, r.substitute ?? false, r.sourceId]),
+    [
+      ["Ren", "meal", true, "m2"],
+      ["Mira", "sleep", false, "m1"],
+    ],
+  );
+
+  // ── Unresolved emotions ──
+  const emotionParse = parse({
+    facts: [
+      {
+        kind: "emotion",
+        key: "렌의 서운함",
+        content: "렌은 미라에게 서운하다",
+        cause: "미라가 약속을 잊음",
+        endCondition: "미라의 사과",
+        status: "current",
+        audience: "shared",
+        sourceIds: ["2"],
+      },
+      {
+        kind: "emotion",
+        key: "기쁨",
+        content: "렌이 기뻐한다",
+        status: "current",
+        audience: "shared",
+        sourceIds: ["2"],
+      },
+    ],
+  });
+  assert.deepEqual(
+    emotionParse.facts.map((f) => f.key),
+    ["렌의 서운함"],
+    "a feeling that cannot say what it needs is not recorded",
+  );
+  const feelings = policy.consolidateCommittedMemory({
+    version: 3,
+    ownerChatId: "room",
+    enabled: true,
+    batches: [
+      batch(1, [], {
+        facts: [
+          {
+            id: "hurt",
+            kind: "emotion",
+            key: "ren hurt",
+            content: "Ren is hurt by Mira",
+            cause: "Mira forgot the promise",
+            endCondition: "an apology from Mira",
+            status: "current",
+            audience: "shared",
+            sourceIds: ["src1"],
+            entityId: "ren",
+            attribute: "feeling:mira",
+          },
+        ],
+      }),
+    ],
+  });
+  const feelingText = policy.selectCommittedMemory(feelings, "they talk", [], Number.POSITIVE_INFINITY).text;
+  assert(
+    feelingText.includes(
+      "[emotion] Ren is hurt by Mira (cause: Mira forgot the promise) (needs: an apology from Mira) (last development at message 1)",
+    ),
+    "a dormant feeling comes back with what it needs",
+  );
+
   console.log("Committed memory ledger ideas passed.");
 } finally {
   rmSync(directory, { recursive: true, force: true });
