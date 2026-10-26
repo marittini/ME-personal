@@ -53,6 +53,10 @@ export interface CommittedMemoryFact {
    * belief ends when that character comes to know the record; until then it carries over to updated values.
    */
   falseBeliefs?: CommittedMemoryFalseBelief[];
+  /** Characters who only guess it, without knowing for sure (not in the audience). */
+  suspectedBy?: string[];
+  /** Why a character in unknownTo does not know it ("asleep", "was not there"), by character ID. */
+  unknownReasons?: Record<string, string>;
   /** Threads and promises: the newest development. */
   latest?: string;
   latestKo?: string;
@@ -102,6 +106,15 @@ export interface CommittedMemoryScene {
   audience: "shared" | string[];
   sourceIds: string[];
   keywords?: string[];
+  /** Characters who were there but remember it only vaguely or not at all (drunk, feverish, asleep). */
+  memory?: CommittedMemorySceneRecall[];
+}
+export interface CommittedMemorySceneRecall {
+  /** Character ID. */
+  who: string;
+  remembers: "partial" | "none";
+  why?: string;
+  whyKo?: string;
 }
 
 /** Format 2: who or what memories are about. Aliases identify; keywords on facts call them up. */

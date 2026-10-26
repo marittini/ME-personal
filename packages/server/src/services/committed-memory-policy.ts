@@ -287,8 +287,9 @@ export const ENTITY_FACT_CAP = 8;
 const CLUE_LIMIT = 10;
 /**
  * What a new value of a record takes over from the old one: clues add up (newest kept, at most CLUE_LIMIT, a
- * repeated text once), the newest development wins, and false beliefs carry over unless the new value lists
- * them (an empty list clears them). A belief ends when its holder is in the audience: they know the truth now.
+ * repeated text once), the newest development wins, and false beliefs and suspicions carry over unless the new
+ * value lists them (an empty list clears them). A belief or suspicion ends when its holder is in the audience:
+ * they know the truth now. Reasons for not knowing are kept for those who still do not know.
  */
 function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemoryFact) {
   const clues = [
@@ -302,10 +303,18 @@ function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemory
     (belief) => next.audience === "shared" || !next.audience.includes(belief.who),
   );
   const latest = next.latest ?? old.latest;
+  const unaware = (id: string) => next.audience !== "shared" && !next.audience.includes(id);
+  // Suspicion and the reasons someone does not know follow the same rule: kept until they know.
+  const suspectedBy = (next.suspectedBy ?? old.suspectedBy ?? []).filter(unaware);
+  const reasons = Object.fromEntries(
+    Object.entries({ ...old.unknownReasons, ...next.unknownReasons }).filter(([id]) => unaware(id)),
+  );
   return {
     ...(clues.length ? { clues } : {}),
     ...(latest ? { latest, latestKo: next.latest ? next.latestKo : old.latestKo } : {}),
     falseBeliefs: beliefs.length ? beliefs : undefined,
+    suspectedBy: suspectedBy.length ? suspectedBy : undefined,
+    unknownReasons: Object.keys(reasons).length ? reasons : undefined,
   };
 }
 function normalizedText(value: string | undefined) {
@@ -534,9 +543,11 @@ export function selectCommittedMemory(
     const access = scope(f.audience, f.unknownTo);
     // False beliefs of the characters in this generation (all of them when it is not scoped to anyone).
     const holders = (f.falseBeliefs ?? []).filter((b) => !audienceIds.length || audienceIds.includes(b.who));
-    // A character who does not know the record, or who is the only one written now, gets their belief instead
-    // of the truth: they act on it until the story shows them learning otherwise.
-    const beliefOnly = holders.length > 0 && (!access.ok || audienceIds.length === 1);
+    // Characters in this generation who only suspect it.
+    const guessers = (f.suspectedBy ?? []).filter((id) => !audienceIds.length || audienceIds.includes(id));
+    // A character who does not know the record, or who is the only one written now, gets their belief or their
+    // suspicion instead of the plain truth: they act on it until the story shows them learning otherwise.
+    const beliefOnly = holders.length + guessers.length > 0 && (!access.ok || audienceIds.length === 1);
     if (!access.ok && !beliefOnly) continue;
     const activation = factActivation(f);
     const semantic = Math.max(0, semanticScores.get(f.id) ?? 0);
@@ -559,7 +570,10 @@ export function selectCommittedMemory(
     if (beliefOnly) {
       facts.push({
         id: f.id,
-        content: holders.map((b) => `[belief] ${nameOf(b.who)} believes: ${b.believes}`).join("\n"),
+        content: [
+          ...holders.map((b) => `[belief] ${nameOf(b.who)} believes: ${b.believes}`),
+          ...guessers.map((id) => `[suspicion] ${nameOf(id)} suspects, without being sure: ${f.content}`),
+        ].join("\n"),
         displayKo:
           holders
             .map((b) => b.believesKo)
@@ -594,11 +608,13 @@ export function selectCommittedMemory(
     }
     if (holders.length)
       label += ` (wrongly believed: ${holders.map((b) => `${nameOf(b.who)} believes ${b.believes}`).join("; ")})`;
-    const marked = !!knownBy || (holders.length > 0 && audienceIds.length > 1);
+    if (guessers.length) label += ` (only suspected by: ${guessers.map(nameOf).join(", ")})`;
+    const marked = !!knownBy || ((holders.length > 0 || guessers.length > 0) && audienceIds.length > 1);
+    const why = (id: string) => (f.unknownReasons?.[id] ? `${nameOf(id)} (${f.unknownReasons[id]})` : nameOf(id));
     facts.push({
       id: f.id,
       content: knownBy
-        ? `${label} (known by: ${knownBy.map(nameOf).join(", ")}; not known by: ${notKnownBy!.map(nameOf).join(", ")})`
+        ? `${label} (known by: ${knownBy.map(nameOf).join(", ")}; not known by: ${notKnownBy!.map(why).join(", ")})`
         : label,
       displayKo: f.contentKo,
       reason: "current",
@@ -651,6 +667,9 @@ export function selectCommittedMemory(
     for (const scene of b.scenes ?? []) {
       const access = scope(scene.audience);
       if (!access.ok || access.knownBy) continue;
+      // Who was there but remembers it vaguely or not at all; one who forgot it, written alone, does not recall it.
+      const blurred = (scene.memory ?? []).filter((m) => !audienceIds.length || audienceIds.includes(m.who));
+      if (audienceIds.length === 1 && blurred[0]?.remembers === "none") continue;
       const rareScore = rare(sceneText(scene));
       const score =
         factRecallScore(
@@ -680,6 +699,16 @@ export function selectCommittedMemory(
           `[Scene, ${heading}] ${scene.event}`,
           ...scene.lines.map((line) => `  ${line.speaker}${line.to ? ` → ${line.to}` : ""}: "${line.text}"`),
           ...(scene.changes.length ? [`  Changed: ${scene.changes.join("; ")}`] : []),
+          ...(blurred.length
+            ? [
+                `  Memory: ${blurred
+                  .map(
+                    (m) =>
+                      `${nameOf(m.who)} ${m.remembers === "none" ? "does not remember it" : "remembers it only vaguely"}${m.why ? ` (${m.why})` : ""}`,
+                  )
+                  .join("; ")}`,
+              ]
+            : []),
         ].join("\n"),
         displayKo: scene.eventKo,
         reason: "relevant",

@@ -140,6 +140,36 @@ try {
   });
   assert.equal(parsed.facts.length, 0, "evidence pointing at no sentence drops the operation");
 
+  // Suspicion, reasons and memory strength come through the extraction schema.
+  parsed = parse({
+    facts: [
+      {
+        kind: "fact",
+        key: "보물",
+        content: "보물은 우물에 있다",
+        status: "current",
+        audience: ["mira"],
+        sourceIds: ["1"],
+        unaware: [{ who: "ari", why: "자고 있었음" }, "ren", 5],
+        suspects: ["ren"],
+      },
+    ],
+    scenes: [
+      {
+        event: "잔치",
+        audience: "shared",
+        sourceIds: ["1"],
+        memory: [
+          { who: "ren", remembers: "partial", why: "취함" },
+          { who: "ari", remembers: "fully" },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(parsed.facts[0]!.unaware, [{ who: "ari", why: "자고 있었음" }, { who: "ren" }]);
+  assert.deepEqual(parsed.facts[0]!.suspects, [{ who: "ren" }]);
+  assert.deepEqual(parsed.scenes[0]!.memory, [{ who: "ren", remembers: "partial", why: "취함" }]);
+
   // ── Recall: rare words and back-references ──
   const walk = (turn: number, extra = "") =>
     batch(turn, [scene(`s${turn}`, `Mira and Ren walk the road ${extra}`.trim())]);
@@ -175,6 +205,94 @@ try {
   assert(
     recalled("그때 말했잖아, the lighthouse storm").includes("s2"),
     "pointing back brings the first scene where it came up",
+  );
+
+  // ── Knowledge: suspicion, reasons for not knowing, memory strength ──
+  const names = new Map([
+    ["mira", "Mira"],
+    ["ren", "Ren"],
+    ["ari", "Ari"],
+  ]);
+  const knowledge = policy.consolidateCommittedMemory({
+    version: 3,
+    ownerChatId: "room",
+    enabled: true,
+    batches: [
+      batch(
+        1,
+        [
+          scene("party", "Mira dances on the table at the harvest party", {
+            keywords: ["party"],
+            memory: [
+              { who: "ren", remembers: "partial", why: "drunk" },
+              { who: "ari", remembers: "none", why: "asleep" },
+            ],
+          }),
+        ],
+        {
+          facts: [
+            {
+              id: "affair",
+              kind: "fact",
+              key: "letter",
+              content: "Mira wrote the unsigned letter",
+              status: "current",
+              audience: ["mira"],
+              sourceIds: ["src1"],
+              entityId: "letter",
+              attribute: "author",
+              keywords: ["letter"],
+              suspectedBy: ["ren"],
+              unknownTo: ["ari"],
+              unknownReasons: { ari: "was away at work" },
+            },
+          ],
+        },
+      ),
+    ],
+  });
+  const text = (query: string, audience: string[]) =>
+    policy.selectCommittedMemory(knowledge, query, [], Number.POSITIVE_INFINITY, audience, new Map(), names).text;
+  assert(
+    text("the letter", ["ren"]).includes(
+      "[suspicion] Ren suspects, without being sure: Mira wrote the unsigned letter",
+    ),
+    "Ren written alone only suspects it",
+  );
+  assert(!text("the letter", ["ari"]).includes("letter"), "Ari neither knows nor suspects it");
+  const group = text("the letter", ["mira", "ren", "ari"]);
+  assert(group.includes("(only suspected by: Ren)"), group);
+  assert(group.includes("not known by: Ren, Ari (was away at work)"), group);
+  // A forgotten scene stays out for the one who forgot it; a blurred one comes with that note.
+  assert(!text("the party", ["ari"]).includes("harvest party"));
+  assert(text("the party", ["ren"]).includes("Memory: Ren remembers it only vaguely (drunk)"));
+  assert(
+    text("the party", []).includes("Memory: Ren remembers it only vaguely (drunk); Ari does not remember it (asleep)"),
+  );
+  // Suspicion ends when the suspecter comes to know it.
+  const learned = policy.consolidateCommittedMemory({
+    ...knowledge,
+    batches: [
+      ...knowledge.batches,
+      batch(2, [], {
+        facts: [
+          {
+            ...knowledge.batches[0]!.facts[0]!,
+            id: "affair-2",
+            audience: ["mira", "ren"],
+            suspectedBy: undefined,
+            unknownReasons: undefined,
+          },
+        ],
+      }),
+    ],
+  });
+  const latestFact = learned.batches.flatMap((b) => b.facts).find((f) => f.entityId === "letter")!;
+  assert.equal(latestFact.suspectedBy, undefined, "a suspicion ends when its holder knows");
+  assert.deepEqual(
+    latestFact.unknownReasons,
+    { ari: "was away at work" },
+    "reasons stay for those who still do not know",
   );
 
   console.log("Committed memory ledger ideas passed.");
