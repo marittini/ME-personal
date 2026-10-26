@@ -45,6 +45,18 @@ export function memoryFingerprint(m: MemorySourceMessage): string {
     )
     .digest("hex");
 }
+/**
+ * Chat responses (the chat list, a chat, a metadata save) carry only this much of the unified memory: whether
+ * it is on, its owner and epoch. The memory itself can be megabytes in a long room and the client reads it
+ * through /committed-memory, so it is not sent with every chat. Storage keeps it whole; clients patch metadata
+ * by key and never send this key back.
+ */
+export function committedMemoryResponseStub(metadata: Record<string, unknown>) {
+  const memory = metadata.committedMemory;
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) return metadata;
+  const { version, ownerChatId, enabled, epoch } = memory as Record<string, unknown>;
+  return { ...metadata, committedMemory: { version, ownerChatId, enabled, epoch } };
+}
 export function emptyCommittedMemory(chatId: string): CommittedMemoryState {
   return { version: 1, ownerChatId: chatId, enabled: false, batches: [] };
 }
@@ -85,6 +97,11 @@ function validScene(s: unknown) {
     (scene.audience === "shared" || Array.isArray(scene.audience))
   );
 }
+/**
+ * A line saved before voice markup was stripped could be a wrapper's id ("char-9f2a", a 21-character ID) instead
+ * of words; such a line is hidden on read. Re-committing ("다시 정리") records the real words.
+ */
+const TRACKING_ID = /^(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{8,}$/;
 const stringList = (value: unknown, limit: number) =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === "string").slice(0, limit) : [];
 function validEntity(e: unknown) {
@@ -154,7 +171,13 @@ export function readCommittedMemory(metadata: Record<string, unknown>, chatId: s
               changes: stringList(scene.changes, 12),
               keywords: keywords(scene.keywords),
               lines: (Array.isArray(scene.lines) ? scene.lines : [])
-                .filter((line) => line && typeof line.text === "string" && typeof line.sourceId === "string")
+                .filter(
+                  (line) =>
+                    line &&
+                    typeof line.text === "string" &&
+                    typeof line.sourceId === "string" &&
+                    !TRACKING_ID.test(line.text.trim()),
+                )
                 .slice(0, 3),
             })),
           }
@@ -212,8 +235,12 @@ export function memoryFactIdentity(
   ]);
 }
 /** Legacy batches are upgraded without discarding episode summaries or source coverage. */
-export function consolidateCommittedMemory(state: CommittedMemoryState): CommittedMemoryState {
-  const next = structuredClone(state);
+export function consolidateCommittedMemory(
+  state: CommittedMemoryState,
+  /** The caller hands over a state of its own (fresh batch and fact objects) that may be changed in place. */
+  owned = false,
+): CommittedMemoryState {
+  const next = owned ? state : structuredClone(state);
   const current = new Map<string, { batch: CommittedMemoryBatch; fact: CommittedMemoryFact }>();
   for (const batch of [...next.batches].sort((a, b) => a.turn - b.turn)) {
     if (batch.invalidated) continue;
@@ -318,8 +345,24 @@ function carriedThreadAndBeliefs(old: CommittedMemoryFact, next: CommittedMemory
     unknownReasons: Object.keys(reasons).length ? reasons : undefined,
   };
 }
+/**
+ * Small bounded cache for pure text work that every load and every turn repeats on the same saved texts
+ * (word sets, normalized text). Results are shared, so callers never change them.
+ */
+function memoized<T>(compute: (text: string) => T, limit = 5000) {
+  const cache = new Map<string, T>();
+  return (text: string) => {
+    const hit = cache.get(text);
+    if (hit !== undefined) return hit;
+    const value = compute(text);
+    if (cache.size >= limit) cache.delete(cache.keys().next().value!);
+    cache.set(text, value);
+    return value;
+  };
+}
+const normalizedTextOf = memoized((value) => value.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase());
 function normalizedText(value: string | undefined) {
-  return (value ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  return normalizedTextOf(value ?? "");
 }
 function sameAudience(a: CommittedMemoryFact["audience"], b: CommittedMemoryFact["audience"]) {
   if (a === "shared" || b === "shared") return a === b;
@@ -372,7 +415,8 @@ export function reconcileCommittedMemory(
       };
     }),
   };
-  return consolidateCommittedMemory(checked);
+  // `checked` is built here from new batch and fact objects, so consolidation needs no deep copy of it.
+  return consolidateCommittedMemory(checked, true);
 }
 export function pendingMemoryMessages(state: CommittedMemoryState, messages: readonly MemorySourceMessage[]) {
   const covered = new Set(
@@ -388,7 +432,8 @@ export function pendingMemoryMessages(state: CommittedMemoryState, messages: rea
       memoryExtra(m.extra).hiddenFromAI !== true,
   );
 }
-export function memoryTerms(text: string) {
+export const memoryTerms: (text: string) => ReadonlySet<string> = memoized((text) => memoryTermsUncached(text));
+function memoryTermsUncached(text: string) {
   return new Set(
     (
       text
@@ -401,7 +446,7 @@ export function memoryTerms(text: string) {
     }),
   );
 }
-function relevance(text: string, query: Set<string>) {
+function relevance(text: string, query: ReadonlySet<string>) {
   const tokens = memoryTerms(text);
   return [...query].filter((t) => tokens.has(t)).length / Math.max(1, Math.sqrt(tokens.size * query.size));
 }
@@ -421,7 +466,7 @@ function hasWord(haystack: string, word: string) {
 export function factRecallScore(
   f: Pick<CommittedMemoryFact, "keywords" | "combos" | "key" | "content" | "keyKo" | "contentKo">,
   sceneText: string,
-  sceneTerms: Set<string>,
+  sceneTerms: ReadonlySet<string>,
 ) {
   const scene = sceneText.normalize("NFKC").toLowerCase();
   const keywordHits = (f.keywords ?? []).filter((k) => hasWord(scene, k)).length;
@@ -528,6 +573,7 @@ export function selectCommittedMemory(
   const knowers = (audience: CommittedMemoryFact["audience"]) =>
     audience === "shared" ? "" : `; known to: ${audience.length ? audience.map(nameOf).join(", ") : "narrator only"}`;
   const batchTurns = valid.map((b) => b.turn);
+  const entityNames = new Map((state.entities ?? []).map((entity) => [entity.id, entity.name]));
   for (const { fact: f, turn } of current.values()) {
     if (
       f.status !== "current" ||
@@ -615,6 +661,8 @@ export function selectCommittedMemory(
       label += ` (wrongly believed: ${holders.map((b) => `${nameOf(b.who)} believes ${b.believes}`).join("; ")})`;
     if (guessers.length) label += ` (only suspected by: ${guessers.map(nameOf).join(", ")})`;
     const marked = !!knownBy || ((holders.length > 0 || guessers.length > 0) && audienceIds.length > 1);
+    // A state is shown under its entity in the scene-now block.
+    const subject = isState && f.entityId ? entityNames.get(f.entityId) : undefined;
     const why = (id: string) => (f.unknownReasons?.[id] ? `${nameOf(id)} (${f.unknownReasons[id]})` : nameOf(id));
     facts.push({
       id: f.id,
@@ -624,6 +672,7 @@ export function selectCommittedMemory(
       displayKo: f.contentKo,
       reason: "current",
       kind: f.kind,
+      ...(subject ? { subject } : {}),
       tier: marked ? "boundary" : isState ? "state" : openLine ? "thread" : activation,
       sourceIds: f.sourceIds,
       score: called,
@@ -805,14 +854,24 @@ export function selectCommittedMemory(
     if (take(item)) states++;
   }
   // 2b. daily life of the people in the scene: one small block, computed from the routine records.
-  const life = dailyLife(valid, queryText, names);
-  if (life)
+  // A person's daily life joins their entity's line when the name is one of its names or aliases.
+  const entityByName = new Map(
+    (state.entities ?? []).flatMap((entity) =>
+      [entity.name, ...entity.aliases].map(
+        (name) => [name.normalize("NFKC").trim().toLowerCase(), entity.name] as const,
+      ),
+    ),
+  );
+  for (const person of dailyLife(valid, queryText, names, (who) =>
+    entityByName.get(who.normalize("NFKC").trim().toLowerCase()),
+  ))
     take({
-      id: "daily-life",
-      content: life.content,
+      id: `daily-life:${person.who}`,
+      content: person.content,
+      subject: person.who,
       reason: "current",
       tier: "life",
-      sourceIds: life.sourceIds,
+      sourceIds: person.sourceIds,
       score: 1,
       turn: newest,
       progressRank: 2,
@@ -903,8 +962,16 @@ function storyTime(at: string | undefined) {
  * otherwise the three most recently active): their last meal and how many meals that day, sleep and waking with
  * the hours slept, washing and medicine. All counting is done here, from the routine records.
  */
-function dailyLife(batches: readonly CommittedMemoryBatch[], queryText: string, names: ReadonlyMap<string, string>) {
+function dailyLife(
+  batches: readonly CommittedMemoryBatch[],
+  queryText: string,
+  names: ReadonlyMap<string, string>,
+  /** The entity name for a written name (its name or an alias), so "미라" and "Mira" are one person. */
+  canonical: (who: string) => string | undefined = () => undefined,
+) {
   const people = new Map<string, Array<{ entry: CommittedMemoryRoutine; turn: number }>>();
+  // Every name a person was written as, to tell whether the conversation names them.
+  const spellings = new Map<string, Set<string>>();
   for (const batch of [...batches].sort((a, b) => a.turn - b.turn))
     for (const entry of batch.routine ?? []) {
       if (entry.excluded) continue;
@@ -912,23 +979,27 @@ function dailyLife(batches: readonly CommittedMemoryBatch[], queryText: string, 
         .split(/[·,、&]|\s+and\s+/u)
         .map((name) => name.trim())
         .filter(Boolean)) {
-        const key = who.normalize("NFKC").toLowerCase();
-        people.set(key, [...(people.get(key) ?? []), { entry: { ...entry, who }, turn: batch.turn }]);
+        const name = canonical(who) ?? who;
+        const key = name.normalize("NFKC").toLowerCase();
+        people.set(key, [...(people.get(key) ?? []), { entry: { ...entry, who: name }, turn: batch.turn }]);
+        spellings.set(key, new Set([...(spellings.get(key) ?? []), key, who.normalize("NFKC").toLowerCase()]));
       }
     }
-  if (!people.size) return undefined;
+  if (!people.size) return [];
   const scene = queryText.normalize("NFKC").toLowerCase();
   const room = new Set([...names.values()].map((name) => name.normalize("NFKC").toLowerCase()));
   const lastTurn = (key: string) => Math.max(...people.get(key)!.map((item) => item.turn));
-  const present = [...people.keys()].filter((key) => room.has(key) || scene.includes(key));
+  const present = [...people.keys()].filter((key) =>
+    [...spellings.get(key)!].some((spelling) => room.has(spelling) || scene.includes(spelling)),
+  );
   const chosen = (present.length ? present : [...people.keys()].sort((a, b) => lastTurn(b) - lastTurn(a)).slice(0, 3))
     .sort((a, b) => lastTurn(b) - lastTurn(a))
     .slice(0, 6);
   const when = (item: { entry: CommittedMemoryRoutine; turn: number }) =>
     `message ${item.turn}${item.entry.at ? `, ${item.entry.at}` : ""}`;
   const said = (entry: CommittedMemoryRoutine) => (entry.claimed ? ", said" : "");
-  const sourceIds = new Set<string>();
-  const lines = chosen.map((key) => {
+  return chosen.map((key) => {
+    const sourceIds = new Set<string>();
     const items = people.get(key)!;
     const last = (what: CommittedMemoryRoutine["what"]) => items.filter((item) => item.entry.what === what).at(-1);
     const parts: string[] = [];
@@ -974,9 +1045,8 @@ function dailyLife(batches: readonly CommittedMemoryBatch[], queryText: string, 
     }
     for (const item of [meal, sleep, wake, last("wash"), last("medicine")])
       if (item) sourceIds.add(item.entry.sourceId);
-    return `- ${items[0]!.entry.who}: ${parts.join(" · ")}`;
+    return { who: items[0]!.entry.who, content: parts.join(" · "), sourceIds: [...sourceIds] };
   });
-  return { content: lines.join("\n"), sourceIds: [...sourceIds] };
 }
 const BACK_REFERENCE =
   /(그때|그날|예전에|전에\s*(말|했)|말했잖|했잖아|약속했잖|기억\s*(나|안\s*나|하지|해\?)|처음\s*만났|remember\s+when|you\s+said|back\s+then|that\s+time|last\s+time|you\s+promised)/iu;
@@ -984,7 +1054,8 @@ const BACK_REFERENCE =
  * Words for rarity: whole words of two or more letters, plus two-letter pieces of Korean, Japanese and Chinese
  * words (so "미라가" and "미라는" share "미라"). Latin two-letter pieces ("he" in "the") would make noise.
  */
-function rareTerms(text: string) {
+const rareTerms: (text: string) => ReadonlySet<string> = memoized((text) => rareTermsUncached(text));
+function rareTermsUncached(text: string) {
   const words =
     text
       .normalize("NFKC")
@@ -1040,31 +1111,30 @@ export const KNOWLEDGE_BOUNDARY_INSTRUCTION =
   "Each character speaks and acts only on what they know. A character who does not know something never notices it by guess or coincidence. A character who wrongly believes something acts on that belief. A secret comes out only when the story actually shows it being revealed.";
 export const MEMORY_RECENCY_INSTRUCTION =
   "This memory was saved from earlier messages. Where the recent conversation shows something newer, the conversation wins.";
-export const SCENE_STATE_INSTRUCTION =
-  "Current states, with how they changed (newest first). Characters who were there when a state changed noticed it and react to it naturally; characters who were not there do not know it.";
+export const SCENE_NOW_INSTRUCTION =
+  'Who and what is in the scene now: current states with how they changed (newest first), and daily life (last meal, sleep, washing, medicine; counts and hours are computed). Characters who were there when a state changed noticed it and react to it naturally; those who were not there do not know it. Keep hunger, tiredness and care consistent. "said" means only claimed, not seen.';
 export const OPEN_THREAD_INSTRUCTION =
   "Open threads, promises and unresolved feelings, with their newest development and planted clues. Pick one up when it fits the moment, building on its clues; a stalled one can return when the moment allows. Never force a payoff. A thread or promise closes only when the story shows it; a feeling lasts, and colours how that character speaks and acts, until what it needs happens.";
-export const DAILY_LIFE_INSTRUCTION =
-  'When each person last ate, washed, slept, woke and took medicine (message number and story time; counts and hours are computed). Keep hunger, tiredness and care consistent with it. "said" means only claimed, not seen.';
 export const RECALLED_SCENE_INSTRUCTION =
   "Earlier scenes this moment calls back. Quoted lines are the exact words spoken.";
 function renderCommittedMemory(selected: CommittedMemorySelection[]) {
   const isThread = (i: CommittedMemorySelection) => i.kind === "thread" || i.kind === "promise" || i.kind === "emotion";
   const current = selected.filter((i) => i.reason === "current" && i.tier !== "boundary");
   const facts = current.filter((i) => i.kind !== "state" && !isThread(i) && i.tier !== "life");
-  const life = current.filter((i) => i.tier === "life");
-  const states = current.filter((i) => i.kind === "state");
+  // States and daily life of the same person or thing share one line in the scene-now block.
+  const now = new Map<string, string[]>();
+  for (const item of current.filter((i) => i.kind === "state" || i.tier === "life")) {
+    const content = item.subject ? item.content.replace(/^\[state\]\s*/u, "") : item.content;
+    const key = item.subject ? item.subject.normalize("NFKC").toLowerCase() : `\u0000${item.id}`;
+    now.set(key, [...(now.get(key) ?? [item.subject ? `${item.subject}:` : ""]), content]);
+  }
+  const nowLines = [...now.values()].map(([head, ...parts]) => `- ${head ? `${head} ` : ""}${parts.join(" · ")}`);
   const threads = current.filter(isThread);
   const secrets = selected.filter((i) => i.tier === "boundary");
   const scenes = selected.filter((i) => i.tier === "scene");
   const episodes = selected.filter((i) => i.reason !== "current" && i.tier !== "scene");
   const blocks = [
-    states.length
-      ? `<scene_state>\n${SCENE_STATE_INSTRUCTION}\n${states.map((i) => i.content).join("\n")}\n</scene_state>`
-      : "",
-    life.length
-      ? `<daily_life>\n${DAILY_LIFE_INSTRUCTION}\n${life.map((i) => i.content).join("\n")}\n</daily_life>`
-      : "",
+    nowLines.length ? `<scene_now>\n${SCENE_NOW_INSTRUCTION}\n${nowLines.join("\n")}\n</scene_now>` : "",
     facts.length
       ? `<current_facts_and_obligations>\n${facts.map((i) => i.content).join("\n")}\n</current_facts_and_obligations>`
       : "",

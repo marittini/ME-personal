@@ -1294,8 +1294,13 @@ const LocalChatArea = memo(function LocalChatArea({
           spoken: character.phoneticName ?? "",
         })),
         ...(personaInfo ? [{ name: personaInfo.name, spoken: personaInfo.phoneticName ?? "" }] : []),
+        // Extras of this room (reading settings) can have their own phonetic name too.
+        ...ttsExtraParticipants(chat?.metadata.ttsExtraVoices).map((extra) => ({
+          name: extra.name,
+          spoken: extra.phonetic,
+        })),
       ]),
-    [characterMap, personaInfo],
+    [characterMap, personaInfo, chat?.metadata.ttsExtraVoices],
   );
 
   const { concludeScene, abandonScene, forkScene, isForking } = useScene();

@@ -1,3 +1,4 @@
+import { committedMemoryResponseStub } from "../services/committed-memory-policy.js";
 import { registerCommittedMemoryRoutes } from "./committed-memory.routes.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
@@ -474,7 +475,7 @@ export function normalizeChatForResponse<T extends { metadata?: unknown; charact
     ...chat,
     characterIds: resolveChatCharacterIds(chat.characterIds),
     personaCharacterId: (chat as T & { personaCharacterId?: string | null }).personaCharacterId ?? null,
-    metadata: parseChatMetadata(chat.metadata),
+    metadata: committedMemoryResponseStub(parseChatMetadata(chat.metadata)),
   });
 }
 type SummaryEntriesPatchBody =

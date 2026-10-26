@@ -301,9 +301,10 @@ export interface ChatMetadata {
   ttsTaggedDialogue?: boolean;
   /**
    * Room-only voices for people without a card (an extra who turns up in this story): an id the model uses in its
-   * speech wrappers, the name it knows them by, and the voice. See ttsExtraParticipants.
+   * speech wrappers, the name it knows them by, the voice, and how read-aloud says the name. See
+   * ttsExtraParticipants.
    */
-  ttsExtraVoices?: Array<{ id: string; name: string; voice: string }>;
+  ttsExtraVoices?: Array<{ id: string; name: string; voice: string; phonetic?: string }>;
   /** Display-only reading annotations, never prompt content. */
   readerExcerpts?: ReaderExcerpt[];
   /** Display-only sentence highlights with private memos, never prompt content. */
@@ -349,6 +350,10 @@ export interface ChatMetadata {
   branchMessageId?: string | null;
   /** Structured rolling summary entries. Missing means legacy summary-only metadata. */
   summaryEntries?: ChatSummaryEntry[];
+  /**
+   * Stored whole; chat responses carry only { version, ownerChatId, enabled, epoch } (the vault reads the rest
+   * through /committed-memory). Never send this key back in a metadata patch.
+   */
   committedMemory?: CommittedMemoryState;
   committedMemoryFloatingButton?: boolean;
   committedMemorySourceMode?: "pending" | "last" | "range";

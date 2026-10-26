@@ -7,14 +7,14 @@ import { buildTTSVoiceRequests } from "../../packages/client/src/lib/tts-dialogu
 import { roomTtsInstructions } from "../../packages/server/src/services/tts-emotion-guidance.ts";
 
 const extras = ttsExtraParticipants([
-  { id: "extra-a1", name: " 엑스트라A ", voice: "extra-voice" },
+  { id: "extra-a1", name: " 엑스트라A ", voice: "extra-voice", phonetic: " 엑스트라에이 " },
   { id: "extra-b2", name: "빈 목소리", voice: "" },
   { id: "not-an-extra", name: "Bad id", voice: "x" },
   { id: "extra-c3", name: "   ", voice: "x" },
 ]);
 assert.deepEqual(extras, [
-  { kind: "character", id: "extra-a1", name: "엑스트라A", voice: "extra-voice" },
-  { kind: "character", id: "extra-b2", name: "빈 목소리", voice: "" },
+  { kind: "character", id: "extra-a1", name: "엑스트라A", voice: "extra-voice", phonetic: "엑스트라에이" },
+  { kind: "character", id: "extra-b2", name: "빈 목소리", voice: "", phonetic: "" },
 ]);
 
 const config = ttsConfigSchema.parse({

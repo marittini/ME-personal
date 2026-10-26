@@ -246,6 +246,8 @@ export interface CommittedMemorySelection {
   tier?: "always" | "recall" | "flow" | "boundary" | "state" | "thread" | "scene" | "life";
   /** The fact kind, for facts (format 3). */
   kind?: CommittedMemoryFact["kind"];
+  /** Who or what a scene-now line is about (states and daily life of one person share a line). */
+  subject?: string;
   tokens?: number;
 }
 /** What the status response carries of a change: enough to list it and undo it by ID. */
