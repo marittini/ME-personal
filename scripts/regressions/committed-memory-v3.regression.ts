@@ -342,16 +342,16 @@ try {
   // The borzoi case: the current form comes with its change history and who knew, even when nobody named her.
   let prompt = select("They walk on.", ["mira", "ren"]).text;
   assert(prompt.startsWith(policy.MEMORY_RECENCY_INSTRUCTION), "recent conversation wins over memory");
-  assert(prompt.includes(`<scene_state>\n${policy.SCENE_STATE_INSTRUCTION}`));
+  assert(prompt.includes(`<scene_now>\n${policy.SCENE_NOW_INSTRUCTION}`));
   assert(
     prompt.includes(
-      "[state] Mira is a borzoi (changed at message 4. Before: Mira is human (message 3; known to: Ren) ← Mira is a borzoi (message 2) ← Mira is human (message 1))",
+      "- Mira: Mira is a borzoi (changed at message 4. Before: Mira is human (message 3; known to: Ren) ← Mira is a borzoi (message 2) ← Mira is human (message 1))",
     ),
     prompt,
   );
   assert(
     select("They walk on.", ["ari"]).text.includes(
-      "[state] Mira is a borzoi (changed at message 4. Before: Mira is a borzoi (message 2) ← Mira is human (message 1))",
+      "- Mira: Mira is a borzoi (changed at message 4. Before: Mira is a borzoi (message 2) ← Mira is human (message 1))",
     ),
     "an earlier value only Ren knew stays out of Ari's memory",
   );
@@ -479,7 +479,7 @@ try {
     let prompt = (await memory.committedMemoryForPrompt(db, chat.id, "산책"))!.text;
     assert(
       prompt.includes(
-        "[state] 미라는 보르조이다 (changed at message 3. Before: 미라는 인간이다 (message 2) ← 미라는 보르조이다 (message 1))",
+        "- 미라: 미라는 보르조이다 (changed at message 3. Before: 미라는 인간이다 (message 2) ← 미라는 보르조이다 (message 1))",
       ),
       prompt,
     );

@@ -400,7 +400,7 @@ try {
     ],
   };
   const lifeText = policy.selectCommittedMemory(lifeState, "Mira and Ren talk", [], Number.POSITIVE_INFINITY).text;
-  assert(lifeText.includes(`<daily_life>\n${policy.DAILY_LIFE_INSTRUCTION}`), lifeText);
+  assert(lifeText.includes(`<scene_now>\n${policy.SCENE_NOW_INSTRUCTION}`), lifeText);
   assert(
     lifeText.includes(
       "- Mira: last meal: stew (message 2, 24-10-18 19:00; meal 2 that day) · slept message 2, 24-10-18 23:30 → woke message 3, 24-10-19 07:15 (7.8 h) · washed: a bath (message 1, 24-10-18 09:00)",
@@ -413,6 +413,37 @@ try {
     ),
     lifeText,
   );
+  // A person's state and daily life share one line (the routine name matches an entity alias).
+  const merged = policy.selectCommittedMemory(
+    {
+      ...lifeState,
+      entities: [{ id: "mira", name: "Mira", aliases: ["미라"], kind: "person", createdAt: "x" }],
+      batches: [
+        ...lifeState.batches,
+        batch(4, [], {
+          facts: [
+            {
+              id: "tired",
+              kind: "state",
+              key: "mira tired",
+              content: "Mira is exhausted",
+              status: "current",
+              audience: "shared",
+              sourceIds: ["src4"],
+              entityId: "mira",
+              attribute: "energy",
+            },
+          ],
+          routine: [{ id: "r4", who: "미라", what: "meal", text: "soup", sourceId: "src4" }],
+        } as Partial<CommittedMemoryBatch>),
+      ],
+    },
+    "Mira",
+    [],
+    Number.POSITIVE_INFINITY,
+  ).text;
+  assert(merged.includes("- Mira: Mira is exhausted · last meal: soup (message 4) · slept"), merged);
+  assert.equal(merged.match(/^- Mira:/gmu)?.length, 1, "one line for Mira");
   // A corrected entry leaves the counts.
   lifeState.batches[1]!.routine![0]!.excluded = true;
   assert(
