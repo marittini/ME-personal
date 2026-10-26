@@ -241,6 +241,14 @@ try {
   assert.deepEqual(parsed.facts[0]!.suspects, [{ who: "ren" }]);
   assert.deepEqual(parsed.scenes[0]!.memory, [{ who: "ren", remembers: "partial", why: "취함" }]);
 
+  // The core is no longer requested: an answer without one uses its summary.
+  const coreless = memory.parseCommittedMemoryOutput(
+    JSON.stringify({ summary: "A short summary.", summaryKo: "짧은 요약", facts: [] }),
+    sources,
+  );
+  assert.equal(coreless.core, "A short summary.");
+  assert.equal(coreless.coreKo, "짧은 요약");
+
   // ── Recall: rare words and back-references ──
   const walk = (turn: number, extra = "") =>
     batch(turn, [scene(`s${turn}`, `Mira and Ren walk the road ${extra}`.trim())]);
