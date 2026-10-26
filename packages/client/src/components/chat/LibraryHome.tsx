@@ -7,7 +7,6 @@ import {
   Home,
   LibraryBig,
   MessageCircle,
-  Search,
   Settings,
   ScrollText,
   PencilLine,
@@ -22,6 +21,9 @@ import { useBackDismiss } from "../../hooks/use-back-dismiss";
 import { showChoiceDialog, showConfirmDialog, showPromptDialog } from "../../lib/app-dialogs";
 import { imagePreviewUrl } from "../../lib/image-preview-url";
 import { useHomeFeed } from "../../hooks/use-home-feed";
+import { selectHomeBrowserPackages, useInstalledCapabilityPackages } from "../../hooks/use-capability-packages";
+import { resolveCapabilityPackageDisplay } from "../../lib/capability-package-localization";
+import { CapabilityElement } from "../capabilities/CapabilityElement";
 import { cn, getAvatarCropStyle } from "../../lib/utils";
 import { libraryChatGroupKey } from "../../lib/library-chat-group";
 import { buildRecordToc } from "../../lib/library-record-toc";
@@ -123,11 +125,9 @@ export function LibraryHome() {
   const customizations = useUIStore((state) => state.libraryCustomizations);
   const overlayOpen = useUIStore((state) => state.rightPanelOpen || !!state.modal || state.hasAnyDetailOpen());
   const dialogOpen = useDialogStore((state) => !!state.dialog);
-  const { section, query } = navigation;
+  const { section } = navigation;
   const setSection = (value: LibrarySection) =>
     useUIStore.setState((state) => ({ libraryNavigation: { ...state.libraryNavigation, section: value } }));
-  const setQuery = (value: string) =>
-    useUIStore.setState((state) => ({ libraryNavigation: { ...state.libraryNavigation, query: value } }));
   const setSelectedWork = (value: VirtualWork | null) =>
     useUIStore.setState((state) => ({
       libraryNavigation: { ...state.libraryNavigation, selectedWorkId: value?.id ?? null },
@@ -189,10 +189,34 @@ export function LibraryHome() {
 
   const selectedWork = works.find((work) => work.id === navigation.selectedWorkId) ?? null;
   useBackDismiss(!!selectedWork && !overlayOpen && !dialogOpen, () => setSelectedWork(null));
+
+  // Installed packages that contribute a Home page (Forest Workshop, …) get a banner on the Library tab and open
+  // full screen inside the library. An omnibar "open package" request lands here too.
+  const installedPackages = useInstalledCapabilityPackages();
+  const packageEntries = useMemo(() => {
+    const language = i18n.resolvedLanguage ?? i18n.language;
+    return selectHomeBrowserPackages(installedPackages.data).map((item) => {
+      const display = resolveCapabilityPackageDisplay(item.manifest, language);
+      return { id: item.id, label: display.homeBrowserTab?.label ?? display.name };
+    });
+  }, [installedPackages.data, i18n.language, i18n.resolvedLanguage]);
+  const [openPackageId, setOpenPackageId] = useState<string | null>(null);
+  const openPackage = packageEntries.find((entry) => entry.id === openPackageId) ?? null;
+  const homeRequest = useUIStore((state) => state.homeRequest);
+  useEffect(() => {
+    if (homeRequest?.kind !== "tab" || installedPackages.isPending) return;
+    if (packageEntries.some((entry) => entry.id === homeRequest.tab)) {
+      setSelectedWork(null);
+      setSection("library");
+      setOpenPackageId(homeRequest.tab);
+    }
+    useUIStore.getState().consumeHomeRequest();
+  }, [homeRequest, installedPackages.isPending, packageEntries]);
+  useBackDismiss(!!openPackage && !overlayOpen && !dialogOpen, () => setOpenPackageId(null));
   // Phones: back walks Library / Record / My page back to Home, and Home needs two presses in a row to leave.
   const [exitArmed, setExitArmed] = useState(false);
   const onPhone = useIsMobileShellViewport();
-  const atRest = !selectedWork && !overlayOpen && !dialogOpen;
+  const atRest = !selectedWork && !openPackage && !overlayOpen && !dialogOpen;
   useBackDismiss(onPhone && atRest && section !== "home", () => setSection("home"));
   useBackDismiss(onPhone && atRest && section === "home" && !exitArmed, () => {
     // This press is used up here; the next one within two seconds falls through and leaves the app.
@@ -263,16 +287,6 @@ export function LibraryHome() {
       toast.error(t("reader.renameError"));
     }
   };
-
-  const filteredWorks = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language);
-    if (!normalized) return works;
-    return works.filter((work) =>
-      `${work.title} ${work.author} ${work.chats.map((chat) => chat.name).join(" ")}`
-        .toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language)
-        .includes(normalized),
-    );
-  }, [i18n.language, i18n.resolvedLanguage, query, works]);
 
   const openWork = (work: VirtualWork) => {
     setSelectedWork(work);
@@ -534,6 +548,27 @@ export function LibraryHome() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-28 md:px-10 md:pb-24">
         <div className="mx-auto w-full max-w-5xl">
+          {section === "library" && packageEntries.length > 0 ? (
+            <div className="space-y-2 pb-3 pt-1" data-library-package-banners="">
+              {packageEntries.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setOpenPackageId(entry.id)}
+                  data-library-package-banner={entry.id}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-xl bg-[var(--secondary)] px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                >
+                  <span className="shrink-0 text-[0.7rem] font-bold tracking-[0.08em] text-[var(--primary)]">
+                    {t("libraryShell.packageBanner.badge")}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    {t("libraryShell.packageBanner.open", { name: entry.label })}
+                  </span>
+                  <ChevronRight size="1rem" className="shrink-0 text-[var(--muted-foreground)]" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          ) : null}
           {section === "settings" ? (
             <Suspense fallback={<p role="status">{t("libraryShell.loading")}</p>}>
               <LibrarySettingsHome />
@@ -651,22 +686,11 @@ export function LibraryHome() {
             </>
           ) : section === "library" ? (
             <section>
-              <label className="flex min-h-12 items-center gap-3 border-y border-[var(--border)] text-[var(--muted-foreground)] focus-within:text-[var(--foreground)]">
-                <Search size="1rem" aria-hidden="true" />
-                <span className="sr-only">{t("libraryShell.search.label")}</span>
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t("libraryShell.search.placeholder")}
-                  className="h-12 min-w-0 flex-1 bg-transparent text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
-                />
-              </label>
               <p className="py-5 text-xs text-[var(--muted-foreground)]">
-                {t("libraryShell.workCount", { count: filteredWorks.length })}
+                {t("libraryShell.workCount", { count: works.length })}
               </p>
               <div className="grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-4 md:grid-cols-5 md:gap-x-7">
-                {filteredWorks.map((work) => (
+                {works.map((work) => (
                   <button
                     key={work.id}
                     style={{ contentVisibility: "auto", containIntrinsicSize: "auto 280px" }}
@@ -720,6 +744,38 @@ export function LibraryHome() {
           )}
         </div>
       </div>
+
+      {openPackage ? (
+        <section
+          className="absolute inset-0 z-20 flex min-h-0 flex-col bg-[var(--background)]"
+          aria-label={openPackage.label}
+          data-library-package-view={openPackage.id}
+        >
+          <header className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] px-2 pt-[env(safe-area-inset-top)]">
+            <button
+              type="button"
+              onClick={() => setOpenPackageId(null)}
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              aria-label={t("libraryShell.packageBanner.back")}
+            >
+              <ArrowLeft size="1.15rem" aria-hidden="true" />
+            </button>
+            <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{openPackage.label}</h2>
+          </header>
+          <div className="min-h-0 flex-1">
+            <CapabilityElement
+              key={openPackage.id}
+              packageId={openPackage.id}
+              view="browser"
+              className="block h-full min-h-0 w-full"
+              capabilityProps={{
+                style: { display: "block", width: "100%", height: "100%" },
+                onClose: () => setOpenPackageId(null),
+              }}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <nav
         className="absolute inset-x-0 bottom-0 z-10 border-t border-[var(--border)] bg-[var(--background)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"

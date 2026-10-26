@@ -913,7 +913,6 @@ interface UIState {
   libraryCustomizations: Record<string, LibraryCustomization>;
   libraryNavigation: {
     section: "home" | "library" | "record" | "settings";
-    query: string;
     selectedWorkId: string | null;
   };
   fontSize: FontSize;
@@ -2227,7 +2226,7 @@ export const useUIStore = create<UIState>()(
         readerPositions: {},
         libraryCovers: {},
         libraryCustomizations: {},
-        libraryNavigation: { section: "home", query: "", selectedWorkId: null },
+        libraryNavigation: { section: "home", selectedWorkId: null },
         fontSize: 17 as FontSize,
         language: "ko" as AppLanguage,
         chatFontSize: 16,
