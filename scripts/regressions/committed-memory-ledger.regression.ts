@@ -49,6 +49,26 @@ try {
     "quotes stay whole and numbering runs through the message",
   );
   assert.equal(sentences.spokenPart('"You were human," he says.'), "You were human,");
+  assert.deepEqual(
+    sentences.memorySentences("「行こう。」とミラが言った。「嫌だ。」とレンが答えた。"),
+    ["「行こう。」とミラが言った。", "「嫌だ。」とレンが答えた。"],
+    "Japanese sentences split at 。 without a space, never inside 「」",
+  );
+  assert.equal(
+    sentences.spokenPart("“I don’t know,” he says, “maybe tomorrow.”"),
+    "I don’t know, maybe tomorrow.",
+    "an apostrophe never cuts a line, and every quoted part is kept",
+  );
+  assert.equal(sentences.spokenPart("「‘미안’이라고 하지 마.」"), "‘미안’이라고 하지 마.");
+  // Voice markup and group speaker tags are not part of what the extraction reads.
+  assert.equal(
+    memory.memorySourceText({
+      role: "assistant",
+      content:
+        '<audio_character id="char-9f2a">[soft laugh] 「行かないで。」</audio_character>と彼女は言った。 <speaker="Ren">"Fine."</speaker>',
+    }),
+    '「行かないで。」と彼女は言った。 "Fine."',
+  );
 
   const sources = [
     { id: "m1", role: "assistant", content: "Mira turns into a borzoi." },
@@ -101,6 +121,57 @@ try {
     "the words come from the sentence; a missing sentence is dropped",
   );
   assert.deepEqual(parsed.scenes[0]!.sourceIds, ["m1", "m2"], "message and sentence numbers become message IDs");
+  // A Japanese line inside a voice wrapper keeps its words, not the wrapper's tracking id.
+  const tagged = memory.parseCommittedMemoryOutput(
+    JSON.stringify({
+      summary: "요약",
+      core: "핵심",
+      facts: [],
+      scenes: [
+        {
+          event: "이별",
+          audience: "shared",
+          sourceIds: ["1"],
+          lines: [{ speaker: "ミラ", ref: "1.1" }],
+        },
+      ],
+    }),
+    [
+      {
+        id: "jp",
+        role: "assistant",
+        content:
+          '<audio_character id="char-9f2a">[soft laugh] 「行かないで。お願い。」</audio_character>と彼女は言った。',
+      },
+    ],
+  );
+  assert.equal(tagged.scenes[0]!.lines[0]!.text, "行かないで。お願い。");
+  // Lines saved as a tracking id by the earlier bug are hidden on read; real words stay.
+  const stored = policy.readCommittedMemory(
+    {
+      committedMemory: {
+        version: 3,
+        ownerChatId: "room",
+        enabled: true,
+        batches: [
+          batch(1, [
+            scene("old", "이별", {
+              lines: [
+                { speaker: "ミラ", text: "hb1WIG5AUa7D4-81rBunA", sourceId: "src1" },
+                { speaker: "ミラ", text: "char-9f2a", sourceId: "src1" },
+                { speaker: "ミラ", text: "行かないで。", sourceId: "src1" },
+              ],
+            }),
+          ]),
+        ],
+      },
+    },
+    "room",
+  );
+  assert.deepEqual(
+    stored.batches[0]!.scenes![0]!.lines.map((line) => line.text),
+    ["行かないで。"],
+  );
   // Evidence by sentence number: the phrase when it is in the sentence, else the whole sentence.
   parsed = parse({
     facts: [

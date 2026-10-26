@@ -85,6 +85,11 @@ function validScene(s: unknown) {
     (scene.audience === "shared" || Array.isArray(scene.audience))
   );
 }
+/**
+ * A line saved before voice markup was stripped could be a wrapper's id ("char-9f2a", a 21-character ID) instead
+ * of words; such a line is hidden on read. Re-committing ("다시 정리") records the real words.
+ */
+const TRACKING_ID = /^(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{8,}$/;
 const stringList = (value: unknown, limit: number) =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === "string").slice(0, limit) : [];
 function validEntity(e: unknown) {
@@ -154,7 +159,13 @@ export function readCommittedMemory(metadata: Record<string, unknown>, chatId: s
               changes: stringList(scene.changes, 12),
               keywords: keywords(scene.keywords),
               lines: (Array.isArray(scene.lines) ? scene.lines : [])
-                .filter((line) => line && typeof line.text === "string" && typeof line.sourceId === "string")
+                .filter(
+                  (line) =>
+                    line &&
+                    typeof line.text === "string" &&
+                    typeof line.sourceId === "string" &&
+                    !TRACKING_ID.test(line.text.trim()),
+                )
                 .slice(0, 3),
             })),
           }

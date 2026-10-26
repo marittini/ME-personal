@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   CHAT_SUMMARY_PROMPT_SETTINGS_KEY,
   estimateChatSummaryTokens,
+  hideTTSAudioCues,
   isGeminiThinkingLevelModel,
   type CommittedMemoryBatch,
   type CommittedMemoryEdit,
@@ -311,9 +312,15 @@ const extractionSchema = z.object({
     z.array(sceneSchema),
   ),
 });
-/** The text of a message as the extraction reads it (a user message without its roleplay commands). */
-function memorySourceText(m: Pick<MemorySourceMessage, "role" | "content">) {
-  return m.role === "user" ? parseRoleplayUserCommands(m.content).content : m.content;
+/**
+ * The text of a message as the extraction reads it: a user message without its roleplay commands, and every
+ * message without voice markup (<audio_character id="…"> wrappers and their [vocal cues]) or group <speaker>
+ * tags. Without this the first quoted string in a tagged line was the wrapper's id, so a kept line became the
+ * TTS tracking code, and the markup cost tokens on every commit.
+ */
+export function memorySourceText(m: Pick<MemorySourceMessage, "role" | "content">) {
+  const text = m.role === "user" ? parseRoleplayUserCommands(m.content).content : m.content;
+  return hideTTSAudioCues(text).replace(/<\/?speaker(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?\s*>/giu, "");
 }
 /**
  * Many models write `null` for a field they leave empty ("existingId": null). An empty optional field means the
@@ -337,10 +344,18 @@ function quoteText(value: string) {
     .trim()
     .toLowerCase();
 }
-/** True when `quote` (at least two characters) appears in one of the given messages. */
-export function memoryQuoteFound(quote: string | undefined, sources: readonly Pick<MemorySourceMessage, "content">[]) {
+/** True when `quote` (at least two characters) appears in one of the messages as the extraction read them. */
+export function memoryQuoteFound(
+  quote: string | undefined,
+  sources: readonly (Pick<MemorySourceMessage, "content"> & { role?: string })[],
+) {
   const needle = quoteText(quote ?? "");
-  return Array.from(needle).length >= 2 && sources.some((m) => quoteText(m.content).includes(needle));
+  return (
+    Array.from(needle).length >= 2 &&
+    sources.some((m) =>
+      quoteText(memorySourceText({ role: m.role ?? "assistant", content: m.content })).includes(needle),
+    )
+  );
 }
 const jobs = new Map<string, string>();
 const jobControllers = new Map<string, AbortController>();

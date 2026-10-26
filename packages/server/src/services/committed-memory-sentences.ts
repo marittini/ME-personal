@@ -5,6 +5,7 @@
 
 const OPENERS: Record<string, string> = { "“": "”", "「": "」", "『": "』", "(": ")", "‘": "’" };
 const ENDERS = new Set([".", "!", "?", "…", "。", "？", "！"]);
+const FULL_WIDTH_ENDERS = new Set(["。", "？", "！"]);
 const CLOSERS_AFTER_END = new Set(["”", '"', "’", "'", ")", "]", "」", "』"]);
 
 function splitSentences(paragraph: string) {
@@ -21,10 +22,12 @@ function splitSentences(paragraph: string) {
     if (ENDERS.has(ch) || (CLOSERS_AFTER_END.has(ch) && ENDERS.has(paragraph[i - 1] ?? ""))) {
       let j = i + 1;
       while (j < paragraph.length && CLOSERS_AFTER_END.has(paragraph[j]!) && paragraph[j] !== '"') j++;
-      if (j < paragraph.length && /\s/.test(paragraph[j]!)) {
+      // Japanese and Chinese sentence ends are not followed by a space; a full-width end mark splits there too.
+      if (j < paragraph.length && (/\s/.test(paragraph[j]!) || FULL_WIDTH_ENDERS.has(ch))) {
         parts.push(paragraph.slice(start, j));
         start = j;
-        i = j;
+        // Resume at the next character itself: it may open a quote.
+        i = j - 1;
       }
     }
   }
@@ -76,8 +79,14 @@ export function sentenceAt(ref: unknown, messages: readonly string[][]) {
   return text === undefined ? undefined : { message: message - 1, text };
 }
 
-/** The spoken words inside a sentence ("She said, “Wait.”" → "Wait."), or the whole sentence without quotes. */
+/**
+ * The spoken words inside a sentence: every quoted part, joined ("“Wait,” he says, “come back.”" → "Wait, come
+ * back."), or the whole sentence when nothing is quoted. Each quote mark closes only its own pair, so an apostrophe
+ * (don’t) or a single inner quote never cuts a line short.
+ */
 export function spokenPart(sentence: string) {
-  const quoted = /[“"「『‘]([^”"」』’]{2,})[”"」』’]/u.exec(sentence);
-  return (quoted?.[1] ?? sentence).trim();
+  const parts = [...sentence.matchAll(/“([^”]+)”|"([^"]+)"|「([^」]+)」|『([^』]+)』|«([^»]+)»/gu)]
+    .map((match) => (match.slice(1).find((group) => group !== undefined) ?? "").trim())
+    .filter(Boolean);
+  return (parts.length ? parts.join(" ") : sentence).trim();
 }
